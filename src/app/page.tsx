@@ -25,11 +25,11 @@ export default function HomePage() {
       <Navbar />
 
       {/* Trust bar */}
-      <div style={{background:'#1F2330', borderBottom:'1px solid rgba(255,255,255,0.06)', padding:'10px 32px'}}>
-        <div style={{maxWidth:1280, margin:'0 auto', display:'flex', alignItems:'center', justifyContent:'center', gap:48, flexWrap:'wrap'}}>
-          {[['🛡','Verified Seller Profiles'],['⚖️','FCA Compliant Platform'],['🔔','Instant Listing Alerts'],['📍','Province-Based Search'],['🏪','Licensed Dealer Directory']].map(([icon, text], index) => (
-            <div key={index} style={{display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#8A8E99', fontWeight:500}}>
-              <span style={{width:26, height:26, background:'rgba(201,146,42,0.1)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13}}>{icon}</span>
+      <div className="bg-[#1F2330] border-b border-white/5 py-3 px-6 md:px-8">
+        <div className="max-w-[1280px] mx-auto flex items-center justify-center gap-4 md:gap-12 flex-wrap">
+          {[['🛡','Verified Sellers'],['⚖️','FCA Compliant'],['🔔','Instant Alerts'],['📍','Local Search'],['🏪','Dealer Directory']].map(([icon, text], index) => (
+            <div key={index} className="flex items-center gap-2 text-[11px] md:text-xs text-[#8A8E99] font-medium">
+              <span className="w-5 h-5 md:w-6 md:h-6 bg-[#C9922A]/10 rounded-full flex items-center justify-center text-[10px] md:text-[13px]">{icon}</span>
               {text}
             </div>
           ))}
@@ -37,33 +37,33 @@ export default function HomePage() {
       </div>
 
       {/* HERO */}
-      <section style={{minHeight:'90vh', display:'flex', flexDirection:'column', justifyContent:'center', padding:'80px 32px 60px', position:'relative', overflow:'hidden'}}>
+      <section className="min-h-[90vh] flex flex-col justify-center px-6 py-16 md:px-8 md:py-20 relative overflow-hidden">
         <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse 60% 50% at 70% 50%, rgba(201,146,42,0.08) 0%, transparent 70%), radial-gradient(ellipse 40% 60% at 20% 80%, rgba(201,146,42,0.04) 0%, transparent 60%)'}} />
         <div style={{position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize:'60px 60px'}} />
 
-        <div style={{maxWidth:1280, margin:'0 auto', width:'100%', position:'relative', zIndex:1}}>
+        <div className="max-w-[1280px] mx-auto w-full relative z-10">
 
           {/* Tag */}
-          <div style={{display:'inline-flex', alignItems:'center', gap:8, background:'rgba(201,146,42,0.1)', border:'1px solid rgba(201,146,42,0.2)', color:'#C9922A', fontSize:11, fontWeight:600, letterSpacing:'0.2em', textTransform:'uppercase', padding:'6px 14px', borderRadius:2, marginBottom:28}}>
-            <span style={{width:6, height:6, background:'#C9922A', borderRadius:'50%'}} />
+          <div className="inline-flex items-center gap-2 bg-[#C9922A]/10 border border-[#C9922A]/20 text-[#C9922A] text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase px-3 py-1.5 md:px-4 md:py-2 rounded-sm mb-6 md:mb-7">
+            <span className="w-1.5 h-1.5 bg-[#C9922A] rounded-full" />
             South Africa&apos;s Freshest Firearms Classifieds
           </div>
 
           {/* H1 */}
-          <h1 style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:800, fontSize:'clamp(56px, 8vw, 100px)', lineHeight:0.93, letterSpacing:'-0.01em', textTransform:'uppercase', marginBottom:24, color:'#F0EDE8'}}>
+          <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-5xl md:text-7xl lg:text-[100px] leading-[1.1] md:leading-[0.93] tracking-tight uppercase mb-6 text-[#F0EDE8]">
             Buy &amp; Sell<br/>
-            <span style={{color:'#C9922A'}}>Legally.</span>{' '}
+            <span className="text-[#C9922A]">Legally.</span>{' '}
             Confidently.
           </h1>
 
-          <p style={{fontSize:17, color:'#8A8E99', lineHeight:1.6, maxWidth:520, marginBottom:40, fontWeight:300}}>
+          <p className="text-base md:text-[17px] text-[#8A8E99] leading-relaxed max-w-[520px] mb-8 md:mb-10 font-light">
             The cleanest classified portal for licensed firearms in South Africa.
             Connect directly with verified dealers and private sellers — no middlemen, no direct sales.
           </p>
 
           {/* Search */}
-          <div style={{display:'flex', maxWidth:780, background:'#191C23', border:'1px solid rgba(201,146,42,0.15)', borderRadius:4, overflow:'hidden', marginBottom:40}}>
-            <select style={{background:'#1F2330', border:'none', borderRight:'1px solid rgba(255,255,255,0.07)', color:'#F0EDE8', fontFamily:"'Barlow', sans-serif", fontSize:13, fontWeight:500, padding:'0 20px', minWidth:160, cursor:'pointer', outline:'none'}}>
+          <div className="flex flex-col md:flex-row w-full max-w-[780px] bg-[#191C23] border border-[#C9922A]/15 rounded-md overflow-hidden mb-10">
+            <select style={{fontFamily:"'Barlow', sans-serif"}} className="bg-[#1F2330] border-none md:border-r border-b md:border-b-0 border-white/10 text-[#F0EDE8] text-[13px] font-medium px-5 py-4 md:py-0 md:min-w-[160px] cursor-pointer outline-none appearance-none">
               <option>All Categories</option>
               <option>Pistols</option>
               <option>Rifles</option>
@@ -72,32 +72,30 @@ export default function HomePage() {
               <option>Air Guns</option>
               <option>Ammunition</option>
               <option>Accessories</option>
-              <option>Reloading</option>
-              <option>Knives</option>
-              <option>Wanted</option>
             </select>
             <input
               type="text"
               placeholder="Search by make, model, calibre..."
-              style={{flex:1, background:'transparent', border:'none', outline:'none', color:'#F0EDE8', fontFamily:"'Barlow', sans-serif", fontSize:15, padding:'18px 20px'}}
+              style={{fontFamily:"'Barlow', sans-serif"}}
+              className="flex-1 bg-transparent border-none outline-none text-[#F0EDE8] text-[15px] px-5 py-4"
             />
-            <select style={{background:'#1F2330', border:'none', borderLeft:'1px solid rgba(255,255,255,0.07)', color:'#8A8E99', fontFamily:"'Barlow', sans-serif", fontSize:13, padding:'0 20px', minWidth:140, cursor:'pointer', outline:'none'}}>
+            <select style={{fontFamily:"'Barlow', sans-serif"}} className="bg-[#1F2330] border-none md:border-l border-t md:border-t-0 border-white/10 text-[#8A8E99] text-[13px] px-5 py-4 md:py-0 md:min-w-[140px] cursor-pointer outline-none appearance-none">
               <option value="">All Provinces</option>
               {['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Limpopo','Mpumalanga','North West','Free State','Northern Cape'].map(p => <option key={p}>{p}</option>)}
             </select>
-            <button style={{background:'#C9922A', border:'none', color:'#000', fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:14, letterSpacing:'0.1em', textTransform:'uppercase', padding:'0 28px', cursor:'pointer'}}>
+            <button style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] border-none text-black font-bold text-[14px] tracking-[0.1em] uppercase px-7 py-4 md:py-0 cursor-pointer">
               Search
             </button>
           </div>
 
           {/* Stats */}
-          <div style={{display:'flex', gap:40, alignItems:'center'}}>
-            {[['4,200+','Active Listings'],['180+','Verified Dealers'],['9','Provinces Covered'],['100%','FCA Compliant']].map(([num, label], i) => (
-              <div key={label} style={{display:'flex', alignItems:'center', gap:40}}>
-                {i > 0 && <div style={{width:1, height:40, background:'rgba(255,255,255,0.07)'}} />}
-                <div style={{display:'flex', flexDirection:'column', gap:2}}>
-                  <span style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:28, color:'#F0EDE8'}}>{num}</span>
-                  <span style={{fontSize:12, color:'#8A8E99', letterSpacing:'0.05em', textTransform:'uppercase'}}>{label}</span>
+          <div className="grid grid-cols-2 md:flex md:flex-row gap-6 md:gap-10 items-center">
+            {[['4,200+','Active Listings'],['180+','Verified Dealers'],['9','Provinces'],['100%','FCA Compliant']].map(([num, label], i) => (
+              <div key={label} className="flex items-center md:gap-10">
+                {i > 0 && <div className="hidden md:block w-[1px] h-10 bg-white/10" />}
+                <div className="flex flex-col gap-1">
+                  <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-[24px] md:text-[28px] text-[#F0EDE8]">{num}</span>
+                  <span className="text-[10px] md:text-[12px] text-[#8A8E99] tracking-wider uppercase">{label}</span>
                 </div>
               </div>
             ))}
@@ -106,22 +104,22 @@ export default function HomePage() {
       </section>
 
       {/* CATEGORIES */}
-      <section style={{padding:'80px 32px', background:'#191C23', borderTop:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{maxWidth:1280, margin:'0 auto'}}>
-          <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:32}}>
+      <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
-              <span style={{display:'block', fontSize:11, color:'#C9922A', fontWeight:600, letterSpacing:'0.2em', textTransform:'uppercase', marginBottom:4}}>Browse by type</span>
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:32, textTransform:'uppercase', letterSpacing:'0.05em', color:'#F0EDE8'}}>Categories</h2>
+              <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Browse by type</span>
+              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">Categories</h2>
             </div>
-            <Link href="/listings" style={{color:'#C9922A', textDecoration:'none', fontSize:13, fontWeight:500, letterSpacing:'0.05em', textTransform:'uppercase'}}>All categories →</Link>
+            <Link href="/listings" className="text-[#C9922A] text-xs md:text-[13px] font-medium tracking-wide uppercase hover:underline">All categories →</Link>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:12}}>
+          {/* Changed grid-cols to adapt from 2 (mobile) to 3 (tablet) to 6 (desktop) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
             {CATEGORIES.map(cat => (
-              <Link key={cat.slug} href={`/listings?cat=${cat.slug}`} style={{background:'#111318', border:'1px solid rgba(255,255,255,0.06)', borderRadius:4, padding:'20px 16px', textDecoration:'none', display:'flex', flexDirection:'column', gap:10, transition:'all 0.2s'}}
-              >
-                <span style={{fontSize:24}}>{cat.icon}</span>
-                <span style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:600, fontSize:15, letterSpacing:'0.05em', color:'#F0EDE8', textTransform:'uppercase'}}>{cat.label}</span>
-                <span style={{fontSize:12, color:'#8A8E99'}}>{cat.count} listings</span>
+              <Link key={cat.slug} href={`/listings?cat=${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-2 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
+                <span className="text-2xl md:text-[24px]">{cat.icon}</span>
+                <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-semibold text-sm md:text-[15px] tracking-wide text-[#F0EDE8] uppercase">{cat.label}</span>
+                <span className="text-[11px] md:text-[12px] text-[#8A8E99]">{cat.count} listings</span>
               </Link>
             ))}
           </div>
@@ -129,26 +127,27 @@ export default function HomePage() {
       </section>
 
       {/* LISTINGS */}
-      <section style={{padding:'80px 32px', background:'#191C23', borderTop:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{maxWidth:1280, margin:'0 auto'}}>
-          <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:32}}>
+      <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
-              <span style={{display:'block', fontSize:11, color:'#C9922A', fontWeight:600, letterSpacing:'0.2em', textTransform:'uppercase', marginBottom:4}}>Just posted</span>
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:32, textTransform:'uppercase', letterSpacing:'0.05em', color:'#F0EDE8'}}>Recent Listings</h2>
+              <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Just posted</span>
+              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">Recent Listings</h2>
             </div>
-            <Link href="/listings" style={{color:'#C9922A', textDecoration:'none', fontSize:13, fontWeight:500, letterSpacing:'0.05em', textTransform:'uppercase'}}>View all →</Link>
+            <Link href="/listings" className="text-[#C9922A] text-xs md:text-[13px] font-medium tracking-wide uppercase hover:underline">View all →</Link>
           </div>
 
-          {/* Tabs */}
-          <div style={{display:'flex', borderBottom:'1px solid rgba(255,255,255,0.06)', marginBottom:32}}>
+          {/* Tabs - Added overflow-x-auto for swiping on mobile */}
+          <div className="flex overflow-x-auto border-b border-white/5 mb-8 no-scrollbar">
             {['All','🏪 Dealer Stock','👤 Private','🔔 Wanted'].map((tab, i) => (
-              <button key={tab} style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:600, fontSize:14, letterSpacing:'0.1em', textTransform:'uppercase', padding:'12px 24px', border:'none', background:'transparent', color: i===0 ? '#C9922A' : '#8A8E99', borderBottom: i===0 ? '2px solid #C9922A' : '2px solid transparent', cursor:'pointer', marginBottom:-1}}>
+              <button key={tab} style={{fontFamily:"'Barlow Condensed', sans-serif"}} className={`font-semibold text-[13px] md:text-[14px] tracking-widest uppercase px-4 md:px-6 py-3 border-b-2 whitespace-nowrap ${i === 0 ? 'text-[#C9922A] border-[#C9922A]' : 'text-[#8A8E99] border-transparent'}`}>
                 {tab}
               </button>
             ))}
           </div>
 
-          <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:16}}>
+          {/* Changed grid-cols to adapt from 1 (mobile) to 2 (tablet) to 4 (desktop) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
             {DEMO_LISTINGS.map(listing => (
               <ListingCard key={listing.id} {...listing} />
             ))}
@@ -157,23 +156,24 @@ export default function HomePage() {
       </section>
 
       {/* HOW IT WORKS */}
-      <section style={{padding:'80px 32px', background:'#111318', borderTop:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{maxWidth:1280, margin:'0 auto'}}>
-          <div style={{marginBottom:40}}>
-            <span style={{display:'block', fontSize:11, color:'#C9922A', fontWeight:600, letterSpacing:'0.2em', textTransform:'uppercase', marginBottom:4}}>Simple &amp; Safe</span>
-            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:32, textTransform:'uppercase', letterSpacing:'0.05em', color:'#F0EDE8'}}>How it Works</h2>
+      <section className="px-6 py-16 md:px-8 md:py-20 bg-[#111318] border-t border-white/5">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="mb-10">
+            <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Simple &amp; Safe</span>
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">How it Works</h2>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden'}}>
+          {/* Stacked columns on mobile, row on desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-3 border border-white/5 rounded-md overflow-hidden">
             {[
               ['01','🔍','Browse Listings','Search by category, calibre, province, price and condition. Filter by dealer stock or private listings. Save searches and get email alerts.'],
               ['02','💬','Contact the Seller','Reach out through secure messaging. View verified seller profiles and licence confirmations before making contact.'],
-              ['03','🤝','Transact Legally','All transactions happen between buyer and seller in full compliance with the Firearms Control Act. We connect people — the legal transfer is yours to complete.'],
+              ['03','🤝','Transact Legally','All transactions happen between buyer and seller in full compliance with the Firearms Control Act. We connect people — the legal transfer is yours.'],
             ].map(([num, icon, title, desc], i) => (
-              <div key={num} style={{padding:'40px 32px', borderRight: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none', position:'relative'}}>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:800, fontSize:80, color:'rgba(201,146,42,0.07)', lineHeight:1, position:'absolute', top:20, right:24}}>{num}</div>
-                <div style={{width:48, height:48, background:'rgba(201,146,42,0.1)', border:'1px solid rgba(201,146,42,0.15)', borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, marginBottom:20}}>{icon}</div>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:22, letterSpacing:'0.05em', textTransform:'uppercase', marginBottom:12, color:'#F0EDE8'}}>{title}</div>
-                <p style={{fontSize:14, color:'#8A8E99', lineHeight:1.7}}>{desc}</p>
+              <div key={num} className={`p-8 md:p-10 relative ${i < 2 ? 'border-b md:border-b-0 md:border-r border-white/5' : ''}`}>
+                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[60px] md:text-[80px] text-[#C9922A]/5 leading-none absolute top-4 md:top-5 right-6">{num}</div>
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-[#C9922A]/10 border border-[#C9922A]/15 rounded-md flex items-center justify-center text-[20px] md:text-[22px] mb-5 md:mb-6">{icon}</div>
+                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl md:text-[22px] tracking-wide uppercase mb-3 text-[#F0EDE8]">{title}</div>
+                <p className="text-[13px] md:text-[14px] text-[#8A8E99] leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
@@ -181,76 +181,6 @@ export default function HomePage() {
       </section>
 
       {/* DEALER CTA */}
-      <section style={{padding:'80px 32px', background:'#191C23', borderTop:'1px solid rgba(255,255,255,0.06)'}}>
-        <div style={{maxWidth:1280, margin:'0 auto'}}>
-          <div style={{background:'linear-gradient(135deg, rgba(201,146,42,0.08) 0%, rgba(201,146,42,0.03) 100%)', border:'1px solid rgba(201,146,42,0.15)', borderRadius:4, padding:48, display:'flex', alignItems:'center', justifyContent:'space-between', gap:32}}>
-            <div>
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:800, fontSize:40, textTransform:'uppercase', lineHeight:1, marginBottom:12, color:'#F0EDE8'}}>
-                Grow Your <span style={{color:'#C9922A'}}>Dealership</span><br/>Online.
-              </h2>
-              <p style={{fontSize:15, color:'#8A8E99', maxWidth:480, lineHeight:1.6, marginBottom:20}}>
-                List your full inventory on Calibre.ZA and reach thousands of active buyers across South Africa every month.
-              </p>
-              <div style={{display:'flex', flexDirection:'column', gap:8}}>
-                {['Dedicated dealer storefront with your branding','Unlimited listings with bulk upload tools','Priority search placement and featured badges','Lead analytics and enquiry tracking dashboard'].map(f => (
-                  <div key={f} style={{display:'flex', alignItems:'center', gap:10, fontSize:14, color:'#F0EDE8'}}>
-                    <span style={{width:16, height:16, background:'rgba(42,156,110,0.1)', border:'1px solid rgba(42,156,110,0.4)', borderRadius:'50%', display:'inline-block', flexShrink:0}} />
-                    {f}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{display:'flex', flexDirection:'column', gap:12, flexShrink:0}}>
-              <Link href="/dealers/apply" style={{background:'#C9922A', color:'#000', fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:14, letterSpacing:'0.1em', textTransform:'uppercase', padding:'16px 28px', borderRadius:3, textDecoration:'none', textAlign:'center', minWidth:220, display:'block'}}>
-                Apply for Dealer Account
-              </Link>
-              <Link href="/pricing" style={{background:'transparent', border:'1px solid rgba(201,146,42,0.4)', color:'#C9922A', fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:14, letterSpacing:'0.1em', textTransform:'uppercase', padding:'16px 28px', borderRadius:3, textDecoration:'none', textAlign:'center', display:'block'}}>
-                View Pricing Plans
-              </Link>
-              <p style={{fontSize:12, color:'#8A8E99', textAlign:'center', lineHeight:1.5}}>Free 30-day trial for licensed dealers.<br/>Cancel anytime.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer style={{background:'#0D0F13', borderTop:'1px solid rgba(255,255,255,0.06)', padding:'60px 32px 32px'}}>
-        <div style={{maxWidth:1280, margin:'0 auto'}}>
-          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:48, marginBottom:48}}>
-            <div>
-              <div style={{marginBottom:16}}>
-                <span style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:800, fontSize:22, letterSpacing:'0.15em', color:'#F0EDE8', textTransform:'uppercase'}}>CALIBRE<span style={{color:'#C9922A'}}>.</span>ZA</span>
-              </div>
-              <p style={{fontSize:13, color:'#8A8E99', lineHeight:1.7, maxWidth:280}}>South Africa&apos;s cleanest classified portal for legal firearms. Connecting licensed dealers and private sellers with buyers across all nine provinces.</p>
-              <div style={{marginTop:20, display:'inline-flex', alignItems:'center', gap:8, background:'rgba(201,146,42,0.06)', border:'1px solid rgba(201,146,42,0.15)', padding:'8px 14px', borderRadius:3, fontSize:11, color:'#8A8E99'}}>
-                <span style={{color:'#C9922A', fontWeight:600}}>FCA</span> Compliant · POPI Act Registered
-              </div>
-            </div>
-            {[
-              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Accessories','Ammunition']],
-              ['Platform', ['How it Works','Dealer Directory','Post a Listing','Dealer Plans','Price Guide']],
-              ['Company', ['About Us','Contact','FAQs','Blog','Report a Listing']],
-            ].map(([heading, links], index) => (
-              <div key={index}>
-                <h4 style={{fontFamily:"'Barlow Condensed', sans-serif", fontWeight:700, fontSize:13, letterSpacing:'0.15em', textTransform:'uppercase', color:'#F0EDE8', marginBottom:16}}>{heading as string}</h4>
-                <ul style={{listStyle:'none', display:'flex', flexDirection:'column', gap:10}}>
-                  {(links as string[]).map((link, linkIndex) => (
-                    <li key={linkIndex}><Link href="#" style={{fontSize:13, color:'#8A8E99', textDecoration:'none'}}>{link}</Link></li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div style={{borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:24, display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:12, color:'#8A8E99'}}>
-            <div>© 2026 Calibre.ZA — All rights reserved</div>
-            <div style={{display:'flex', gap:20}}>
-              {['Terms of Use','Privacy Policy','POPI Act','Legal Disclaimer'].map((l, i) => (
-                <Link key={i} href="#" style={{color:'#8A8E99', textDecoration:'none'}}>{l}</Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
-    </>
-  )
-}
+      <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="bg-gradient-to-br from-[#C9922A]/10 to-[#C9922A]/5 border border-[#C9922A]/15 rounded-md p-8 md:p-12 flex flex-col md:flex-row
