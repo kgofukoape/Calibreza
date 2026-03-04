@@ -16,7 +16,13 @@ const CATEGORIES = [
   { slug:'shotguns', label:'Shotguns', icon:'💥', count:'540' },
   { slug:'revolvers', label:'Revolvers', icon:'🌀', count:'310' },
   { slug:'air-guns', label:'Air Guns', icon:'💨', count:'420' },
+  { slug:'airsoft', label:'Airsoft Guns', icon:'⚡', count:'280' },
   { slug:'accessories', label:'Accessories', icon:'🎒', count:'2,100' },
+  { slug:'ammunition', label:'Ammunition', icon:'💊', count:'850' },
+  { slug:'reloading', label:'Reloading', icon:'🔧', count:'1,120' },
+  { slug:'knives', label:'Knives & Blades', icon:'🔪', count:'670' },
+  { slug:'services', label:'Services', icon:'🏪', count:'140' },
+  { slug:'wanted', label:'Wanted', icon:'📢', count:'85' },
 ];
 
 export default function HomePage() {
@@ -64,8 +70,13 @@ export default function HomePage() {
               <option>Shotguns</option>
               <option>Revolvers</option>
               <option>Air Guns</option>
-              <option>Ammunition</option>
+              <option>Airsoft Guns</option>
               <option>Accessories</option>
+              <option>Ammunition</option>
+              <option>Reloading</option>
+              <option>Knives & Blades</option>
+              <option>Services</option>
+              <option>Wanted</option>
             </select>
             <input
               type="text"
@@ -212,7 +223,7 @@ export default function HomePage() {
               </div>
             </div>
             {[
-              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Accessories','Ammunition']],
+              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Airsoft Guns','Accessories','Ammunition', 'Reloading', 'Knives & Blades']],
               ['Platform', ['How it Works','Dealer Directory','Post a Listing','Dealer Plans','Price Guide']],
               ['Company', ['About Us','Contact','FAQs','Blog','Report a Listing']],
             ].map(([heading, links], index) => (
@@ -220,7 +231,7 @@ export default function HomePage() {
                 <h4 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-[13px] tracking-[0.15em] uppercase text-[#F0EDE8] mb-4 md:mb-5">{heading as string}</h4>
                 <ul className="flex flex-col gap-2.5 md:gap-3">
                   {(links as string[]).map((link, linkIndex) => (
-                    <li key={linkIndex}><Link href="#" className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{link}</Link></li>
+                    <li key={linkIndex}><Link href="#" className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{link as string}</Link></li>
                   ))}
                 </ul>
               </div>
