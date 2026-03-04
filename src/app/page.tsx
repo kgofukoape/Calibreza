@@ -10,19 +10,34 @@ const DEMO_LISTINGS = [
   { id:'4', title:'Vortex Viper PST Gen II 5-25x50', make:'Vortex', price:14000, province:'Gauteng', condition:'Like New', category:'accessories', listingType:'private' as const, sellerName:'Pretoria East', calibre:'34mm Tube' },
 ];
 
+// Premium SVG Icons replacing all emojis
+const TOP_FEATURES = [
+  { text: 'Verified Sellers', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 md:w-4 md:h-4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> },
+  { text: 'FCA Compliant', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 md:w-4 md:h-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg> },
+  { text: 'Instant Alerts', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 md:w-4 md:h-4"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
+  { text: 'Local Search', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 md:w-4 md:h-4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
+  { text: 'Dealer Directory', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 md:w-4 md:h-4"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+];
+
+const HOW_IT_WORKS = [
+  { num: '01', title: 'Browse Listings', desc: 'Search by category, calibre, province, price and condition. Filter by dealer stock or private listings. Save searches and get email alerts.', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+  { num: '02', title: 'Contact the Seller', desc: 'Reach out through secure messaging. View verified seller profiles and licence confirmations before making contact.', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+  { num: '03', title: 'Transact Legally', desc: 'All transactions happen between buyer and seller in full compliance with the Firearms Control Act. We connect people — the legal transfer is yours.', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> },
+];
+
 const CATEGORIES = [
-  { slug:'pistols', label:'Pistols', icon:'🔫', count:'1,240' },
-  { slug:'rifles', label:'Rifles', icon:'🎯', count:'1,820' },
-  { slug:'shotguns', label:'Shotguns', icon:'💥', count:'540' },
-  { slug:'revolvers', label:'Revolvers', icon:'🌀', count:'310' },
-  { slug:'air-guns', label:'Air Guns', icon:'💨', count:'420' },
-  { slug:'airsoft', label:'Airsoft Guns', icon:'⚡', count:'280' },
-  { slug:'accessories', label:'Accessories', icon:'🎒', count:'2,100' },
-  { slug:'ammunition', label:'Ammunition', icon:'💊', count:'850' },
-  { slug:'reloading', label:'Reloading', icon:'🔧', count:'1,120' },
-  { slug:'knives', label:'Knives & Blades', icon:'🔪', count:'670' },
-  { slug:'services', label:'Services', icon:'🏪', count:'140' },
-  { slug:'wanted', label:'Wanted', icon:'📢', count:'85' },
+  { slug:'pistols', label:'Pistols', count:'1,240', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> },
+  { slug:'rifles', label:'Rifles', count:'1,820', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><circle cx="12" cy="12" r="8"/><path d="M12 2v20M2 12h20"/></svg> },
+  { slug:'shotguns', label:'Shotguns', count:'540', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><circle cx="7.5" cy="12" r="4.5"/><circle cx="16.5" cy="12" r="4.5"/><path d="M7.5 7.5h9M7.5 16.5h9M12 7.5v9"/></svg> },
+  { slug:'revolvers', label:'Revolvers', count:'310', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><circle cx="6.8" cy="9" r="2.5"/><circle cx="17.2" cy="9" r="2.5"/><circle cx="6.8" cy="15" r="2.5"/><circle cx="17.2" cy="15" r="2.5"/><circle cx="12" cy="12" r="1"/></svg> },
+  { slug:'air-guns', label:'Air Guns', count:'420', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg> },
+  { slug:'airsoft', label:'Airsoft Guns', count:'280', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> },
+  { slug:'accessories', label:'Accessories', count:'2,100', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M8 10h8"/><path d="M8 14h8"/></svg> },
+  { slug:'ammunition', label:'Ammunition', count:'850', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M8.5 9V5a3.5 3.5 0 0 1 7 0v4"/><rect x="8.5" y="9" width="7" height="12" rx="1"/><line x1="8.5" y1="18" x2="15.5" y2="18"/></svg> },
+  { slug:'reloading', label:'Reloading', count:'1,120', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> },
+  { slug:'knives', label:'Knives & Blades', count:'670', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M3 21h5l13-13a1.5 1.5 0 0 0-2-2L6 19v2z"/><line x1="8" y1="16" x2="11" y2="19"/></svg> },
+  { slug:'services', label:'Services', count:'140', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
+  { slug:'wanted', label:'Wanted', count:'85', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/></svg> },
 ];
 
 export default function HomePage() {
@@ -32,10 +47,12 @@ export default function HomePage() {
 
       <div className="bg-[#1F2330] border-b border-white/5 py-3 px-6 md:px-8">
         <div className="max-w-[1280px] mx-auto flex items-center justify-center gap-4 md:gap-12 flex-wrap">
-          {[['🛡','Verified Sellers'],['⚖️','FCA Compliant'],['🔔','Instant Alerts'],['📍','Local Search'],['🏪','Dealer Directory']].map(([icon, text], index) => (
+          {TOP_FEATURES.map((feature, index) => (
             <div key={index} className="flex items-center gap-2 text-[11px] md:text-xs text-[#8A8E99] font-medium">
-              <span className="w-5 h-5 md:w-6 md:h-6 bg-[#C9922A]/10 rounded-full flex items-center justify-center text-[10px] md:text-[13px]">{icon}</span>
-              {text}
+              <span className="w-5 h-5 md:w-6 md:h-6 bg-[#C9922A]/10 text-[#C9922A] rounded-full flex items-center justify-center">
+                {feature.icon}
+              </span>
+              {feature.text}
             </div>
           ))}
         </div>
@@ -65,18 +82,7 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row w-full max-w-[780px] bg-[#191C23] border border-[#C9922A]/15 rounded-md overflow-hidden mb-10">
             <select style={{fontFamily:"'Barlow', sans-serif"}} className="bg-[#1F2330] border-none md:border-r border-b md:border-b-0 border-white/10 text-[#F0EDE8] text-[13px] font-medium px-5 py-4 md:py-0 md:min-w-[160px] cursor-pointer outline-none appearance-none">
               <option>All Categories</option>
-              <option>Pistols</option>
-              <option>Rifles</option>
-              <option>Shotguns</option>
-              <option>Revolvers</option>
-              <option>Air Guns</option>
-              <option>Airsoft Guns</option>
-              <option>Accessories</option>
-              <option>Ammunition</option>
-              <option>Reloading</option>
-              <option>Knives & Blades</option>
-              <option>Services</option>
-              <option>Wanted</option>
+              {CATEGORIES.map(cat => <option key={cat.slug}>{cat.label}</option>)}
             </select>
             <input
               type="text"
@@ -118,10 +124,10 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
             {CATEGORIES.map(cat => (
-              <Link key={cat.slug} href={`/${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-2 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
-                <span className="text-2xl md:text-[24px]">{cat.icon}</span>
-                <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-semibold text-sm md:text-[15px] tracking-wide text-[#F0EDE8] uppercase">{cat.label}</span>
-                <span className="text-[11px] md:text-[12px] text-[#8A8E99]">{cat.count} listings</span>
+              <Link key={cat.slug} href={`/${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-3 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
+                <div className="mb-1">{cat.icon}</div>
+                <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-semibold text-sm md:text-[15px] tracking-wide text-[#F0EDE8] uppercase group-hover:text-white transition-colors">{cat.label}</span>
+                <span className="text-[11px] md:text-[12px] text-[#8A8E99] group-hover:text-[#C9922A] transition-colors">{cat.count} listings</span>
               </Link>
             ))}
           </div>
@@ -160,16 +166,12 @@ export default function HomePage() {
             <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">How it Works</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 border border-white/5 rounded-md overflow-hidden">
-            {[
-              ['01','🔍','Browse Listings','Search by category, calibre, province, price and condition. Filter by dealer stock or private listings. Save searches and get email alerts.'],
-              ['02','💬','Contact the Seller','Reach out through secure messaging. View verified seller profiles and licence confirmations before making contact.'],
-              ['03','🤝','Transact Legally','All transactions happen between buyer and seller in full compliance with the Firearms Control Act. We connect people — the legal transfer is yours.'],
-            ].map(([num, icon, title, desc], i) => (
-              <div key={num} className={`p-8 md:p-10 relative ${i < 2 ? 'border-b md:border-b-0 md:border-r border-white/5' : ''}`}>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[60px] md:text-[80px] text-[#C9922A]/5 leading-none absolute top-4 md:top-5 right-6">{num}</div>
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-[#C9922A]/10 border border-[#C9922A]/15 rounded-md flex items-center justify-center text-[20px] md:text-[22px] mb-5 md:mb-6">{icon}</div>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl md:text-[22px] tracking-wide uppercase mb-3 text-[#F0EDE8]">{title}</div>
-                <p className="text-[13px] md:text-[14px] text-[#8A8E99] leading-relaxed">{desc}</p>
+            {HOW_IT_WORKS.map((step, i) => (
+              <div key={step.num} className={`p-8 md:p-10 relative ${i < 2 ? 'border-b md:border-b-0 md:border-r border-white/5' : ''}`}>
+                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[60px] md:text-[80px] text-[#C9922A]/5 leading-none absolute top-4 md:top-5 right-6">{step.num}</div>
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-[#C9922A]/10 border border-[#C9922A]/15 rounded-md flex items-center justify-center text-[#C9922A] mb-5 md:mb-6">{step.icon}</div>
+                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl md:text-[22px] tracking-wide uppercase mb-3 text-[#F0EDE8]">{step.title}</div>
+                <p className="text-[13px] md:text-[14px] text-[#8A8E99] leading-relaxed">{step.desc}</p>
               </div>
             ))}
           </div>
