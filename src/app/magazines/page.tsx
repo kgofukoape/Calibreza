@@ -68,7 +68,8 @@ export default function MagazinesPage() {
                   'Glock 17/19/26/34', 'Glock 43/43X/48', 'CZ 75 / SP-01 / Shadow', 
                   'CZ P-10 / P-07', 'Sig P320 / M17', 'Sig P365 / XL', 
                   'Smith & Wesson M&P', '1911 Single Stack', '2011 Double Stack', 
-                  'AICS Pattern (Bolt Action)', 'Remington 700', 'Saiga / VEPR 12', 'Universal / Multi-Fit'
+                  'AICS Pattern (Bolt Action)', 'Remington 700', 'Saiga / VEPR 12', 
+                  'Universal / Multi-Fit', 'Other'
                 ].map(fit => (
                   <label key={fit} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
