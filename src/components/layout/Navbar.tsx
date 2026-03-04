@@ -17,10 +17,11 @@ export default function Navbar() {
       <div className="bg-[#191C23] border-b border-white/5 relative z-50">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between h-16 md:h-20 px-6 md:px-8">
 
-          {/* Logo */}
-          <Link href="/" className="flex flex-col">
-            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-3xl md:text-[32px] tracking-[0.1em] text-[#F0EDE8] leading-none uppercase">
-              GUN <span className="text-[#C9922A]">X</span>
+          {/* Logo - Fully Integrated GUN eXchange branding */}
+          <Link href="/" className="flex flex-col flex-shrink-0">
+            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="tracking-[0.08em] leading-none uppercase">
+              <span className="font-bold text-[22px] md:text-[26px] text-[#8A8E99]">GUN</span>{' '}
+              <span className="font-extrabold text-[28px] md:text-[32px] text-[#F0EDE8]">e<span className="text-[#C9922A]">X</span>change</span>
             </span>
             <span className="text-[8px] md:text-[10px] text-[#8A8E99] tracking-[0.3em] uppercase mt-1">Firearms Classifieds</span>
           </Link>
@@ -46,7 +47,7 @@ export default function Navbar() {
 
           {/* Mobile Hamburger Button */}
           <button
-            className="md:hidden flex flex-col justify-center items-center w-8 h-8 space-y-1.5 focus:outline-none"
+            className="md:hidden flex flex-col justify-center items-center w-8 h-8 space-y-1.5 focus:outline-none ml-4"
             onClick={() => setIsOpen(!isOpen)}
           >
             <span className={`bg-[#F0EDE8] block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm ${isOpen ? 'rotate-45 translate-y-2' : '-translate-y-0.5'}`}></span>
