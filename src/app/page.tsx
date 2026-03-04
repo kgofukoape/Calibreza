@@ -43,7 +43,7 @@ export default function ListingsPage() {
               <button className="text-[11px] text-[#C9922A] uppercase tracking-wider hover:underline">Clear All</button>
             </div>
 
-            {/* Alphabetized Brand List */}
+            {/* Alphabetized Brand List + Other */}
             <div className="flex flex-col gap-3">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Brand</span>
               <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -53,11 +53,31 @@ export default function ListingsPage() {
                   'Heckler & Koch (HK)', 'HS Produkt / Springfield', 'IWI', 'Kahr', 
                   'KelTec', 'Kimber', 'Llama', 'Norinco', 'Remington', 'Ruger', 
                   'SAR 9', 'Sarsilmaz', 'Sig Sauer', 'Smith & Wesson', 'Star', 
-                  'Steyr', 'Tanfoglio', 'Taurus', 'Tokarev', 'Vektor', 'Walther', 'Zastava'
+                  'Steyr', 'Tanfoglio', 'Taurus', 'Tokarev', 'Vektor', 'Walther', 'Zastava', 'Other'
                 ].map(brand => (
                   <label key={brand} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
                     <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{brand}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Calibre Filter + Other */}
+            <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
+              <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Calibre</span>
+              <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                {[
+                  '9mm Luger (9x19mm)', '.45 ACP', '.40 S&W', '.357 Magnum', '.38 Special', 
+                  '10mm Auto', '.357 SIG', '.380 ACP', '.44 Magnum', '.22 LR', '.45 GAP', 
+                  '.41 Magnum', '.327 Federal Magnum', '.32 ACP', '.25 ACP', '.44 Special', 
+                  '.38 Super', '5.7x28mm', '4.6x30mm', '9x18mm Makarov', '7.62x25mm Tokarev', 
+                  '.30 Luger (7.65mm Parabellum)', '.45 Colt', '.50 AE', '.454 Casull', 
+                  '.460 S&W Magnum', '.500 S&W Magnum', '9x21mm', '.22 WMR', '.224 BOZ', 'Other'
+                ].map(calibre => (
+                  <label key={calibre} className="flex items-center gap-3 cursor-pointer group">
+                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
+                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{calibre}</span>
                   </label>
                 ))}
               </div>
