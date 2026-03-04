@@ -45,7 +45,7 @@ export default function RiflesPage() {
               <button className="text-[11px] text-[#C9922A] uppercase tracking-wider hover:underline">Clear All</button>
             </div>
 
-            {/* Action Type Filter - MOVED TO TOP */}
+            {/* Action Type Filter */}
             <div className="flex flex-col gap-3">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Action Type</span>
               <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
@@ -62,21 +62,12 @@ export default function RiflesPage() {
               </div>
             </div>
 
-            {/* Comprehensive Rifle Brands */}
+            {/* EXHAUSTIVE RIFLE BRANDS (From PDF) */}
             <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Brand</span>
               <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {[
-                  'Accuracy International', 'Aero Precision', 'Anschütz', 'AR-15 Platform', 'Armalite', 
-                  'Baikal', 'Barrett', 'Benelli', 'Bergara', 'Beretta', 'Blaser', 'BRNO', 'Browning', 
-                  'Century Arms', 'Chapuis', 'Christensen Arms', 'CMMG', 'Colt', 'CZ', 'Daniel Defense', 
-                  'Dashprod', 'Desert Tech', 'DM-4', 'FN Herstal', 'Heckler & Koch (HK)', 'Henry', 
-                  'Holland & Holland', 'Howa', 'IWI', 'Kalashnikov / AK', 'Kimber', 'Krieghoff', 
-                  'Lee-Enfield', 'Marlin', 'Mauser', 'Merkel', 'Mossberg', 'Musgrave', 'Norinco', 
-                  'Palmetto State Armory', 'Pedersoli', 'Proof Research', 'Remington', 'Rigby', 'Rossi', 
-                  'Ruger', 'Sabatti', 'Sako', 'Sauer', 'Savage', 'Sig Sauer', 'Smith & Wesson', 
-                  'Springfield Armory', 'Steyr', 'Tikka', 'Vektor', 'Weatherby', 'Westley Richards', 
-                  'Winchester', 'Zastava', 'Other'
+                  'Accuracy International', 'Adams Arms', 'Aero Precision', 'Akkar', 'Alex Henry', 'American Precision Arms', 'American Sharps', 'American Tactical', 'Anschütz', 'AR-15 Platform', 'Armalite', 'Armi Sport', 'Armscor', 'Army & Navy', 'Armsport', 'Ashbury Precision Ordnance', 'Atkin Grant & Lang', 'Auguste Francotte', 'Austin & Halleck', 'Australian Martini', 'Baikal', 'Ballard Rifle', 'Barrett', 'Bass Pro', 'BCM', 'Benelli', 'Bergara', 'Beretta', 'Big Horn Armory', 'Bland & Son', 'Blaser', 'Boss & Co', 'Bowen Classic Arms', 'BRNO', 'Browning', 'Bruchet', 'BSA', 'C Sharps Arms', 'Cabela\'s', 'Cadex Defence', 'Caesar Guerini', 'Caledonian', 'Century Arms', 'Chaparral Arms', 'Chapuis', 'Charles Daly', 'Charles Lancaster', 'Cheytac', 'Chiappa', 'Christensen Arms', 'Churchill', 'Cimarron', 'Citadel', 'CMMG', 'Cogswell & Harrison', 'Colt', 'Connecticut Valley Arms', 'Cooper Firearms', 'Curtis Custom', 'CVA', 'CZ', 'Daniel Defense', 'Dashprod', 'Davide Pedersoli', 'Desert Tech', 'Dickinson', 'Dixie Gun Works', 'DM-4', 'Doug Turnbull', 'Dumoulin', 'EMF Company', 'Euroarms', 'Fabarm', 'Fair', 'Famars', 'Fausti', 'Feinwerkbau', 'FN Herstal', 'Franchi', 'Francotte', 'GA Precision', 'Gibbs', 'Greener', 'Gunwerks', 'Haenel', 'H&R', 'Hatsan', 'Heckler & Koch (HK)', 'Henry', 'Heym', 'High Standard', 'Holland & Holland', 'Howa', 'Huglu', 'IAB', 'Impact Precision', 'Inter Ordnance', 'Interarms', 'Investarm', 'IO Inc', 'Ithaca', 'IWI', 'Jeffery', 'Joseph Lang', 'JP Enterprises', 'Kalashnikov / AK', 'Kel-Tec', 'Kimber', 'Knight Rifles', 'Kolar', 'Krieghoff', 'Krico', 'Larue Tactical', 'Lazzeroni', 'Lebeau-Courally', 'Lee-Enfield', 'Legacy Sports', 'Les Baer', 'Log Cabin Shop', 'Lone Star Rifle', 'LWRC', 'Lyman', 'Magpul', 'Magnum Research', 'Marlin', 'Mauser', 'McMillan', 'Merkel', 'Miroku', 'Mitchell\'s Mausers', 'Montana Armory', 'Mossberg', 'Musgrave', 'Navy Arms', 'New England Firearms', 'New Zealand Carbine', 'Norinco', 'Nosler', 'Noveske', 'Palmetto State Armory', 'Parker Hale', 'Pedersoli', 'Perazzi', 'Pietta', 'POF USA', 'Pointer', 'Proof Research', 'Puma', 'Purdey', 'Remington', 'Rigby', 'Rizzini', 'Robinson Armament', 'Rock Island Armory', 'Rock River Arms', 'Rossi', 'Ruger', 'Sabatti', 'SAI', 'Sako', 'Sauer', 'Savage', 'Scottish Arms', 'Seekins Precision', 'Shilen', 'Shiloh Sharps', 'Sig Sauer', 'Smith & Wesson', 'Springfield Armory', 'Stag Arms', 'Stevens', 'Steyr', 'Stoeger', 'Strasser', 'Surgeon Rifles', 'Swiss Arms', 'Taurus', 'Taylor\'s & Co', 'Tennessee Valley Muzzleloading', 'Thompson Center', 'Tikka', 'Track of the Wolf', 'Traditions', 'Troy Industries', 'Uberti', 'Unique Alpine', 'Vektor', 'Verney-Carron', 'Victrix Armaments', 'Voere', 'Vz58', 'Watson Bros', 'Weatherby', 'Westley Richards', 'Wild West Guns', 'Wilson Combat', 'Winchester', 'Windham Weaponry', 'Wyoming Arms', 'Yildiz', 'Zanardini', 'Zastava', 'Zealot', 'Other'
                 ].map(brand => (
                   <label key={brand} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
@@ -86,20 +77,12 @@ export default function RiflesPage() {
               </div>
             </div>
 
-            {/* Comprehensive Rifle Calibres */}
+            {/* EXHAUSTIVE RIFLE CALIBRES (From PDF) */}
             <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Calibre</span>
               <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                 {[
-                  '.17 HMR', '.22 LR', '.22 WMR', '.222 Remington', '.223 Rem / 5.56x45mm', 
-                  '.22-250 Remington', '.243 Winchester', '6mm Creedmoor', '6.5x55mm Swedish', 
-                  '6.5 Creedmoor', '6.5 PRC', '.270 Winchester', '7mm-08 Remington', 
-                  '7x57mm Mauser', '7x64mm Brenneke', '7mm Remington Magnum', '.308 Win / 7.62x51mm', 
-                  '.30-06 Springfield', '.300 Winchester Magnum', '.300 PRC', '.300 Blackout', 
-                  '.30-30 Winchester', '.303 British', '7.62x39mm', '8x57mm IS', '9.3x62mm', 
-                  '.338 Winchester Magnum', '.338 Lapua Magnum', '.375 H&H Magnum', '.404 Jeffery', 
-                  '.416 Rigby', '.416 Remington Magnum', '.45-70 Government', '.458 Winchester Magnum', 
-                  '.500 Nitro Express', '.50 BMG', 'Other'
+                  '.11mm Beaumont', '.11mm Grass', '.17 HMR', '.204 Ruger', '.218 Bee', '.22 Hornet', '.22 LR', '.22 WMR', '.22-250 Remington', '.223 Remington', '.224 Valkyrie', '.243 Winchester', '.25 Remington', '.25-20 Winchester', '.25-35 Winchester', '.257 Weatherby Magnum', '.260 Remington', '.270 Winchester', '.277 Fury', '.297/230 Morris', '.30 Carbine', '.30 Herrett', '.30 Remington', '.30 Remington AR', '.30-06 Springfield', '.30-30 Winchester', '.30-40 Krag', '.300 Blackout', '.300 H&H Magnum', '.300 Norma Magnum', '.300 PRC', '.300 Savage', '.300 Weatherby Magnum', '.300 Winchester Magnum', '.300 WSM', '.303 British', '.307 Winchester', '.308 Winchester', '.310 Cadet', '.315 BSA', '.32 Winchester Special', '.32-20 Winchester', '.32-40 Winchester', '.338 Federal', '.338 Lapua Magnum', '.338 Norma Magnum', '.338 Winchester Magnum', '.348 Winchester', '.35 Remington', '.350 Legend', '.350 Remington Magnum', '.356 Winchester', '.357 Magnum', '.357 Maximum', '.360 No.2', '.375 H&H Magnum', '.375 Winchester', '.38 Special', '.38-40 Winchester', '.38-55 Winchester', '.38-56 Winchester', '.38-72 Winchester', '.40 S&W', '.40-60 Winchester', '.40-65 Winchester', '.40-70 Sharps', '.40-82 Winchester', '.40-90 Sharps', '.401 Winchester', '.402 Martini', '.404 Jeffery', '.405 Winchester', '.41 Magnum', '.416 Barrett', '.416 Remington Magnum', '.416 Rigby', '.43 Egyptian', '.43 Spanish', '.44 Magnum', '.44-100 Sharps', '.44-105 Sharps', '.44-40 Winchester', '.44-77 Sharps', '.44-90 Sharps', '.444 Marlin', '.45 ACP', '.45 Colt', '.45-110 Winchester', '.45-120 Sharps', '.45-70 Government', '.45-75 Winchester', '.45-90 Winchester', '.450 Bushmaster', '.450 Marlin', '.450 Martini', '.450/400 Nitro Express', '.458 SOCOM', '.458 Winchester Magnum', '.461 Gibbs', '.465 H&H', '.470 Nitro Express', '.50 Beowulf', '.50 BMG', '.50-110 Winchester', '.50-140 Sharps', '.50-70 Government', '.50-90 Sharps', '.500 Jeffery', '.500 Nitro Express', '.500/450 Martini', '.577 Martini', '.577 Nitro Express', '.577/450 Martini-Henry', '.600 Nitro Express', '.600/577 Rewa', '.700 Nitro Express', '10mm Auto', '4.6x30mm', '5.45x39mm', '5.56x45mm NATO', '5.7x28mm', '6.5 Creedmoor', '6.5 Grendel', '6.5 PRC', '6.5x55 Swedish', '6.8 SPC', '6.8x51mm', '6mm ARC', '6mm Creedmoor', '7.62x39mm', '7.62x51mm NATO', '7.62x54mmR', '7mm Rem Mag', '7mm-08 Remington', '7x57mm Mauser', '7x64mm', '7x65mmR', '8.6 Blackout', '8x57mm IS', '8x57mm Mauser', '8x57mmR', '8x68mmS', '9.3x62mm', '9.3x74mmR', '9mm Luger', '9x39mm', 'Other'
                 ].map(calibre => (
                   <label key={calibre} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
