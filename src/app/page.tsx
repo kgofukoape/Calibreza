@@ -103,12 +103,10 @@ export default function HomePage() {
               <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Browse by type</span>
               <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">Categories</h2>
             </div>
-            {/* The "All Categories" link is temporarily hidden until we build a master page */}
             <div className="text-[#C9922A] text-xs md:text-[13px] font-medium tracking-wide uppercase">Select Below</div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
             {CATEGORIES.map(cat => (
-              {/* THIS IS THE MAGIC FIX: href points directly to /pistols or /rifles */}
               <Link key={cat.slug} href={`/${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-2 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
                 <span className="text-2xl md:text-[24px]">{cat.icon}</span>
                 <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-semibold text-sm md:text-[15px] tracking-wide text-[#F0EDE8] uppercase">{cat.label}</span>
