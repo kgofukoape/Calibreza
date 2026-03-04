@@ -7,7 +7,7 @@ const DEMO_LISTINGS = [
   { id:'1', title:'CZ P-10 C 9mm Luger', make:'CZ', price:12500, province:'Gauteng', condition:'Brand New', category:'pistols', listingType:'dealer' as const, sellerName:'Gunstore Centurion', featured:true, calibre:'9mm Luger' },
   { id:'2', title:'Tikka T3x Lite .308 Win', make:'Tikka', price:18000, province:'Western Cape', condition:'Good', category:'rifles', listingType:'private' as const, sellerName:'Stellenbosch', calibre:'.308 Win' },
   { id:'3', title:'Beretta A400 Xcel Sporting 12ga', make:'Beretta', price:34900, province:'KZN', condition:'Brand New', category:'shotguns', listingType:'dealer' as const, sellerName:'Firearm World DBN', calibre:'12 Gauge' },
-  { id:'4', title:'Vortex Viper PST Gen II 5-25x50', make:'Vortex', price:14000, province:'Gauteng', condition:'Like New', category:'accessories', listingType:'private' as const, sellerName:'Pretoria East', calibre:'34mm Tube' },
+  { id:'4', title:'Vortex Viper PST Gen II 5-25x50', make:'Vortex Optics', price:14000, province:'Gauteng', condition:'Like New', category:'accessories', listingType:'private' as const, sellerName:'Pretoria East', calibre:'34mm Tube' },
 ];
 
 // Safe Icon Renderers to prevent Vercel Compiler errors
@@ -21,6 +21,7 @@ const getCategoryIcon = (slug: string) => {
     case 'air-guns': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>;
     case 'airsoft': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
     case 'holsters': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>;
+    case 'magazines': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M12 6v.01"/><path d="M12 10v.01"/><path d="M12 14v.01"/><path d="M12 18v.01"/></svg>;
     case 'accessories': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M8 10h8"/><path d="M8 14h8"/></svg>;
     case 'ammunition': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M8.5 9V5a3.5 3.5 0 0 1 7 0v4"/><rect x="8.5" y="9" width="7" height="12" rx="1"/><line x1="8.5" y1="18" x2="15.5" y2="18"/></svg>;
     case 'reloading': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>;
@@ -39,11 +40,13 @@ const CATEGORIES = [
   { slug:'air-guns', label:'Air Guns', count:'420' },
   { slug:'airsoft', label:'Airsoft Guns', count:'280' },
   { slug:'holsters', label:'Holsters & Carry', count:'950' },
+  { slug:'magazines', label:'Mags & Loaders', count:'1,420' },
   { slug:'accessories', label:'Accessories', count:'2,100' },
   { slug:'ammunition', label:'Ammunition', count:'850' },
   { slug:'reloading', label:'Reloading', count:'1,120' },
   { slug:'knives', label:'Knives & Blades', count:'670' },
   { slug:'services', label:'Services', count:'140' },
+  { slug:'wanted', label:'Wanted', count:'85' },
 ];
 
 export default function HomePage() {
@@ -80,7 +83,6 @@ export default function HomePage() {
         <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse 60% 50% at 70% 50%, rgba(201,146,42,0.08) 0%, transparent 70%), radial-gradient(ellipse 40% 60% at 20% 80%, rgba(201,146,42,0.04) 0%, transparent 60%)'}} />
         <div style={{position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize:'60px 60px'}} />
 
-        {/* RESTORED: Left aligned Hero Wrapper */}
         <div className="max-w-[1280px] mx-auto w-full relative z-10">
           <div className="inline-flex items-center gap-2 bg-[#C9922A]/10 border border-[#C9922A]/20 text-[#C9922A] text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase px-3 py-1.5 md:px-4 md:py-2 rounded-sm mb-6 md:mb-7">
             <span className="w-1.5 h-1.5 bg-[#C9922A] rounded-full" />
@@ -98,7 +100,6 @@ export default function HomePage() {
             Connect directly with verified dealers and private sellers — no middlemen, no direct sales.
           </p>
 
-          {/* RESTORED: Full Search Bar with Categories & Provinces */}
           <div className="flex flex-col md:flex-row w-full max-w-[780px] bg-[#191C23] border border-[#C9922A]/15 rounded-md overflow-hidden mb-10">
             <select style={{fontFamily:"'Barlow', sans-serif"}} className="bg-[#1F2330] border-none md:border-r border-b md:border-b-0 border-white/10 text-[#F0EDE8] text-[13px] font-medium px-5 py-4 md:py-0 md:min-w-[160px] cursor-pointer outline-none appearance-none">
               <option>All Categories</option>
@@ -119,7 +120,6 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* RESTORED: Statistics Row */}
           <div className="grid grid-cols-2 md:flex md:flex-row gap-6 md:gap-10 items-center">
             {[['4,200+','Active Listings'],['180+','Verified Dealers'],['9','Provinces'],['100%','FCA Compliant']].map(([num, label], i) => (
               <div key={label} className="flex items-center md:gap-10">
@@ -143,7 +143,7 @@ export default function HomePage() {
             </div>
             <div className="text-[#C9922A] text-xs md:text-[13px] font-medium tracking-wide uppercase">Select Below</div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
             {CATEGORIES.map(cat => (
               <Link key={cat.slug} href={`/${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-3 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
                 <div className="mb-1">{getCategoryIcon(cat.slug)}</div>
@@ -250,7 +250,7 @@ export default function HomePage() {
               </div>
             </div>
             {[
-              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Airsoft Guns','Holsters','Accessories','Ammunition', 'Reloading', 'Knives & Blades']],
+              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Airsoft Guns','Holsters','Magazines','Accessories','Ammunition', 'Reloading']],
               ['Platform', ['How it Works','Dealer Directory','Post a Listing','Dealer Plans','Price Guide']],
               ['Company', ['About Us','Contact','FAQs','Blog','Report a Listing']],
             ].map(([heading, links], index) => (
