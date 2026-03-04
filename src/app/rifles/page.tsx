@@ -45,8 +45,25 @@ export default function RiflesPage() {
               <button className="text-[11px] text-[#C9922A] uppercase tracking-wider hover:underline">Clear All</button>
             </div>
 
-            {/* Comprehensive Rifle Brands */}
+            {/* Action Type Filter - MOVED TO TOP */}
             <div className="flex flex-col gap-3">
+              <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Action Type</span>
+              <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                {[
+                  'Bolt-Action', 'Semi-Automatic', 'Lever-Action', 'Pump-Action', 
+                  'Single-Shot', 'Break-Action', 'Straight-Pull Bolt', 'Falling Block', 
+                  'Rolling Block', 'Martini Action', 'Other'
+                ].map(action => (
+                  <label key={action} className="flex items-center gap-3 cursor-pointer group">
+                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
+                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{action}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Comprehensive Rifle Brands */}
+            <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Brand</span>
               <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {[
@@ -87,23 +104,6 @@ export default function RiflesPage() {
                   <label key={calibre} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
                     <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{calibre}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Type Filter */}
-            <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
-              <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Action Type</span>
-              <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
-                {[
-                  'Bolt-Action', 'Semi-Automatic', 'Lever-Action', 'Pump-Action', 
-                  'Single-Shot', 'Break-Action', 'Straight-Pull Bolt', 'Falling Block', 
-                  'Rolling Block', 'Martini Action', 'Other'
-                ].map(action => (
-                  <label key={action} className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" />
-                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{action}</span>
                   </label>
                 ))}
               </div>
