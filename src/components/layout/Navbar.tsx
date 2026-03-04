@@ -17,7 +17,7 @@ export default function Navbar() {
       <div className="bg-[#191C23] border-b border-white/5 relative z-50">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between h-16 md:h-20 px-6 md:px-8">
 
-          {/* Logo - Reverted to GUN X */}
+          {/* Logo */}
           <Link href="/" className="flex flex-col">
             <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-3xl md:text-[32px] tracking-[0.1em] text-[#F0EDE8] leading-none uppercase">
               GUN <span className="text-[#C9922A]">X</span>
@@ -36,10 +36,13 @@ export default function Navbar() {
 
           {/* Desktop Buttons (Hidden on Mobile) */}
           <div className="hidden md:flex items-center gap-4">
-            <Link href="/login" className="text-[13px] font-bold tracking-widest text-[#F0EDE8] hover:text-[#C9922A] uppercase transition-colors px-4">
+            <Link href="/login" className="text-[13px] font-bold tracking-widest text-[#F0EDE8] hover:text-[#C9922A] uppercase transition-colors px-2">
               Sign In
             </Link>
-            <Link href="/post" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-6 py-2.5 rounded-[3px] hover:bg-[#b58325] transition-colors">
+            <Link href="/register" className="text-[13px] font-bold tracking-widest text-[#C9922A] border border-[#C9922A]/30 hover:bg-[#C9922A]/10 uppercase transition-colors px-4 py-2 rounded-[3px]">
+              Register
+            </Link>
+            <Link href="/post" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-6 py-2.5 rounded-[3px] hover:bg-[#b58325] transition-colors ml-2">
               + Post Ad
             </Link>
           </div>
@@ -65,10 +68,15 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="p-6 flex flex-col gap-3">
-            <Link href="/login" className="text-center py-3 text-[14px] font-bold tracking-widest text-[#F0EDE8] border border-white/10 uppercase rounded-[3px]">
-              Sign In
-            </Link>
-            <Link href="/post" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-center bg-[#C9922A] text-black font-bold text-[15px] tracking-[0.1em] uppercase py-3 rounded-[3px]">
+            <div className="grid grid-cols-2 gap-3">
+              <Link href="/login" className="text-center py-3 text-[13px] font-bold tracking-widest text-[#F0EDE8] border border-white/10 uppercase rounded-[3px]">
+                Sign In
+              </Link>
+              <Link href="/register" className="text-center py-3 text-[13px] font-bold tracking-widest text-[#C9922A] border border-[#C9922A]/30 bg-[#C9922A]/5 uppercase rounded-[3px]">
+                Register
+              </Link>
+            </div>
+            <Link href="/post" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-center bg-[#C9922A] text-black font-bold text-[15px] tracking-[0.1em] uppercase py-3 rounded-[3px] mt-2">
               + Post Ad
             </Link>
           </div>
