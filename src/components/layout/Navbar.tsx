@@ -19,8 +19,8 @@ export default function Navbar() {
 
           {/* Logo */}
           <Link href="/" className="flex flex-col">
-            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-2xl md:text-[28px] tracking-[0.15em] text-[#F0EDE8] leading-none uppercase">
-              CALIBRE<span className="text-[#C9922A]">.</span>ZA
+            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-3xl md:text-[32px] tracking-[0.1em] text-[#F0EDE8] leading-none uppercase">
+              GUN <span className="text-[#C9922A]">X</span>
             </span>
             <span className="text-[8px] md:text-[10px] text-[#8A8E99] tracking-[0.3em] uppercase mt-1">Firearms Classifieds</span>
           </Link>
