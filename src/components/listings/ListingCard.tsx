@@ -16,7 +16,7 @@ interface ListingCardProps {
 }
 
 export default function ListingCard({
-  id, title, price, province, condition, listingType, sellerName, calibre, featured
+  id, title, make, price, province, condition, category, listingType, sellerName, calibre, featured
 }: ListingCardProps) {
   
   // Format price to South African Rands (ZAR)
