@@ -24,6 +24,7 @@ export default function HomePage() {
     <main className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
       <Navbar />
 
+      {/* Trust bar */}
       <div className="bg-[#1F2330] border-b border-white/5 py-3 px-6 md:px-8">
         <div className="max-w-[1280px] mx-auto flex items-center justify-center gap-4 md:gap-12 flex-wrap">
           {[['🛡','Verified Sellers'],['⚖️','FCA Compliant'],['🔔','Instant Alerts'],['📍','Local Search'],['🏪','Dealer Directory']].map(([icon, text], index) => (
@@ -35,6 +36,7 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Hero Section */}
       <section className="min-h-[90vh] flex flex-col justify-center px-6 py-16 md:px-8 md:py-20 relative overflow-hidden">
         <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse 60% 50% at 70% 50%, rgba(201,146,42,0.08) 0%, transparent 70%), radial-gradient(ellipse 40% 60% at 20% 80%, rgba(201,146,42,0.04) 0%, transparent 60%)'}} />
         <div style={{position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize:'60px 60px'}} />
@@ -96,6 +98,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Categories Section */}
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -117,6 +120,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Recent Listings Section */}
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -143,6 +147,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* How it Works Section */}
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#111318] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
           <div className="mb-10">
@@ -166,6 +171,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Dealer CTA Section */}
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
           <div className="bg-gradient-to-br from-[#C9922A]/10 to-[#C9922A]/5 border border-[#C9922A]/15 rounded-md p-8 md:p-12 flex flex-col md:flex-row md:items-center justify-between gap-8 md:gap-12">
@@ -174,7 +180,7 @@ export default function HomePage() {
                 Grow Your <span className="text-[#C9922A]">Dealership</span><br className="hidden md:block"/> Online.
               </h2>
               <p className="text-[14px] md:text-[15px] text-[#8A8E99] max-w-[480px] leading-relaxed mb-6">
-                List your full inventory on Calibre.ZA and reach thousands of active buyers across South Africa every month.
+                List your full inventory on GUN eXchange and reach thousands of active buyers across South Africa every month.
               </p>
               <div className="flex flex-col gap-3">
                 {['Dedicated dealer storefront with your branding','Unlimited listings with bulk upload tools','Priority search placement and featured badges','Lead analytics and enquiry tracking dashboard'].map(f => (
@@ -198,12 +204,17 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Footer */}
       <footer className="bg-[#0D0F13] border-t border-white/5 pt-16 pb-8 px-6 md:px-8">
         <div className="max-w-[1280px] mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 md:gap-12 mb-12">
             <div>
-              <div className="mb-4">
-                <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[22px] tracking-[0.15em] text-[#F0EDE8] uppercase">CALIBRE<span className="text-[#C9922A]">.</span>ZA</span>
+              {/* New Footer Logo matching the Navbar branding */}
+              <div className="mb-4 flex flex-col">
+                <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="tracking-[0.08em] leading-none uppercase">
+                  <span className="font-bold text-[20px] md:text-[22px] text-[#8A8E99]">GUN</span>{' '}
+                  <span className="font-extrabold text-[24px] md:text-[28px] text-[#F0EDE8]">e<span className="text-[#C9922A]">X</span>change</span>
+                </span>
               </div>
               <p className="text-[13px] text-[#8A8E99] leading-relaxed max-w-[280px]">South Africa&apos;s cleanest classified portal for legal firearms. Connecting licensed dealers and private sellers with buyers across all nine provinces.</p>
               <div className="mt-6 inline-flex items-center gap-2 bg-[#C9922A]/5 border border-[#C9922A]/15 px-3 py-2 rounded-[3px] text-[11px] text-[#8A8E99]">
@@ -226,7 +237,7 @@ export default function HomePage() {
             ))}
           </div>
           <div className="border-t border-white/5 pt-6 md:pt-8 flex flex-col md:flex-row md:items-center justify-between gap-4 text-[11px] md:text-[12px] text-[#8A8E99]">
-            <div>© 2026 Calibre.ZA — All rights reserved</div>
+            <div>© 2026 GUN eXchange — All rights reserved</div>
             <div className="flex flex-wrap gap-4 md:gap-6">
               {['Terms of Use','Privacy Policy','POPI Act','Legal Disclaimer'].map((l, i) => (
                 <Link key={i} href="#" className="hover:text-white transition-colors">{l}</Link>
