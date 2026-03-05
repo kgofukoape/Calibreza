@@ -1,87 +1,70 @@
-'use client';
-
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
-    <header className="w-full relative z-50">
-      {/* Top Warning Banner */}
-      <div className="bg-[#EAE5D9] text-[#191C23] py-2 px-4 text-center text-[10px] md:text-xs font-medium">
-        🔒 All firearm listings require verified licence information — <Link href="#" className="underline font-bold">Learn how it works</Link>
-      </div>
-
-      {/* Main Navbar */}
-      <div className="bg-[#191C23] border-b border-white/5 relative z-50">
-        <div className="max-w-[1280px] mx-auto flex items-center justify-between h-16 md:h-20 px-6 md:px-8">
-
-          {/* Logo */}
+    <nav className="bg-[#0D0F13] border-b border-white/5 sticky top-0 z-50 w-full">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+        
+        {/* LOGO AREA */}
+        <div className="flex items-center gap-8">
           <Link href="/" className="flex flex-col">
-            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-3xl md:text-[32px] tracking-[0.1em] text-[#F0EDE8] leading-none uppercase">
-              GUN <span className="text-[#C9922A]">X</span>
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black tracking-tighter text-[#F0EDE8] leading-none">
+              CALIBRE<span className="text-[#C9922A]">ZA</span>
             </span>
-            <span className="text-[8px] md:text-[10px] text-[#8A8E99] tracking-[0.3em] uppercase mt-1">Firearms Classifieds</span>
+            <span className="text-[9px] uppercase tracking-[0.3em] font-bold text-[#8A8E99] mt-1">Classifieds Hub</span>
           </Link>
 
-          {/* Desktop Links (Hidden on Mobile) */}
-          <nav className="hidden md:flex items-center gap-8">
-            {['Browse', 'Dealers', 'Listings', 'Services'].map((item) => (
-              <Link key={item} href="#" className="text-[13px] font-bold tracking-widest text-[#8A8E99] hover:text-[#C9922A] uppercase transition-colors">
-                {item}
-              </Link>
-            ))}
-          </nav>
+          {/* MAIN CATEGORY LINKS */}
+          <div className="hidden lg:flex items-center gap-6 border-l border-white/10 pl-8 h-8">
+            <Link href="/wanted" className="text-[11px] font-bold uppercase tracking-widest text-[#8A8E99] hover:text-[#C9922A] transition-colors">Wanted Bounties</Link>
+            <Link href="/sport-shooting" className="text-[11px] font-bold uppercase tracking-widest text-[#8A8E99] hover:text-[#C9922A] transition-colors">Clubs & Ranges</cite: _Sport shooting in South africa.pdf (p. 6, 7)>
+          </div>
+        </div>
 
-          {/* Desktop Buttons (Hidden on Mobile) */}
-          <div className="hidden md:flex items-center gap-4">
-            <Link href="/login" className="text-[13px] font-bold tracking-widest text-[#F0EDE8] hover:text-[#C9922A] uppercase transition-colors px-2">
-              Sign In
+        {/* RIGHT SIDE: USER & PRO ACTIONS */}
+        <div className="flex items-center gap-4 md:gap-6">
+          
+          {/* PRO ACCESS LINK */}
+          <Link 
+            href="/command-center" 
+            className="hidden sm:flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#C9922A] border border-[#C9922A]/30 px-4 py-2 rounded-sm hover:bg-[#C9922A] hover:text-black transition-all"
+          >
+            <span className="w-2 h-2 bg-[#C9922A] rounded-full animate-pulse"></span>
+            Pro Command Center
+          </Link>
+
+          <div className="h-6 w-px bg-white/10 hidden md:block"></div>
+
+          {/* USER DASHBOARD ACTIONS */}
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/dashboard/messages" 
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-[#F0EDE8] relative"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-[#C9922A] rounded-full border-2 border-[#0D0F13]"></span>
             </Link>
-            <Link href="/register" className="text-[13px] font-bold tracking-widest text-[#C9922A] border border-[#C9922A]/30 hover:bg-[#C9922A]/10 uppercase transition-colors px-4 py-2 rounded-[3px]">
-              Register
-            </Link>
-            <Link href="/post" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-6 py-2.5 rounded-[3px] hover:bg-[#b58325] transition-colors ml-2">
-              + Post Ad
+
+            <Link 
+              href="/dashboard" 
+              className="flex items-center gap-3 bg-[#191C23] border border-white/5 px-4 py-2 rounded-md hover:border-white/20 transition-all"
+            >
+              <div className="w-6 h-6 bg-[#C9922A] rounded-full flex items-center justify-center text-black text-[10px] font-black">JD</div>
+              <span className="hidden md:block text-[11px] font-bold uppercase tracking-widest text-[#F0EDE8]">Dashboard</span>
             </Link>
           </div>
 
-          {/* Mobile Hamburger Button */}
-          <button
-            className="md:hidden flex flex-col justify-center items-center w-8 h-8 space-y-1.5 focus:outline-none"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            <span className={`bg-[#F0EDE8] block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm ${isOpen ? 'rotate-45 translate-y-2' : '-translate-y-0.5'}`}></span>
-            <span className={`bg-[#F0EDE8] block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm ${isOpen ? 'opacity-0' : 'opacity-100'}`}></span>
-            <span className={`bg-[#F0EDE8] block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm ${isOpen ? '-rotate-45 -translate-y-2' : 'translate-y-0.5'}`}></span>
+          {/* MOBILE MENU TOGGLE (MOCKUP) */}
+          <button className="lg:hidden text-[#F0EDE8]">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
           </button>
         </div>
       </div>
-
-      {/* Mobile Dropdown Menu */}
-      {isOpen && (
-        <div className="md:hidden absolute top-full left-0 w-full bg-[#1F2330] border-b border-white/5 shadow-2xl flex flex-col z-40">
-          {['Browse', 'Dealers', 'Listings', 'Services'].map((item) => (
-            <Link key={item} href="#" className="p-4 border-b border-white/5 text-[14px] font-bold tracking-widest text-[#F0EDE8] uppercase text-center hover:bg-white/5">
-              {item}
-            </Link>
-          ))}
-          <div className="p-6 flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Link href="/login" className="text-center py-3 text-[13px] font-bold tracking-widest text-[#F0EDE8] border border-white/10 uppercase rounded-[3px]">
-                Sign In
-              </Link>
-              <Link href="/register" className="text-center py-3 text-[13px] font-bold tracking-widest text-[#C9922A] border border-[#C9922A]/30 bg-[#C9922A]/5 uppercase rounded-[3px]">
-                Register
-              </Link>
-            </div>
-            <Link href="/post" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-center bg-[#C9922A] text-black font-bold text-[15px] tracking-[0.1em] uppercase py-3 rounded-[3px] mt-2">
-              + Post Ad
-            </Link>
-          </div>
-        </div>
-      )}
-    </header>
+    </nav>
   );
 }
