@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 export default function DashboardOverview() {
   return (
@@ -18,17 +19,23 @@ export default function DashboardOverview() {
         ))}
       </div>
 
-      {/* QUICK ACTIONS */}
+      {/* QUICK ACTIONS - CONNECTED TO BOUNTY BOARD */}
       <div className="bg-[#191C23] border border-white/5 rounded-md p-8">
         <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-bold uppercase tracking-wide text-[#F0EDE8] mb-6">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <button className="bg-[#C9922A] text-black font-bold uppercase tracking-widest py-4 rounded-sm text-sm hover:brightness-110 transition-all">+ Post New Listing</button>
-          <button className="bg-white/5 text-[#F0EDE8] border border-white/10 font-bold uppercase tracking-widest py-4 rounded-sm text-sm hover:bg-white/10 transition-all">+ Post Wanted Bounty</button>
-          <button className="bg-white/5 text-[#F0EDE8] border border-white/10 font-bold uppercase tracking-widest py-4 rounded-sm text-sm hover:bg-white/10 transition-all">Verify My ID</button>
+          <Link href="/sell" className="bg-[#C9922A] text-black font-bold uppercase tracking-widest py-4 rounded-sm text-sm text-center hover:brightness-110 transition-all">
+            + Post New Listing
+          </Link>
+          <Link href="/wanted" className="bg-white/5 text-[#F0EDE8] border border-white/10 font-bold uppercase tracking-widest py-4 rounded-sm text-sm text-center hover:bg-white/10 transition-all">
+            + Post Wanted Bounty
+          </Link>
+          <button className="bg-white/5 text-[#F0EDE8] border border-white/10 font-bold uppercase tracking-widest py-4 rounded-sm text-sm hover:bg-white/10 transition-all">
+            Verify My ID
+          </button>
         </div>
       </div>
 
-      {/* RECENT ACTIVITY MOCKUP */}
+      {/* RECENT ACTIVITY */}
       <div className="bg-[#191C23] border border-white/5 rounded-md p-8">
         <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-bold uppercase tracking-wide text-[#F0EDE8] mb-6">Recent Activity</h3>
         <div className="flex flex-col gap-4">
