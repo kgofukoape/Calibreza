@@ -10,7 +10,6 @@ const DEMO_LISTINGS = [
   { id:'4', title:'Vortex Viper PST Gen II 5-25x50', make:'Vortex Optics', price:14000, province:'Gauteng', condition:'Like New', category:'accessories', listingType:'private' as const, sellerName:'Pretoria East', calibre:'34mm Tube' },
 ];
 
-// Safe Icon Renderers to prevent Vercel Compiler errors
 const getCategoryIcon = (slug: string) => {
   const baseClasses = "w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors";
   switch (slug) {
@@ -27,6 +26,7 @@ const getCategoryIcon = (slug: string) => {
     case 'reloading': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>;
     case 'knives': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M3 21h5l13-13a1.5 1.5 0 0 0-2-2L6 19v2z"/><line x1="8" y1="16" x2="11" y2="19"/></svg>;
     case 'services': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+    case 'sport-shooting': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>;
     case 'wanted': return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={baseClasses}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/></svg>;
     default: return null;
   }
@@ -41,11 +41,12 @@ const CATEGORIES = [
   { slug:'airsoft', label:'Airsoft Guns', count:'280' },
   { slug:'holsters', label:'Holsters & Carry', count:'950' },
   { slug:'magazines', label:'Mags & Loaders', count:'1,420' },
-  { slug:'accessories', label:'Accessories', count:'2,100' },
+  { slug:'accessories', label:'Accessories', count:'2,680' },
   { slug:'ammunition', label:'Ammunition', count:'850' },
   { slug:'reloading', label:'Reloading', count:'1,120' },
   { slug:'knives', label:'Knives & Blades', count:'670' },
   { slug:'services', label:'Services', count:'140' },
+  { slug:'sport-shooting', label:'Clubs & Ranges', count:'215' },
   { slug:'wanted', label:'Wanted', count:'85' },
 ];
 
@@ -143,7 +144,7 @@ export default function HomePage() {
             </div>
             <div className="text-[#C9922A] text-xs md:text-[13px] font-medium tracking-wide uppercase">Select Below</div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
             {CATEGORIES.map(cat => (
               <Link key={cat.slug} href={`/${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-3 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
                 <div className="mb-1">{getCategoryIcon(cat.slug)}</div>
@@ -250,7 +251,7 @@ export default function HomePage() {
               </div>
             </div>
             {[
-              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Airsoft Guns','Holsters','Magazines','Accessories','Ammunition', 'Reloading']],
+              ['Browse', ['Pistols','Rifles','Shotguns','Revolvers','Air Guns','Airsoft Guns','Holsters','Magazines','Accessories','Ammunition', 'Reloading', 'Sport Shooting']],
               ['Platform', ['How it Works','Dealer Directory','Post a Listing','Dealer Plans','Price Guide']],
               ['Company', ['About Us','Contact','FAQs','Blog','Report a Listing']],
             ].map(([heading, links], index) => (
