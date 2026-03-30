@@ -237,10 +237,16 @@ export default function DashboardPage() {
               </h3>
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-center">
-                  <div className="w-20 h-20 rounded-full bg-[#C9922A] flex items-center justify-center">
-                    <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-bold text-black">
-                      {profile?.full_name?.charAt(0) || 'U'}
-                    </span>
+                  <div className="w-20 h-20 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden">
+                    {profile?.avatar_url?.startsWith('preset:') ? (
+                      <span className="text-5xl">{profile.avatar_url.replace('preset:', '')}</span>
+                    ) : profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-bold text-black">
+                        {profile?.full_name?.charAt(0) || 'U'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="text-center">
@@ -271,12 +277,12 @@ export default function DashboardPage() {
                 Account
               </h3>
               <div className="flex flex-col gap-2">
-                <button className="text-left text-[14px] text-[#F0EDE8] hover:text-[#C9922A] py-2 transition-colors">
+                <Link href="/settings" className="text-left text-[14px] text-[#F0EDE8] hover:text-[#C9922A] py-2 transition-colors">
                   Edit Profile
-                </button>
-                <button className="text-left text-[14px] text-[#F0EDE8] hover:text-[#C9922A] py-2 transition-colors">
+                </Link>
+                <Link href="/settings" className="text-left text-[14px] text-[#F0EDE8] hover:text-[#C9922A] py-2 transition-colors">
                   Settings
-                </button>
+                </Link>
                 <button className="text-left text-[14px] text-[#F0EDE8] hover:text-[#C9922A] py-2 transition-colors">
                   Help & Support
                 </button>
