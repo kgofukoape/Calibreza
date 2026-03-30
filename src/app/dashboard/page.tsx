@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import { getCurrentUser, signOut } from '@/lib/auth';
 
@@ -20,7 +19,6 @@ export default function DashboardPage() {
 
   const loadDashboard = async () => {
     try {
-      // Get current user
       const currentUser = await getCurrentUser();
       if (!currentUser) {
         router.push('/login');
@@ -28,7 +26,6 @@ export default function DashboardPage() {
       }
       setUser(currentUser);
 
-      // Get user profile
       const { data: profileData } = await supabase
         .from('users')
         .select('*')
@@ -36,7 +33,6 @@ export default function DashboardPage() {
         .single();
       setProfile(profileData);
 
-      // Get user's listings
       const { data: listingsData } = await supabase
         .from('listings')
         .select(`
@@ -75,7 +71,6 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
-        <Navbar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-[#8A8E99] text-[15px]">Loading dashboard...</div>
         </div>
@@ -88,8 +83,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
-      <Navbar />
-
       {/* Header */}
       <div className="bg-[#191C23] border-b border-white/5 pt-8 pb-8 px-6 md:px-8">
         <div className="max-w-[1280px] mx-auto">
@@ -152,9 +145,12 @@ export default function DashboardPage() {
                 >
                   + Post New Listing
                 </Link>
-                <button className="bg-transparent border border-white/20 text-[#F0EDE8] font-bold text-[14px] tracking-wider uppercase py-4 rounded-sm hover:bg-white/5 transition-all">
+                <Link
+                  href="/"
+                  className="bg-transparent border border-white/20 text-[#F0EDE8] font-bold text-[14px] tracking-wider uppercase py-4 rounded-sm hover:bg-white/5 transition-all text-center"
+                >
                   Browse Marketplace
-                </button>
+                </Link>
               </div>
             </div>
 
