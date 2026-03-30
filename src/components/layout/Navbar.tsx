@@ -95,10 +95,16 @@ export default function Navbar() {
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center gap-3 bg-[#191C23] border border-white/10 rounded-md px-4 py-2 hover:border-[#C9922A]/30 transition-colors"
               >
-                <div className="w-8 h-8 rounded-full bg-[#C9922A] flex items-center justify-center">
-                  <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-sm font-bold text-black">
-                    {getInitials(profile.full_name || 'User')}
-                  </span>
+                <div className="w-8 h-8 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden">
+                  {profile?.avatar_url?.startsWith('preset:') ? (
+                    <span className="text-lg">{profile.avatar_url.replace('preset:', '')}</span>
+                  ) : profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-sm font-bold text-black">
+                      {getInitials(profile.full_name || 'User')}
+                    </span>
+                  )}
                 </div>
                 <span className="hidden md:block text-[14px] font-bold text-[#F0EDE8]">
                   {profile.full_name?.split(' ')[0] || 'User'}
@@ -142,7 +148,7 @@ export default function Navbar() {
                         <span>Messages</span>
                       </Link>
                       <Link
-                        href="/dashboard"
+                        href="/settings"
                         onClick={() => setShowDropdown(false)}
                         className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
                       >
