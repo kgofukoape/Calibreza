@@ -87,7 +87,8 @@ async function getFilterOptions() {
     .eq('category_id', 'pistols')
     .eq('status', 'active');
 
-  const brands = [...new Set(brandsData?.map((item: any) => item.makes?.name).filter(Boolean))].sort();
+  const brandNames = brandsData?.map((item: any) => item.makes?.name).filter(Boolean) || [];
+  const brands = Array.from(new Set(brandNames)).sort();
 
   // Get unique calibres for pistols
   const { data: calibresData } = await supabase
@@ -164,11 +165,6 @@ export default async function PistolsPage({ searchParams }: { searchParams: any 
               <select
                 style={{fontFamily:"'Barlow', sans-serif"}}
                 className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[13px] font-medium px-4 py-2 rounded-sm cursor-pointer outline-none focus:border-[#C9922A] appearance-none min-w-[140px]"
-                onChange={(e) => {
-                  const params = new URLSearchParams(window.location.search);
-                  params.set('sort', e.target.value);
-                  window.location.search = params.toString();
-                }}
                 defaultValue={searchParams.sort || 'newest'}
               >
                 <option value="newest">Newest First</option>
