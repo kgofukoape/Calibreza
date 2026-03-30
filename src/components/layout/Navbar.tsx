@@ -2,22 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { getCurrentUser, signOut } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 export default function Navbar() {
   const router = useRouter();
-  const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     checkUser();
     
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       checkUser();
     });
@@ -30,7 +27,6 @@ export default function Navbar() {
     setUser(currentUser);
 
     if (currentUser) {
-      // Get user profile
       const { data: profileData } = await supabase
         .from('users')
         .select('*')
@@ -63,7 +59,6 @@ export default function Navbar() {
     <nav className="bg-[#0D0F13] border-b border-white/10 sticky top-0 z-50">
       <div className="max-w-[1920px] mx-auto px-6 md:px-8 py-4 flex items-center justify-between">
         
-        {/* Logo */}
         <Link href="/" className="flex flex-col group">
           <div className="flex items-baseline gap-1">
             <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-black text-[28px] tracking-tight uppercase text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">
@@ -78,7 +73,6 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-8">
           <Link href="/" className="text-[13px] font-bold tracking-wider uppercase text-[#8A8E99] hover:text-[#C9922A] transition-colors">
             Browse
@@ -94,10 +88,8 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Auth Buttons / User Menu */}
         <div className="flex items-center gap-4">
           {user && profile ? (
-            // Logged In - Show User Menu
             <div className="relative">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
@@ -116,11 +108,10 @@ export default function Navbar() {
                 </svg>
               </button>
 
-              {/* Dropdown Menu */}
               {showDropdown && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-[#191C23] border border-white/10 rounded-md shadow-xl z-20">
+                  <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
+                  <div className="absolute right-0 mt-2 w-64 bg-[#191C23] border border-white/10 rounded-md shadow-xl z-50 overflow-hidden">
                     <div className="p-4 border-b border-white/10">
                       <div className="font-bold text-[15px] text-[#F0EDE8] mb-1">{profile.full_name}</div>
                       <div className="text-[12px] text-[#8A8E99]">{profile.email}</div>
@@ -129,37 +120,42 @@ export default function Navbar() {
                       <Link
                         href="/dashboard"
                         onClick={() => setShowDropdown(false)}
-                        className="block px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
+                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
                       >
-                        📊 Dashboard
+                        <span>📊</span>
+                        <span>Dashboard</span>
                       </Link>
                       <Link
                         href="/dashboard"
                         onClick={() => setShowDropdown(false)}
-                        className="block px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
+                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
                       >
-                        📝 My Listings
+                        <span>📝</span>
+                        <span>My Listings</span>
                       </Link>
                       <Link
                         href="/dashboard"
                         onClick={() => setShowDropdown(false)}
-                        className="block px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
+                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
                       >
-                        💬 Messages
+                        <span>💬</span>
+                        <span>Messages</span>
                       </Link>
                       <Link
                         href="/dashboard"
                         onClick={() => setShowDropdown(false)}
-                        className="block px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
+                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
                       >
-                        ⚙️ Settings
+                        <span>⚙️</span>
+                        <span>Settings</span>
                       </Link>
                       <div className="border-t border-white/10 my-2" />
                       <button
                         onClick={handleSignOut}
-                        className="block w-full text-left px-4 py-2.5 text-[14px] text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-[14px] text-red-400 hover:bg-red-500/10 transition-colors"
                       >
-                        🚪 Sign Out
+                        <span>🚪</span>
+                        <span>Sign Out</span>
                       </button>
                     </div>
                   </div>
@@ -167,7 +163,6 @@ export default function Navbar() {
               )}
             </div>
           ) : (
-            // Not Logged In - Show Sign In/Register
             <>
               <Link
                 href="/login"
@@ -184,7 +179,6 @@ export default function Navbar() {
             </>
           )}
 
-          {/* Post Ad Button */}
           <Link
             href="/sell"
             style={{fontFamily:"'Barlow Condensed', sans-serif"}}
