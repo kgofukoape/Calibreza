@@ -184,10 +184,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               </div>
               <div className="flex items-center gap-3 text-[13px] text-[#F0EDE8]">
                 <span className="w-5 h-5 rounded-full bg-[#2A9C6E]/10 flex items-center justify-center text-[10px] border border-[#2A9C6E]/30 text-[#2A9C6E]">✓</span>
-                Active SAPS Competency
-              </div>
-              <div className="flex items-center gap-3 text-[13px] text-[#F0EDE8]">
-                <span className="w-5 h-5 rounded-full bg-[#2A9C6E]/10 flex items-center justify-center text-[10px] border border-[#2A9C6E]/30 text-[#2A9C6E]">✓</span>
                 Responsive (avg. 2-3 hours)
               </div>
             </div>
