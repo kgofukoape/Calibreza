@@ -77,7 +77,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading}
                 style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                className="w-full bg-[#C9922A] text-black font-bold text-[16px] tracking-[0.1em] uppercase py-4 rounded-[3px] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[#C9922A] text-black font-bold text-[16px] tracking-[0.1em] uppercase py-4 rounded-[3px] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(201,146,42,0.3)]"
               >
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
