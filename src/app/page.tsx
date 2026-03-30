@@ -2,13 +2,32 @@ import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import ListingCard from '@/components/listings/ListingCard';
+import { supabase } from '@/lib/supabase';
 
-const DEMO_LISTINGS = [
-  { id:'1', title:'CZ P-10 C 9mm Luger', make:'CZ', price:12500, province:'Gauteng', condition:'Brand New', category:'pistols', listingType:'dealer' as const, sellerName:'Gunstore Centurion', featured:true, calibre:'9mm Luger' },
-  { id:'2', title:'Tikka T3x Lite .308 Win', make:'Tikka', price:18000, province:'Western Cape', condition:'Good', category:'rifles', listingType:'private' as const, sellerName:'Stellenbosch', calibre:'.308 Win' },
-  { id:'3', title:'Beretta A400 Xcel Sporting 12ga', make:'Beretta', price:34900, province:'KZN', condition:'Brand New', category:'shotguns', listingType:'dealer' as const, sellerName:'Firearm World DBN', calibre:'12 Gauge' },
-  { id:'4', title:'Vortex Viper PST Gen II 5-25x50', make:'Vortex Optics', price:14000, province:'Gauteng', condition:'Like New', category:'accessories', listingType:'private' as const, sellerName:'Pretoria East', calibre:'34mm Tube' },
-];
+// Fetch listings from Supabase
+async function getFeaturedListings() {
+  const { data, error } = await supabase
+    .from('listings')
+    .select(`
+      *,
+      makes:make_id(name),
+      calibres:calibre_id(name),
+      provinces:province_id(name),
+      conditions:condition_id(name),
+      users:seller_id(full_name, user_type)
+    `)
+    .eq('status', 'active')
+    .eq('is_featured', true)
+    .order('created_at', { ascending: false })
+    .limit(4);
+
+  if (error) {
+    console.error('Error fetching listings:', error);
+    return [];
+  }
+
+  return data || [];
+}
 
 const getCategoryIcon = (slug: string) => {
   const baseClasses = "w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors";
@@ -50,7 +69,24 @@ const CATEGORIES = [
   { slug:'wanted', label:'Wanted', count:'85' },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const listings = await getFeaturedListings();
+
+  // Transform Supabase data to match ListingCard props
+  const transformedListings = listings.map((listing: any) => ({
+    id: listing.id,
+    title: listing.title,
+    make: listing.makes?.name || '',
+    price: listing.price,
+    province: listing.provinces?.name || listing.city,
+    condition: listing.conditions?.name || '',
+    category: listing.category_id,
+    listingType: listing.listing_type,
+    sellerName: listing.users?.full_name || listing.city,
+    calibre: listing.calibres?.name || '',
+    featured: listing.is_featured,
+  }));
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
       <Navbar />
@@ -81,120 +117,81 @@ export default function HomePage() {
       </div>
 
       <section className="min-h-[90vh] flex flex-col justify-center px-6 py-16 md:px-8 md:py-20 relative overflow-hidden">
-        <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse 60% 50% at 70% 50%, rgba(201,146,42,0.08) 0%, transparent 70%), radial-gradient(ellipse 40% 60% at 20% 80%, rgba(201,146,42,0.04) 0%, transparent 60%)'}} />
-        <div style={{position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize:'60px 60px'}} />
-
-        <div className="max-w-[1280px] mx-auto w-full relative z-10">
-          <div className="inline-flex items-center gap-2 bg-[#C9922A]/10 border border-[#C9922A]/20 text-[#C9922A] text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase px-3 py-1.5 md:px-4 md:py-2 rounded-sm mb-6 md:mb-7">
-            <span className="w-1.5 h-1.5 bg-[#C9922A] rounded-full" />
-            South Africa&apos;s Freshest Firearms Classifieds
-          </div>
-
-          <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-5xl md:text-7xl lg:text-[100px] leading-[1.1] md:leading-[0.93] tracking-tight uppercase mb-6 text-[#F0EDE8]">
-            Buy &amp; Sell<br/>
-            <span className="text-[#C9922A]">Legally.</span>{' '}
-            Confidently.
+        <div className="absolute inset-0 bg-gradient-to-b from-[#C9922A]/5 via-transparent to-transparent pointer-events-none" />
+        <div className="max-w-[1280px] mx-auto relative z-10 text-center">
+          <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-black text-5xl sm:text-6xl md:text-7xl lg:text-8xl uppercase leading-[0.9] mb-6 md:mb-8 text-[#F0EDE8]">
+            South Africa&apos;s<br/><span className="text-[#C9922A]">Premier</span> Firearms<br/>Classifieds
           </h1>
-
-          <p className="text-base md:text-[17px] text-[#8A8E99] leading-relaxed max-w-[520px] mb-8 md:mb-10 font-light">
-            The cleanest classified portal for licensed firearms in South Africa.
-            Connect directly with verified dealers and private sellers — no middlemen, no direct sales.
+          <p className="text-[15px] md:text-[17px] text-[#8A8E99] max-w-[600px] mx-auto leading-relaxed mb-10 md:mb-12">
+            The cleanest, most trusted platform for buying and selling licensed firearms. Connect with verified dealers and private sellers across all nine provinces.
           </p>
-
-          <div className="flex flex-col md:flex-row w-full max-w-[780px] bg-[#191C23] border border-[#C9922A]/15 rounded-md overflow-hidden mb-10">
-            <select style={{fontFamily:"'Barlow', sans-serif"}} className="bg-[#1F2330] border-none md:border-r border-b md:border-b-0 border-white/10 text-[#F0EDE8] text-[13px] font-medium px-5 py-4 md:py-0 md:min-w-[160px] cursor-pointer outline-none appearance-none">
-              <option>All Categories</option>
-              {CATEGORIES.map(cat => <option key={cat.slug}>{cat.label}</option>)}
-            </select>
-            <input
-              type="text"
-              placeholder="Search by make, model, calibre..."
-              style={{fontFamily:"'Barlow', sans-serif"}}
-              className="flex-1 bg-transparent border-none outline-none text-[#F0EDE8] text-[15px] px-5 py-4"
-            />
-            <select style={{fontFamily:"'Barlow', sans-serif"}} className="bg-[#1F2330] border-none md:border-l border-t md:border-t-0 border-white/10 text-[#8A8E99] text-[13px] px-5 py-4 md:py-0 md:min-w-[140px] cursor-pointer outline-none appearance-none">
-              <option value="">All Provinces</option>
-              {['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Limpopo','Mpumalanga','North West','Free State','Northern Cape'].map(p => <option key={p}>{p}</option>)}
-            </select>
-            <button style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] border-none text-black font-bold text-[14px] tracking-[0.1em] uppercase px-7 py-4 md:py-0 cursor-pointer">
-              Search
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:flex md:flex-row gap-6 md:gap-10 items-center">
-            {[['4,200+','Active Listings'],['180+','Verified Dealers'],['9','Provinces'],['100%','FCA Compliant']].map(([num, label], i) => (
-              <div key={label} className="flex items-center md:gap-10">
-                {i > 0 && <div className="hidden md:block w-[1px] h-10 bg-white/10" />}
-                <div className="flex flex-col gap-1">
-                  <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-[24px] md:text-[28px] text-[#F0EDE8]">{num}</span>
-                  <span className="text-[10px] md:text-[12px] text-[#8A8E99] tracking-wider uppercase">{label}</span>
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-5">
+            <Link href="/listings" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] text-black font-bold text-[14px] md:text-[15px] tracking-[0.12em] uppercase px-10 md:px-12 py-4 md:py-5 rounded-[3px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.4)] w-full sm:w-auto">
+              Browse Listings
+            </Link>
+            <Link href="/sell" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-transparent border border-[#C9922A]/40 text-[#C9922A] font-bold text-[14px] md:text-[15px] tracking-[0.12em] uppercase px-10 md:px-12 py-4 md:py-5 rounded-[3px] hover:bg-[#C9922A]/5 transition-all w-full sm:w-auto">
+              Post Free Listing
+            </Link>
           </div>
         </div>
       </section>
 
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-            <div>
-              <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Browse by type</span>
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">Categories</h2>
-            </div>
-            <div className="text-[#C9922A] text-xs md:text-[13px] font-medium tracking-wide uppercase">Select Below</div>
+          <div className="mb-10 md:mb-12 text-center">
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase mb-4 text-[#F0EDE8]">
+              Browse by <span className="text-[#C9922A]">Category</span>
+            </h2>
+            <p className="text-[14px] md:text-[15px] text-[#8A8E99]">Explore thousands of listings across all firearm categories</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-            {CATEGORIES.map(cat => (
-              <Link key={cat.slug} href={`/${cat.slug}`} className="bg-[#111318] border border-white/5 rounded-md p-4 md:p-5 flex flex-col gap-3 hover:bg-[#1F2330] hover:-translate-y-1 transition-all duration-200 group">
-                <div className="mb-1">{getCategoryIcon(cat.slug)}</div>
-                <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-semibold text-sm md:text-[15px] tracking-wide text-[#F0EDE8] uppercase group-hover:text-white transition-colors">{cat.label}</span>
-                <span className="text-[11px] md:text-[12px] text-[#8A8E99] group-hover:text-[#C9922A] transition-colors">{cat.count} listings</span>
-              </Link>
-            ))}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5">
+            {CATEGORIES.map(({slug, label, count}) => {
+              const icon = getCategoryIcon(slug);
+              return (
+                <Link key={slug} href={`/${slug}`} className="group bg-[#111318] border border-white/5 rounded-md p-5 md:p-6 flex flex-col items-center text-center hover:border-[#C9922A]/30 hover:bg-[#C9922A]/5 transition-all">
+                  <div className="w-12 h-12 md:w-14 md:h-14 mb-4 md:mb-5">{icon}</div>
+                  <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-[15px] md:text-[16px] uppercase tracking-wider mb-2 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{label}</div>
+                  <div className="text-[12px] md:text-[13px] text-[#8A8E99]">{count} listings</div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
+
+      {transformedListings.length > 0 && (
+        <section className="px-6 py-16 md:px-8 md:py-20 bg-[#0D0F13] border-t border-white/5">
+          <div className="max-w-[1280px] mx-auto">
+            <div className="mb-10 md:mb-12">
+              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-2">
+                Featured <span className="text-[#C9922A]">Listings</span>
+              </h2>
+              <p className="text-[14px] md:text-[15px] text-[#8A8E99]">Handpicked firearms from verified sellers</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {transformedListings.map((listing: any) => (
+                <ListingCard key={listing.id} {...listing} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-            <div>
-              <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Just posted</span>
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">Recent Listings</h2>
-            </div>
+          <div className="mb-10 md:mb-12 text-center">
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-4">
+              Why Choose <span className="text-[#C9922A]">Gun X</span>?
+            </h2>
+            <p className="text-[14px] md:text-[15px] text-[#8A8E99]">The most trusted firearms marketplace in South Africa</p>
           </div>
-
-          <div className="flex overflow-x-auto border-b border-white/5 mb-8" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-            {['All','🏪 Dealer Stock','👤 Private','🔔 Wanted'].map((tab, i) => (
-              <button key={tab} style={{fontFamily:"'Barlow Condensed', sans-serif"}} className={`font-semibold text-[13px] md:text-[14px] tracking-widest uppercase px-4 md:px-6 py-3 border-b-2 whitespace-nowrap ${i === 0 ? 'text-[#C9922A] border-[#C9922A]' : 'text-[#8A8E99] border-transparent'}`}>
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-            {DEMO_LISTINGS.map(listing => (
-              <ListingCard key={listing.id} {...listing} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-16 md:px-8 md:py-20 bg-[#111318] border-t border-white/5">
-        <div className="max-w-[1280px] mx-auto">
-          <div className="mb-10">
-            <span className="block text-[11px] text-[#C9922A] font-semibold tracking-[0.2em] uppercase mb-1">Simple &amp; Safe</span>
-            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-3xl md:text-[32px] uppercase tracking-wide text-[#F0EDE8]">How it Works</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 border border-white/5 rounded-md overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             {[
-              ['01', <svg key="1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-[#C9922A]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>, 'Browse Listings', 'Search by category, calibre, province, price and condition. Filter by dealer stock or private listings.'],
-              ['02', <svg key="2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-[#C9922A]"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, 'Contact the Seller', 'Reach out through secure messaging. View verified seller profiles and licence confirmations.'],
-              ['03', <svg key="3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-[#C9922A]"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>, 'Transact Legally', 'All transactions happen between buyer and seller in full compliance with the Firearms Control Act.'],
-            ].map(([num, icon, title, desc], i) => (
-              <div key={num as string} className={`p-8 md:p-10 relative ${i < 2 ? 'border-b md:border-b-0 md:border-r border-white/5' : ''}`}>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[60px] md:text-[80px] text-[#C9922A]/5 leading-none absolute top-4 md:top-5 right-6">{num}</div>
+              {icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>, title:'Verified Sellers', desc:'Every dealer and private seller goes through identity verification. Buy and sell with confidence on a platform built for trust.'},
+              {icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>, title:'Provincial Search', desc:'Find firearms close to home. Filter by province and city to connect with sellers in your area for easy face-to-face transactions.'},
+              {icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>, title:'FCA Compliant', desc:'Built with South African firearms law in mind. All listings comply with the Firearms Control Act to keep the community safe and legal.'},
+            ].map(({icon, title, desc}) => (
+              <div key={title} className="bg-[#111318] border border-white/5 rounded-md p-6 md:p-8 hover:border-[#C9922A]/20 transition-all">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-[#C9922A]/10 border border-[#C9922A]/15 rounded-md flex items-center justify-center mb-5 md:mb-6">{icon}</div>
                 <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl md:text-[22px] tracking-wide uppercase mb-3 text-[#F0EDE8]">{title}</div>
                 <p className="text-[13px] md:text-[14px] text-[#8A8E99] leading-relaxed">{desc}</p>
