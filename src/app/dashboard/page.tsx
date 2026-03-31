@@ -18,44 +18,53 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
+    let mounted = true;
+
+    const loadUserAndData = async () => {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        router.push('/login');
+        return;
+      }
+
+      if (!mounted) return;
+      setUser(currentUser);
+
+      // Load user's listings
+      const { data: listingsData } = await supabase
+        .from('listings')
+        .select(`
+          *,
+          makes:make_id(name),
+          calibres:calibre_id(name)
+        `)
+        .eq('seller_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      if (!mounted) return;
+      setListings(listingsData || []);
+
+      // Calculate stats
+      const activeCount = listingsData?.filter(l => l.status === 'active').length || 0;
+      const totalViews = listingsData?.reduce((sum, l) => sum + (l.views_count || 0), 0) || 0;
+
+      setStats({
+        activeListings: activeCount,
+        totalViews: totalViews,
+        totalListings: listingsData?.length || 0,
+      });
+    };
+
     loadUserAndData();
-  }, []);
 
-  const loadUserAndData = async () => {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      router.push('/login');
-      return;
-    }
-
-    setUser(currentUser);
-
-    // Load user's listings
-    const { data: listingsData } = await supabase
-      .from('listings')
-      .select(`
-        *,
-        makes:make_id(name),
-        calibres:calibre_id(name)
-      `)
-      .eq('seller_id', currentUser.id)
-      .order('created_at', { ascending: false });
-
-    setListings(listingsData || []);
-
-    // Calculate stats
-    const activeCount = listingsData?.filter(l => l.status === 'active').length || 0;
-    const totalViews = listingsData?.reduce((sum, l) => sum + (l.views_count || 0), 0) || 0;
-
-    setStats({
-      activeListings: activeCount,
-      totalViews: totalViews,
-      totalListings: listingsData?.length || 0,
-    });
-  };
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
+      {/* NAVBAR - ONLY RENDERED ONCE */}
       <Navbar />
 
       <div className="flex-1 flex">
