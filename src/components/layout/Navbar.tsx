@@ -31,10 +31,7 @@ export default function Navbar() {
       <div className="max-w-[1440px] mx-auto px-6 md:px-8 h-[72px] flex items-center justify-between">
         
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 bg-[#C9922A] rounded-[3px] flex items-center justify-center transform group-hover:scale-105 transition-transform">
-            <span className="text-[20px] font-bold text-black">🔫</span>
-          </div>
+        <Link href="/" className="flex items-center group">
           <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[22px] tracking-[0.15em] text-[#F0EDE8] uppercase">
             GUN<span className="text-[#C9922A]"> X</span>
           </span>
