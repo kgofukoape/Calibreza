@@ -2,196 +2,163 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { getCurrentUser, signOut } from '@/lib/auth';
+import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
-    checkUser();
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkUser();
-    });
-
-    return () => subscription.unsubscribe();
+    loadUser();
   }, []);
 
-  const checkUser = async () => {
+  const loadUser = async () => {
     const currentUser = await getCurrentUser();
     setUser(currentUser);
-
-    if (currentUser) {
-      const { data: profileData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', currentUser.id)
-        .single();
-      setProfile(profileData);
-    } else {
-      setProfile(null);
-    }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    setUser(null);
-    setProfile(null);
-    setShowDropdown(false);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     router.push('/');
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return 'U';
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return parts[0][0] + parts[1][0];
-    }
-    return name[0];
-  };
-
   return (
-    <nav className="bg-[#0D0F13] border-b border-white/10 sticky top-0 z-50">
-      <div className="max-w-[1920px] mx-auto px-6 md:px-8 py-4 flex items-center justify-between">
+    <nav className="bg-[#191C23] border-b border-white/5 sticky top-0 z-50 backdrop-blur-sm">
+      <div className="max-w-[1440px] mx-auto px-6 md:px-8 h-[72px] flex items-center justify-between">
         
-        <Link href="/" className="flex flex-col group">
-          <div className="flex items-baseline gap-1">
-            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-black text-[28px] tracking-tight uppercase text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">
-              GUN
-            </span>
-            <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-black text-[28px] tracking-tight uppercase text-[#C9922A]">
-              X
-            </span>
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 bg-[#C9922A] rounded-[3px] flex items-center justify-center transform group-hover:scale-105 transition-transform">
+            <span className="text-[20px] font-bold text-black">🔫</span>
           </div>
-          <div className="text-[9px] tracking-[0.2em] uppercase text-[#8A8E99] -mt-1.5">
-            FIREARMS CLASSIFIEDS
-          </div>
+          <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[22px] tracking-[0.15em] text-[#F0EDE8] uppercase">
+            GUN<span className="text-[#C9922A]"> X</span>
+          </span>
         </Link>
 
-        <div className="hidden md:flex items-center gap-8">
-          <Link href="/" className="text-[13px] font-bold tracking-wider uppercase text-[#8A8E99] hover:text-[#C9922A] transition-colors">
-            Browse
-          </Link>
-          <Link href="/dealers" className="text-[13px] font-bold tracking-wider uppercase text-[#8A8E99] hover:text-[#C9922A] transition-colors">
-            Dealers
-          </Link>
-          <Link href="/listings" className="text-[13px] font-bold tracking-wider uppercase text-[#8A8E99] hover:text-[#C9922A] transition-colors">
-            Listings
-          </Link>
-          <Link href="/services" className="text-[13px] font-bold tracking-wider uppercase text-[#8A8E99] hover:text-[#C9922A] transition-colors">
-            Services
-          </Link>
+        {/* Center Navigation */}
+        <div className="hidden lg:flex items-center gap-1">
+          {[
+            { label: 'BROWSE', href: '/browse' },
+            { label: 'DEALERS', href: '/dealers' },
+            { label: 'LISTINGS', href: '/listings' },
+            { label: 'SERVICES', href: '/services' },
+          ].map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+              className={`px-5 py-2 text-[14px] font-bold tracking-[0.1em] uppercase transition-colors rounded-sm ${
+                pathname === item.href
+                  ? 'text-[#C9922A] bg-[#C9922A]/10'
+                  : 'text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5'
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
         </div>
 
-        <div className="flex items-center gap-4">
-          {user && profile ? (
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center gap-3 bg-[#191C23] border border-white/10 rounded-md px-4 py-2 hover:border-[#C9922A]/30 transition-colors"
+        {/* Right Side - Auth & Actions */}
+        <div className="flex items-center gap-3">
+          {user ? (
+            <>
+              <Link
+                href="/sell"
+                style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                className="hidden md:flex items-center gap-2 bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-5 py-2.5 rounded-[3px] hover:brightness-110 transition-all shadow-[0_0_15px_rgba(201,146,42,0.3)]"
               >
-                <div className="w-8 h-8 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden">
-                  {profile?.avatar_url?.startsWith('preset:') ? (
-                    <span className="text-lg">{profile.avatar_url.replace('preset:', '')}</span>
-                  ) : profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-sm font-bold text-black">
-                      {getInitials(profile.full_name || 'User')}
-                    </span>
-                  )}
-                </div>
-                <span className="hidden md:block text-[14px] font-bold text-[#F0EDE8]">
-                  {profile.full_name?.split(' ')[0] || 'User'}
-                </span>
-                <svg className="w-4 h-4 text-[#8A8E99]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+                <span className="text-[16px]">+</span>
+                POST AD
+              </Link>
 
-              {showDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-[#191C23] border border-white/10 rounded-md shadow-xl z-50 overflow-hidden">
-                    <div className="p-4 border-b border-white/10">
-                      <div className="font-bold text-[15px] text-[#F0EDE8] mb-1">{profile.full_name}</div>
-                      <div className="text-[12px] text-[#8A8E99]">{profile.email}</div>
-                    </div>
-                    <div className="py-2">
-                      <Link
-                        href="/dashboard"
-                        onClick={() => setShowDropdown(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
-                      >
-                        <span>📊</span>
-                        <span>Dashboard</span>
-                      </Link>
-                      <Link
-                        href="/dashboard"
-                        onClick={() => setShowDropdown(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
-                      >
-                        <span>📝</span>
-                        <span>My Listings</span>
-                      </Link>
-                      <Link
-                        href="/dashboard"
-                        onClick={() => setShowDropdown(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
-                      >
-                        <span>💬</span>
-                        <span>Messages</span>
-                      </Link>
-                      <Link
-                        href="/settings"
-                        onClick={() => setShowDropdown(false)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-[#C9922A]/10 hover:text-[#C9922A] transition-colors"
-                      >
-                        <span>⚙️</span>
-                        <span>Settings</span>
-                      </Link>
-                      <div className="border-t border-white/10 my-2" />
-                      <button
-                        onClick={handleSignOut}
-                        className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-[14px] text-red-400 hover:bg-red-500/10 transition-colors"
-                      >
-                        <span>🚪</span>
-                        <span>Sign Out</span>
-                      </button>
-                    </div>
+              <div className="relative">
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="flex items-center gap-3 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-2 hover:border-[#C9922A] transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden">
+                    {user.avatar_url?.startsWith('preset:') ? (
+                      <span className="text-lg">{user.avatar_url.replace('preset:', '')}</span>
+                    ) : user.avatar_url ? (
+                      <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-sm font-bold text-black">
+                        {user.full_name?.charAt(0) || 'U'}
+                      </span>
+                    )}
                   </div>
-                </>
-              )}
-            </div>
+                  <span className="hidden md:block text-[14px] font-medium text-[#F0EDE8]">
+                    {user.full_name?.split(' ')[0] || 'User'}
+                  </span>
+                  <svg className="w-4 h-4 text-[#8A8E99]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-[#191C23] border border-white/10 rounded-md shadow-xl py-2 z-50">
+                    <Link
+                      href="/dashboard"
+                      className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-white/5 transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      <span>📊</span>
+                      Dashboard
+                    </Link>
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-white/5 transition-colors"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      <span>⚙️</span>
+                      Settings
+                    </Link>
+                    <Link
+                      href="/sell"
+                      className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-[#F0EDE8] hover:bg-white/5 transition-colors md:hidden"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      <span>+</span>
+                      Post Listing
+                    </Link>
+                    <div className="border-t border-white/10 my-2"></div>
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        handleLogout();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <span>🚪</span>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
             <>
               <Link
                 href="/login"
-                className="hidden md:block text-[13px] font-bold tracking-wider uppercase text-[#F0EDE8] hover:text-[#C9922A] transition-colors"
+                style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                className="text-[14px] font-bold tracking-[0.1em] uppercase text-[#8A8E99] hover:text-[#F0EDE8] transition-colors px-4 py-2"
               >
-                Sign In
+                Login
               </Link>
               <Link
                 href="/signup"
-                className="hidden md:block bg-transparent border-2 border-[#C9922A] text-[#C9922A] text-[13px] font-bold tracking-wider uppercase px-5 py-2 rounded-[3px] hover:bg-[#C9922A] hover:text-black transition-all"
+                style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                className="bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-5 py-2.5 rounded-[3px] hover:brightness-110 transition-all"
               >
-                Register
+                Sign Up
               </Link>
             </>
           )}
-
-          <Link
-            href="/sell"
-            style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-            className="bg-[#C9922A] text-black text-[14px] font-bold tracking-[0.1em] uppercase px-6 py-2.5 rounded-[3px] hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,146,42,0.3)]"
-          >
-            + Post Ad
-          </Link>
         </div>
       </div>
     </nav>
