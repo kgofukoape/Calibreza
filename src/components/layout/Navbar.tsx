@@ -30,10 +30,13 @@ export default function Navbar() {
     <nav className="bg-[#191C23] border-b border-white/5 sticky top-0 z-50 backdrop-blur-sm">
       <div className="max-w-[1440px] mx-auto px-6 md:px-8 h-[72px] flex items-center justify-between">
         
-        {/* Logo */}
-        <Link href="/" className="flex items-center group">
-          <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-[22px] tracking-[0.15em] text-[#F0EDE8] uppercase">
-            GUN<span className="text-[#C9922A]"> X</span>
+        {/* Logo with Tagline */}
+        <Link href="/" className="flex flex-col group">
+          <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-[28px] font-black tracking-tighter text-[#F0EDE8] leading-none uppercase">
+            GUN <span className="text-[#C9922A]">X</span>
+          </span>
+          <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-[#8A8E99] mt-0.5">
+            Firearms Classifieds
           </span>
         </Link>
 
@@ -143,16 +146,25 @@ export default function Navbar() {
               <Link
                 href="/login"
                 style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                className="text-[14px] font-bold tracking-[0.1em] uppercase text-[#8A8E99] hover:text-[#F0EDE8] transition-colors px-4 py-2"
+                className="text-[13px] font-bold tracking-[0.2em] uppercase text-[#F0EDE8] hover:text-[#C9922A] transition-all"
               >
-                Login
+                Sign In
               </Link>
+
               <Link
                 href="/signup"
                 style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                className="bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-5 py-2.5 rounded-[3px] hover:brightness-110 transition-all"
+                className="bg-[#191C23] border border-white/10 text-[#C9922A] text-[13px] font-bold uppercase tracking-[0.2em] px-6 py-2.5 rounded-sm hover:bg-white/5 transition-all"
               >
-                Sign Up
+                Register
+              </Link>
+
+              <Link
+                href="/sell"
+                style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                className="bg-[#C9922A] text-black text-[13px] font-bold uppercase tracking-[0.2em] px-6 py-2.5 rounded-sm hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,146,42,0.3)]"
+              >
+                + Post Ad
               </Link>
             </>
           )}
