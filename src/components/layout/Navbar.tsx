@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/auth';
 
 export default function Navbar() {
   const router = useRouter();
@@ -18,9 +17,26 @@ export default function Navbar() {
 
     const loadUser = async () => {
       try {
-        const currentUser = await getCurrentUser();
+        // Get current session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          if (mounted) {
+            setUser(null);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Get user profile from users table
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
         if (mounted) {
-          setUser(currentUser);
+          setUser(profile);
           setIsLoading(false);
         }
       } catch (error) {
@@ -36,7 +52,7 @@ export default function Navbar() {
     return () => {
       mounted = false;
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -106,12 +122,12 @@ export default function Navbar() {
                       <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
                       <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-sm font-bold text-black">
-                        {user.full_name?.charAt(0) || 'U'}
+                        {user.full_name?.charAt(0)?.toUpperCase() || 'U'}
                       </span>
                     )}
                   </div>
                   <span className="hidden md:block text-[14px] font-medium text-[#F0EDE8]">
-                    {user.full_name?.split(' ')[0] || 'User'}
+                    {user.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'User'}
                   </span>
                   <svg className="w-4 h-4 text-[#8A8E99]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
