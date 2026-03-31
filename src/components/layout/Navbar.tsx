@@ -45,7 +45,7 @@ export default function Navbar() {
           {[
             { label: 'BROWSE', href: '/browse' },
             { label: 'DEALERS', href: '/dealers' },
-            { label: 'LISTINGS', href: '/listings' },
+            { label: 'WANTED', href: '/wanted' },
             { label: 'SERVICES', href: '/services' },
           ].map((item) => (
             <Link
