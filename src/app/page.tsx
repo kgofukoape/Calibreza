@@ -2,32 +2,13 @@ import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import ListingCard from '@/components/listings/ListingCard';
-import { supabase } from '@/lib/supabase';
 
-// Fetch listings from Supabase
-async function getFeaturedListings() {
-  const { data, error } = await supabase
-    .from('listings')
-    .select(`
-      *,
-      makes:make_id(name),
-      calibres:calibre_id(name),
-      provinces:province_id(name),
-      conditions:condition_id(name),
-      users:seller_id(full_name, user_type)
-    `)
-    .eq('status', 'active')
-    .eq('is_featured', true)
-    .order('created_at', { ascending: false })
-    .limit(4);
-
-  if (error) {
-    console.error('Error fetching listings:', error);
-    return [];
-  }
-
-  return data || [];
-}
+const DEMO_LISTINGS = [
+  { id:'1', title:'CZ P-10 C 9mm Luger', make:'CZ', price:12500, province:'Gauteng', condition:'Brand New', category:'pistols', listingType:'dealer' as const, sellerName:'Gunstore Centurion', featured:true, calibre:'9mm Luger' },
+  { id:'2', title:'Tikka T3x Lite .308 Win', make:'Tikka', price:18000, province:'Western Cape', condition:'Good', category:'rifles', listingType:'private' as const, sellerName:'Stellenbosch', calibre:'.308 Win' },
+  { id:'3', title:'Beretta A400 Xcel Sporting 12ga', make:'Beretta', price:34900, province:'KZN', condition:'Brand New', category:'shotguns', listingType:'dealer' as const, sellerName:'Firearm World DBN', calibre:'12 Gauge' },
+  { id:'4', title:'Vortex Viper PST Gen II 5-25x50', make:'Vortex Optics', price:14000, province:'Gauteng', condition:'Like New', category:'accessories', listingType:'private' as const, sellerName:'Pretoria East', calibre:'34mm Tube' },
+];
 
 const getCategoryIcon = (slug: string) => {
   const baseClasses = "w-7 h-7 text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors";
@@ -69,24 +50,7 @@ const CATEGORIES = [
   { slug:'wanted', label:'Wanted', count:'85' },
 ];
 
-export default async function HomePage() {
-  const listings = await getFeaturedListings();
-
-  // Transform Supabase data to match ListingCard props
-  const transformedListings = listings.map((listing: any) => ({
-    id: listing.id,
-    title: listing.title,
-    make: listing.makes?.name || '',
-    price: listing.price,
-    province: listing.provinces?.name || listing.city,
-    condition: listing.conditions?.name || '',
-    category: listing.category_id,
-    listingType: listing.listing_type,
-    sellerName: listing.users?.full_name || listing.city,
-    calibre: listing.calibres?.name || '',
-    featured: listing.is_featured,
-  }));
-
+export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
       <Navbar />
@@ -159,23 +123,21 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {transformedListings.length > 0 && (
-        <section className="px-6 py-16 md:px-8 md:py-20 bg-[#0D0F13] border-t border-white/5">
-          <div className="max-w-[1280px] mx-auto">
-            <div className="mb-10 md:mb-12">
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-2">
-                Featured <span className="text-[#C9922A]">Listings</span>
-              </h2>
-              <p className="text-[14px] md:text-[15px] text-[#8A8E99]">Handpicked firearms from verified sellers</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {transformedListings.map((listing: any) => (
-                <ListingCard key={listing.id} {...listing} />
-              ))}
-            </div>
+      <section className="px-6 py-16 md:px-8 md:py-20 bg-[#0D0F13] border-t border-white/5">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="mb-10 md:mb-12">
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-2">
+              Featured <span className="text-[#C9922A]">Listings</span>
+            </h2>
+            <p className="text-[14px] md:text-[15px] text-[#8A8E99]">Handpicked firearms from verified sellers</p>
           </div>
-        </section>
-      )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {DEMO_LISTINGS.map((listing) => (
+              <ListingCard key={listing.id} {...listing} />
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="px-6 py-16 md:px-8 md:py-20 bg-[#191C23] border-t border-white/5">
         <div className="max-w-[1280px] mx-auto">
