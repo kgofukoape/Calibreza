@@ -13,10 +13,11 @@ interface ListingCardProps {
   sellerName: string;
   calibre?: string;
   featured?: boolean;
+  images?: string[];
 }
 
 export default function ListingCard({
-  id, title, make, price, province, condition, category, listingType, sellerName, calibre, featured
+  id, title, make, price, province, condition, category, listingType, sellerName, calibre, featured, images
 }: ListingCardProps) {
   
   // Format price to South African Rands (ZAR)
@@ -36,11 +37,19 @@ export default function ListingCard({
         </div>
       )}
 
-      {/* Image Placeholder (Dark gradient with icon) */}
+      {/* Image or Placeholder */}
       <div className="w-full aspect-[4/3] bg-gradient-to-br from-[#1F2330] to-[#0D0F13] border-b border-white/5 relative flex items-center justify-center overflow-hidden">
-        <span className="text-4xl opacity-20 group-hover:scale-110 transition-transform duration-500">
-          {category === 'pistols' ? '🔫' : category === 'rifles' ? '🎯' : '📷'}
-        </span>
+        {images && images.length > 0 ? (
+          <img 
+            src={images[0]} 
+            alt={title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <span className="text-4xl opacity-20 group-hover:scale-110 transition-transform duration-500">
+            {category === 'pistols' ? '🔫' : category === 'rifles' ? '🎯' : '📷'}
+          </span>
+        )}
         
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
