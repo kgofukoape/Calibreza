@@ -90,7 +90,7 @@ export default function HomePage() {
             The cleanest, most trusted platform for buying and selling licensed firearms. Connect with verified dealers and private sellers across all nine provinces.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-5">
-            <Link href="/listings" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] text-black font-bold text-[14px] md:text-[15px] tracking-[0.12em] uppercase px-10 md:px-12 py-4 md:py-5 rounded-[3px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.4)] w-full sm:w-auto">
+            <Link href="/browse" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-[#C9922A] text-black font-bold text-[14px] md:text-[15px] tracking-[0.12em] uppercase px-10 md:px-12 py-4 md:py-5 rounded-[3px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.4)] w-full sm:w-auto">
               Browse Listings
             </Link>
             <Link href="/sell" style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="bg-transparent border border-[#C9922A]/40 text-[#C9922A] font-bold text-[14px] md:text-[15px] tracking-[0.12em] uppercase px-10 md:px-12 py-4 md:py-5 rounded-[3px] hover:bg-[#C9922A]/5 transition-all w-full sm:w-auto">
