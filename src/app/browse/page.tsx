@@ -6,70 +6,36 @@ import Navbar from '@/components/layout/Navbar';
 import ListingCard from '@/components/listings/ListingCard';
 import { supabase } from '@/lib/supabase';
 
-const CATEGORIES = [
-  { value: 'all', label: 'All Categories' },
-  { value: 'pistols', label: 'Pistols' },
-  { value: 'rifles', label: 'Rifles' },
-  { value: 'shotguns', label: 'Shotguns' },
-  { value: 'revolvers', label: 'Revolvers' },
-  { value: 'air-guns', label: 'Air Guns' },
-  { value: 'airsoft', label: 'Airsoft' },
-  { value: 'holsters', label: 'Holsters' },
-  { value: 'magazines', label: 'Magazines' },
-  { value: 'accessories', label: 'Accessories' },
-  { value: 'ammunition', label: 'Ammunition' },
-  { value: 'reloading', label: 'Reloading' },
-  { value: 'knives', label: 'Knives' },
-];
-
-const PROVINCES = [
-  { value: 'all', label: 'All Provinces' },
-  { value: 'Gauteng', label: 'Gauteng' },
-  { value: 'Western Cape', label: 'Western Cape' },
-  { value: 'KwaZulu-Natal', label: 'KwaZulu-Natal' },
-  { value: 'Eastern Cape', label: 'Eastern Cape' },
-  { value: 'Free State', label: 'Free State' },
-  { value: 'Limpopo', label: 'Limpopo' },
-  { value: 'Mpumalanga', label: 'Mpumalanga' },
-  { value: 'North West', label: 'North West' },
-  { value: 'Northern Cape', label: 'Northern Cape' },
-];
-
-const CONDITIONS = [
-  { value: 'all', label: 'All Conditions' },
-  { value: 'Brand New', label: 'Brand New' },
-  { value: 'Like New', label: 'Like New' },
-  { value: 'Good', label: 'Good' },
-  { value: 'Fair', label: 'Fair' },
-];
-
 export default function BrowsePage() {
   const [listings, setListings] = useState<any[]>([]);
-  const [filteredListings, setFilteredListings] = useState<any[]>([]);
+  const [displayedListings, setDisplayedListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [makes, setMakes] = useState<any[]>([]);
 
-  // Filter states
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedProvince, setSelectedProvince] = useState('all');
+  // Filter states (not applied until user clicks Apply)
+  const [selectedBrand, setSelectedBrand] = useState('all');
   const [selectedCondition, setSelectedCondition] = useState('all');
-  const [listingType, setListingType] = useState('all'); // all, dealer, private
+  const [selectedSellerType, setSelectedSellerType] = useState('all');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
-  const [sortBy, setSortBy] = useState('newest'); // newest, oldest, price_low, price_high, most_viewed
+  const [sortBy, setSortBy] = useState('newest');
 
   useEffect(() => {
-    loadListings();
+    loadData();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [listings, searchTerm, selectedCategory, selectedProvince, selectedCondition, listingType, priceMin, priceMax, sortBy]);
-
-  const loadListings = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Load all makes for brand filter
+      const { data: makesData } = await supabase
+        .from('makes')
+        .select('*')
+        .order('name');
+      setMakes(makesData || []);
+
+      // Load all active listings
+      const { data: listingsData } = await supabase
         .from('listings')
         .select(`
           *,
@@ -80,10 +46,10 @@ export default function BrowsePage() {
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setListings(data || []);
+      setListings(listingsData || []);
+      setDisplayedListings(listingsData || []);
     } catch (error) {
-      console.error('Error loading listings:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -92,23 +58,9 @@ export default function BrowsePage() {
   const applyFilters = () => {
     let filtered = [...listings];
 
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(listing =>
-        listing.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        listing.makes?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        listing.calibres?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Category filter
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(listing => listing.category === selectedCategory);
-    }
-
-    // Province filter
-    if (selectedProvince !== 'all') {
-      filtered = filtered.filter(listing => listing.province === selectedProvince);
+    // Brand filter
+    if (selectedBrand !== 'all') {
+      filtered = filtered.filter(listing => listing.make_id === selectedBrand);
     }
 
     // Condition filter
@@ -116,9 +68,9 @@ export default function BrowsePage() {
       filtered = filtered.filter(listing => listing.condition === selectedCondition);
     }
 
-    // Listing type filter
-    if (listingType !== 'all') {
-      filtered = filtered.filter(listing => listing.listing_type === listingType);
+    // Seller type filter
+    if (selectedSellerType !== 'all') {
+      filtered = filtered.filter(listing => listing.listing_type === selectedSellerType);
     }
 
     // Price range filter
@@ -129,7 +81,7 @@ export default function BrowsePage() {
       filtered = filtered.filter(listing => listing.price <= parseInt(priceMax));
     }
 
-    // Sorting
+    // Apply sorting
     switch (sortBy) {
       case 'newest':
         filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -143,23 +95,19 @@ export default function BrowsePage() {
       case 'price_high':
         filtered.sort((a, b) => b.price - a.price);
         break;
-      case 'most_viewed':
-        filtered.sort((a, b) => (b.views_count || 0) - (a.views_count || 0));
-        break;
     }
 
-    setFilteredListings(filtered);
+    setDisplayedListings(filtered);
   };
 
   const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedCategory('all');
-    setSelectedProvince('all');
+    setSelectedBrand('all');
     setSelectedCondition('all');
-    setListingType('all');
+    setSelectedSellerType('all');
     setPriceMin('');
     setPriceMax('');
     setSortBy('newest');
+    setDisplayedListings(listings);
   };
 
   return (
@@ -174,7 +122,7 @@ export default function BrowsePage() {
               Browse <span className="text-[#C9922A]">Marketplace</span>
             </h1>
             <p className="text-[14px] text-[#8A8E99]">
-              {filteredListings.length} listings available
+              {displayedListings.length} listings available
             </p>
           </div>
 
@@ -190,53 +138,24 @@ export default function BrowsePage() {
                     onClick={clearFilters}
                     className="text-[12px] text-[#C9922A] hover:underline font-medium"
                   >
-                    Clear All
+                    Clear
                   </button>
                 </div>
 
                 <div className="space-y-6">
-                  {/* Search */}
+                  {/* Brand */}
                   <div>
                     <label className="block text-[12px] font-bold uppercase tracking-wider text-[#8A8E99] mb-2">
-                      Search
-                    </label>
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search listings..."
-                      className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-2.5 text-[14px] text-[#F0EDE8] placeholder-[#8A8E99] focus:outline-none focus:border-[#C9922A]"
-                    />
-                  </div>
-
-                  {/* Category */}
-                  <div>
-                    <label className="block text-[12px] font-bold uppercase tracking-wider text-[#8A8E99] mb-2">
-                      Category
+                      Brand
                     </label>
                     <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      value={selectedBrand}
+                      onChange={(e) => setSelectedBrand(e.target.value)}
                       className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
                     >
-                      {CATEGORIES.map(cat => (
-                        <option key={cat.value} value={cat.value}>{cat.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Province */}
-                  <div>
-                    <label className="block text-[12px] font-bold uppercase tracking-wider text-[#8A8E99] mb-2">
-                      Province
-                    </label>
-                    <select
-                      value={selectedProvince}
-                      onChange={(e) => setSelectedProvince(e.target.value)}
-                      className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
-                    >
-                      {PROVINCES.map(prov => (
-                        <option key={prov.value} value={prov.value}>{prov.label}</option>
+                      <option value="all">All Brands</option>
+                      {makes.map(make => (
+                        <option key={make.id} value={make.id}>{make.name}</option>
                       ))}
                     </select>
                   </div>
@@ -251,36 +170,28 @@ export default function BrowsePage() {
                       onChange={(e) => setSelectedCondition(e.target.value)}
                       className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
                     >
-                      {CONDITIONS.map(cond => (
-                        <option key={cond.value} value={cond.value}>{cond.label}</option>
-                      ))}
+                      <option value="all">All Conditions</option>
+                      <option value="Brand New">Brand New</option>
+                      <option value="Like New">Like New</option>
+                      <option value="Good">Good</option>
+                      <option value="Fair">Fair</option>
                     </select>
                   </div>
 
-                  {/* Listing Type */}
+                  {/* Seller Type */}
                   <div>
                     <label className="block text-[12px] font-bold uppercase tracking-wider text-[#8A8E99] mb-2">
                       Seller Type
                     </label>
-                    <div className="space-y-2">
-                      {[
-                        { value: 'all', label: 'All Sellers' },
-                        { value: 'dealer', label: 'Dealers Only' },
-                        { value: 'private', label: 'Private Sellers' },
-                      ].map(type => (
-                        <label key={type.value} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="listingType"
-                            value={type.value}
-                            checked={listingType === type.value}
-                            onChange={(e) => setListingType(e.target.value)}
-                            className="w-4 h-4 accent-[#C9922A]"
-                          />
-                          <span className="text-[14px] text-[#F0EDE8]">{type.label}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <select
+                      value={selectedSellerType}
+                      onChange={(e) => setSelectedSellerType(e.target.value)}
+                      className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                    >
+                      <option value="all">All Sellers</option>
+                      <option value="dealer">Dealers Only</option>
+                      <option value="private">Private Sellers</option>
+                    </select>
                   </div>
 
                   {/* Price Range */}
@@ -305,6 +216,15 @@ export default function BrowsePage() {
                       />
                     </div>
                   </div>
+
+                  {/* Apply Button */}
+                  <button
+                    onClick={applyFilters}
+                    style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                    className="w-full bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-6 py-3 rounded-[3px] hover:brightness-110 transition-all"
+                  >
+                    Apply Filters
+                  </button>
                 </div>
               </div>
             </aside>
@@ -314,7 +234,7 @@ export default function BrowsePage() {
               {/* Sort Bar */}
               <div className="bg-[#191C23] border border-white/5 rounded-md p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="text-[14px] text-[#8A8E99]">
-                  Showing <span className="text-[#F0EDE8] font-medium">{filteredListings.length}</span> results
+                  Showing <span className="text-[#F0EDE8] font-medium">{displayedListings.length}</span> results
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[13px] text-[#8A8E99]">Sort by:</span>
@@ -327,7 +247,6 @@ export default function BrowsePage() {
                     <option value="oldest">Oldest First</option>
                     <option value="price_low">Price: Low to High</option>
                     <option value="price_high">Price: High to Low</option>
-                    <option value="most_viewed">Most Viewed</option>
                   </select>
                 </div>
               </div>
@@ -340,26 +259,26 @@ export default function BrowsePage() {
                     <p className="text-[14px] text-[#8A8E99]">Loading listings...</p>
                   </div>
                 </div>
-              ) : filteredListings.length === 0 ? (
+              ) : displayedListings.length === 0 ? (
                 <div className="bg-[#191C23] border border-white/5 rounded-md p-12 text-center">
                   <div className="text-6xl mb-4 opacity-20">🔍</div>
                   <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-2">
                     No Listings Found
                   </h3>
                   <p className="text-[14px] text-[#8A8E99] mb-6">
-                    Try adjusting your filters or search terms
+                    Try adjusting your filters
                   </p>
                   <button
                     onClick={clearFilters}
                     style={{fontFamily:"'Barlow Condensed', sans-serif"}}
                     className="bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-6 py-3 rounded-[3px] hover:brightness-110 transition-all"
                   >
-                    Clear All Filters
+                    Clear Filters
                   </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredListings.map((listing) => (
+                  {displayedListings.map((listing) => (
                     <ListingCard
                       key={listing.id}
                       id={listing.id}
