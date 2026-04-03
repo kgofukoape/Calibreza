@@ -52,24 +52,16 @@ export default function DashboardPage() {
   const toggleUnderOffer = async (listingId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'under_offer' ? 'active' : 'under_offer';
     
-    console.log('=== TOGGLE UNDER OFFER ===');
-    console.log('Listing ID:', listingId);
-    console.log('Current Status:', currentStatus);
-    console.log('New Status:', newStatus);
-    console.log('User ID:', user?.id);
-    
     try {
       const { data, error } = await supabase
         .from('listings')
         .update({ status: newStatus })
-        .eq('id', listingId);
-
-      console.log('Update Response Data:', data);
-      console.log('Update Response Error:', error);
+        .eq('id', listingId)
+        .eq('seller_id', user.id);
 
       if (error) {
-        console.error('FULL ERROR OBJECT:', JSON.stringify(error, null, 2));
-        alert(`Failed to update: ${error.message || JSON.stringify(error)}`);
+        console.error('Error:', error);
+        alert(`Failed to update: ${error.message}`);
         return;
       }
 
@@ -79,9 +71,7 @@ export default function DashboardPage() {
 
       alert(`Listing ${newStatus === 'under_offer' ? 'marked as Under Offer' : 'set back to Active'}!`);
     } catch (error: any) {
-      console.error('CATCH ERROR:', error);
-      console.error('ERROR MESSAGE:', error?.message);
-      console.error('ERROR DETAILS:', JSON.stringify(error, null, 2));
+      console.error('Error:', error);
       alert(`Error: ${error?.message || 'Unknown error'}`);
     }
   };
@@ -89,24 +79,16 @@ export default function DashboardPage() {
   const toggleSold = async (listingId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'sold' ? 'active' : 'sold';
     
-    console.log('=== TOGGLE SOLD ===');
-    console.log('Listing ID:', listingId);
-    console.log('Current Status:', currentStatus);
-    console.log('New Status:', newStatus);
-    console.log('User ID:', user?.id);
-    
     try {
       const { data, error } = await supabase
         .from('listings')
         .update({ status: newStatus })
-        .eq('id', listingId);
-
-      console.log('Update Response Data:', data);
-      console.log('Update Response Error:', error);
+        .eq('id', listingId)
+        .eq('seller_id', user.id);
 
       if (error) {
-        console.error('FULL ERROR OBJECT:', JSON.stringify(error, null, 2));
-        alert(`Failed to update: ${error.message || JSON.stringify(error)}`);
+        console.error('Error:', error);
+        alert(`Failed to update: ${error.message}`);
         return;
       }
 
@@ -116,9 +98,7 @@ export default function DashboardPage() {
 
       alert(`Listing ${newStatus === 'sold' ? 'marked as Sold' : 'set back to Active'}!`);
     } catch (error: any) {
-      console.error('CATCH ERROR:', error);
-      console.error('ERROR MESSAGE:', error?.message);
-      console.error('ERROR DETAILS:', JSON.stringify(error, null, 2));
+      console.error('Error:', error);
       alert(`Error: ${error?.message || 'Unknown error'}`);
     }
   };
