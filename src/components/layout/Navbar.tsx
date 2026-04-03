@@ -80,6 +80,7 @@ export default function Navbar() {
             { label: 'BROWSE', href: '/browse' },
             { label: 'DEALERS', href: '/dealers' },
             { label: 'WANTED', href: '/wanted' },
+            { label: 'CLUBS & RANGES', href: '/sport-shooting' },
             { label: 'SERVICES', href: '/services' },
           ].map((item) => (
             <Link
