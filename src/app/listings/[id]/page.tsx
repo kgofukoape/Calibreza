@@ -172,7 +172,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     );
   }
 
-  const images = listing.images && listing.images.length > 0 ? listing.images : null;
+  const images = listing?.images && Array.isArray(listing.images) && listing.images.length > 0 
+    ? listing.images 
+    : null;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
