@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Navbar from '@/components/layout/Navbar';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -11,23 +10,20 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    activeListings: 0,
-    totalViews: 0,
-    totalListings: 0,
-  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    loadUserData();
+  }, []);
 
-    const loadUserAndData = async () => {
+  const loadUserData = async () => {
+    setLoading(true);
+    try {
       const currentUser = await getCurrentUser();
       if (!currentUser) {
         router.push('/login');
         return;
       }
-
-      if (!mounted) return;
       setUser(currentUser);
 
       // Load user's listings
@@ -41,269 +37,211 @@ export default function DashboardPage() {
         .eq('seller_id', currentUser.id)
         .order('created_at', { ascending: false });
 
-      if (!mounted) return;
       setListings(listingsData || []);
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Calculate stats
-      const activeCount = listingsData?.filter(l => l.status === 'active').length || 0;
-      const totalViews = listingsData?.reduce((sum, l) => sum + (l.views_count || 0), 0) || 0;
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
 
-      setStats({
-        activeListings: activeCount,
-        totalViews: totalViews,
-        totalListings: listingsData?.length || 0,
-      });
-    };
-
-    loadUserAndData();
-
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#8A8E99]">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
-      {/* NAVBAR - ONLY RENDERED ONCE */}
-      <Navbar />
-
-      <div className="flex-1 flex">
-        {/* Sidebar */}
-        <aside className="hidden lg:block w-[280px] bg-[#191C23] border-r border-white/5 p-6">
-          <div className="flex flex-col gap-8">
-            {/* Profile Card */}
-            <div className="flex flex-col items-center gap-4 pb-6 border-b border-white/5">
-              <div className="w-20 h-20 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden">
-                {user?.avatar_url?.startsWith('preset:') ? (
-                  <span className="text-4xl">{user.avatar_url.replace('preset:', '')}</span>
-                ) : user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-bold text-black">
-                    {user?.full_name?.charAt(0) || 'U'}
-                  </span>
-                )}
-              </div>
-              <div className="text-center">
-                <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl uppercase text-[#F0EDE8] mb-1">
-                  {user?.full_name || 'John Doe'}
-                </h2>
-                <p className="text-[11px] font-bold tracking-widest uppercase text-[#C9922A]">Verified Member</p>
-              </div>
-            </div>
-
-            {/* Navigation Menu */}
-            <nav className="flex flex-col gap-2">
-              {[
-                { icon: '🏠', label: 'Overview', href: '/dashboard', active: true },
-                { icon: '📋', label: 'My Listings', href: '/dashboard/listings', active: false },
-                { icon: '❤️', label: 'Wishlist', href: '/dashboard/wishlist', active: false },
-                { icon: '🔍', label: 'Wanted Bounties', href: '/dashboard/bounties', active: false },
-                { icon: '💬', label: 'Messages', href: '/dashboard/messages', active: false },
-                { icon: '⚙️', label: 'Settings', href: '/settings', active: false },
-              ].map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-sm text-[14px] font-medium transition-colors ${
-                    item.active
-                      ? 'bg-[#C9922A]/10 text-[#C9922A] border-l-2 border-[#C9922A]'
-                      : 'text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8]'
-                  }`}
-                >
-                  <span className="text-lg">{item.icon}</span>
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-6 md:p-8">
-          <div className="max-w-[1200px] mx-auto">
-            {/* Header */}
-            <div className="mb-8">
-              <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-2">
+    <div className="min-h-screen bg-[#0D0F13]">
+      {/* Header */}
+      <div className="bg-[#191C23] border-b border-white/5">
+        <div className="max-w-[1280px] mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-extrabold uppercase text-[#F0EDE8] mb-1">
                 Dashboard
               </h1>
-              <p className="text-[14px] text-[#8A8E99]">Manage your listings and account</p>
+              <p className="text-[14px] text-[#8A8E99]">
+                Welcome back, {user?.full_name || 'User'}
+              </p>
             </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-              <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-                <div className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99] mb-2">Active Listings</div>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-5xl font-bold text-[#C9922A]">
-                  {stats.activeListings}
-                </div>
-              </div>
-              <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-                <div className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99] mb-2">Total Views</div>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-5xl font-bold text-[#F0EDE8]">
-                  {stats.totalViews}
-                </div>
-              </div>
-              <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-                <div className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99] mb-2">Total Listings</div>
-                <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-5xl font-bold text-[#F0EDE8]">
-                  {stats.totalListings}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-[#191C23] border border-white/5 rounded-md p-6 mb-8">
-              <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-6">
-                Quick Actions
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Link
-                  href="/sell"
-                  style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                  className="flex items-center justify-center gap-3 bg-[#C9922A] text-black font-bold text-[16px] tracking-[0.1em] uppercase py-4 rounded-[3px] hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,146,42,0.3)]"
-                >
-                  <span className="text-xl">+</span>
-                  POST NEW LISTING
-                </Link>
-                <Link
-                  href="/browse"
-                  style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                  className="flex items-center justify-center gap-3 bg-transparent border border-white/20 text-[#F0EDE8] font-bold text-[16px] tracking-[0.1em] uppercase py-4 rounded-[3px] hover:bg-white/5 transition-all"
-                >
-                  <span className="text-xl">🔍</span>
-                  BROWSE MARKETPLACE
-                </Link>
-              </div>
-            </div>
-
-            {/* My Listings Section */}
-            <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-2xl uppercase text-[#F0EDE8]">
-                  My Listings
-                </h2>
-                <Link
-                  href="/sell"
-                  className="text-[13px] font-bold tracking-wider uppercase text-[#C9922A] hover:underline"
-                >
-                  + ADD NEW
-                </Link>
-              </div>
-
-              {listings.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4 opacity-20">📦</div>
-                  <p className="text-[14px] text-[#8A8E99] mb-6">You haven&apos;t posted any listings yet</p>
-                  <Link
-                    href="/sell"
-                    style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                    className="inline-flex items-center gap-2 bg-[#C9922A] text-black font-bold text-[14px] tracking-[0.1em] uppercase px-6 py-3 rounded-[3px] hover:brightness-110 transition-all"
-                  >
-                    <span>+</span>
-                    Create Your First Listing
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {listings.map((listing) => (
-                    <div key={listing.id} className="flex items-center gap-4 p-4 bg-[#0D0F13] border border-white/5 rounded-sm hover:border-[#C9922A]/30 transition-colors">
-                      <div className="w-20 h-20 bg-[#191C23] rounded-sm flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {listing.images && listing.images.length > 0 ? (
-                          <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-3xl opacity-20">📷</span>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-[16px] text-[#F0EDE8] mb-1">{listing.title}</h3>
-                        <p className="text-[13px] text-[#8A8E99]">
-                          {listing.makes?.name} • {listing.calibres?.name}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <div style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-bold text-[#C9922A] mb-1">
-                          R {listing.price.toLocaleString()}
-                        </div>
-                        <span className={`text-[11px] font-bold uppercase px-2 py-1 rounded-sm ${
-                          listing.status === 'active'
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {listing.status}
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/listings/${listing.id}`}
-                          className="px-4 py-2 bg-[#C9922A] text-black text-[13px] font-bold uppercase rounded-sm hover:brightness-110 transition-all"
-                        >
-                          View
-                        </Link>
-                        <button className="px-4 py-2 bg-transparent border border-white/20 text-[#F0EDE8] text-[13px] font-bold uppercase rounded-sm hover:bg-white/5 transition-all">
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Account Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-              <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-                <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl uppercase text-[#F0EDE8] mb-4 border-b border-white/5 pb-3">
-                  Profile
-                </h3>
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden">
-                    {user?.avatar_url?.startsWith('preset:') ? (
-                      <span className="text-3xl">{user.avatar_url.replace('preset:', '')}</span>
-                    ) : user?.avatar_url ? (
-                      <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-bold text-black">
-                        {user?.full_name?.charAt(0) || 'U'}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-bold text-[16px] text-[#F0EDE8]">{user?.full_name}</div>
-                    <div className="text-[13px] text-[#8A8E99]">{user?.email}</div>
-                  </div>
-                </div>
-                <Link
-                  href="/settings"
-                  style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-                  className="block text-center bg-transparent border border-white/20 text-[#F0EDE8] font-bold text-[14px] tracking-[0.1em] uppercase py-3 rounded-sm hover:bg-white/5 transition-all"
-                >
-                  Edit Profile
-                </Link>
-              </div>
-
-              <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-                <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-xl uppercase text-[#F0EDE8] mb-4 border-b border-white/5 pb-3">
-                  Account
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-[#8A8E99]">Account Type</span>
-                    <span className="text-[#F0EDE8] font-medium">Private Seller</span>
-                  </div>
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-[#8A8E99]">Member Since</span>
-                    <span className="text-[#F0EDE8] font-medium">Mar 2026</span>
-                  </div>
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-[#8A8E99]">Response Rate</span>
-                    <span className="text-green-400 font-medium">Fast (24h)</span>
-                  </div>
-                </div>
-              </div>
+            <div className="flex gap-3">
+              <Link
+                href="/"
+                className="bg-transparent border border-white/20 text-[#F0EDE8] font-bold px-5 py-2.5 rounded-sm text-[13px] uppercase hover:bg-white/5 transition-all"
+              >
+                ← Back to Site
+              </Link>
+              <Link
+                href="/sell"
+                className="bg-[#C9922A] text-black font-bold px-5 py-2.5 rounded-sm text-[13px] uppercase hover:brightness-110 transition-all"
+              >
+                + Post Listing
+              </Link>
             </div>
           </div>
-        </main>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-[1280px] mx-auto px-6 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+            <div className="text-[13px] text-[#8A8E99] mb-2">Active Listings</div>
+            <div className="text-3xl font-bold text-[#F0EDE8]">
+              {listings.filter(l => l.status === 'active').length}
+            </div>
+          </div>
+          
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+            <div className="text-[13px] text-[#8A8E99] mb-2">Total Views</div>
+            <div className="text-3xl font-bold text-[#F0EDE8]">
+              {listings.reduce((sum, l) => sum + (l.views_count || 0), 0)}
+            </div>
+          </div>
+
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+            <div className="text-[13px] text-[#8A8E99] mb-2">Messages</div>
+            <div className="text-3xl font-bold text-[#F0EDE8]">0</div>
+          </div>
+
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+            <div className="text-[13px] text-[#8A8E99] mb-2">Saved Items</div>
+            <div className="text-3xl font-bold text-[#F0EDE8]">0</div>
+          </div>
+        </div>
+
+        {/* Quick Links */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Link
+            href="/dashboard/listings"
+            className="bg-[#191C23] border border-white/5 rounded-md p-6 hover:border-[#C9922A]/30 transition-all group"
+          >
+            <div className="text-4xl mb-3">📋</div>
+            <h3 className="text-lg font-bold text-[#F0EDE8] mb-2 group-hover:text-[#C9922A] transition-colors">
+              My Listings
+            </h3>
+            <p className="text-[13px] text-[#8A8E99]">
+              Manage your active and sold listings
+            </p>
+          </Link>
+
+          <Link
+            href="/dashboard/messages"
+            className="bg-[#191C23] border border-white/5 rounded-md p-6 hover:border-[#C9922A]/30 transition-all group"
+          >
+            <div className="text-4xl mb-3">💬</div>
+            <h3 className="text-lg font-bold text-[#F0EDE8] mb-2 group-hover:text-[#C9922A] transition-colors">
+              Messages
+            </h3>
+            <p className="text-[13px] text-[#8A8E99]">
+              View and respond to buyer enquiries
+            </p>
+          </Link>
+
+          <Link
+            href="/dashboard/wishlist"
+            className="bg-[#191C23] border border-white/5 rounded-md p-6 hover:border-[#C9922A]/30 transition-all group"
+          >
+            <div className="text-4xl mb-3">⭐</div>
+            <h3 className="text-lg font-bold text-[#F0EDE8] mb-2 group-hover:text-[#C9922A] transition-colors">
+              Wishlist
+            </h3>
+            <p className="text-[13px] text-[#8A8E99]">
+              Items you've saved for later
+            </p>
+          </Link>
+        </div>
+
+        {/* Recent Listings */}
+        <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+          <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-bold uppercase text-[#F0EDE8] mb-6">
+            Your Recent Listings
+          </h2>
+
+          {listings.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-5xl mb-4 opacity-20">📦</div>
+              <p className="text-[#8A8E99] mb-4">You haven't posted any listings yet</p>
+              <Link
+                href="/sell"
+                className="inline-block bg-[#C9922A] text-black font-bold px-6 py-3 rounded-sm text-[14px] uppercase hover:brightness-110 transition-all"
+              >
+                Post Your First Listing
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {listings.map((listing) => (
+                <div
+                  key={listing.id}
+                  className="bg-[#0D0F13] border border-white/5 rounded-md p-4 flex flex-col md:flex-row md:items-center gap-4"
+                >
+                  {/* Image */}
+                  <div className="w-full md:w-24 h-24 bg-[#191C23] border border-white/10 rounded-sm overflow-hidden flex-shrink-0">
+                    {listing.images && listing.images.length > 0 ? (
+                      <img
+                        src={listing.images[0]}
+                        alt={listing.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl opacity-20">
+                        📷
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-[#F0EDE8] mb-1">
+                      {listing.title}
+                    </h3>
+                    <div className="flex flex-wrap gap-3 text-[13px] text-[#8A8E99]">
+                      <span>R {listing.price?.toLocaleString()}</span>
+                      <span>•</span>
+                      <span>{listing.condition}</span>
+                      <span>•</span>
+                      <span>{listing.views_count || 0} views</span>
+                      <span>•</span>
+                      <span className={`font-bold ${listing.status === 'active' ? 'text-[#2A9C6E]' : 'text-[#8A8E99]'}`}>
+                        {listing.status === 'active' ? 'Active' : 'Sold'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <Link
+                      href={`/dashboard/listings/edit/${listing.id}`}
+                      className="bg-[#C9922A] text-black font-bold px-4 py-2 rounded-sm text-[13px] uppercase hover:brightness-110 transition-all"
+                    >
+                      Edit
+                    </Link>
+                    
+                    <Link
+                      href={`/listings/${listing.id}`}
+                      className="bg-transparent border border-white/20 text-[#F0EDE8] font-bold px-4 py-2 rounded-sm text-[13px] uppercase hover:bg-white/5 transition-all"
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
