@@ -49,28 +49,65 @@ export default function DashboardPage() {
     router.push('/');
   };
 
-  const updateStatus = async (listingId: string, newStatus: string) => {
+  const toggleUnderOffer = async (listingId: string, currentStatus: string) => {
+    console.log('Toggle Under Offer clicked:', listingId, currentStatus);
+    
+    const newStatus = currentStatus === 'under_offer' ? 'active' : 'under_offer';
+    
     try {
       const { error } = await supabase
         .from('listings')
         .update({ status: newStatus })
         .eq('id', listingId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
-      // Refresh listings
+      // Update local state
       setListings(listings.map(l => 
         l.id === listingId ? { ...l, status: newStatus } : l
       ));
 
-      alert(`Listing marked as ${newStatus === 'sold' ? 'Sold' : newStatus === 'under_offer' ? 'Under Offer' : 'Active'}!`);
+      alert(`Listing ${newStatus === 'under_offer' ? 'marked as Under Offer' : 'set back to Active'}!`);
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      alert('Failed to update status. Check console for details.');
+    }
+  };
+
+  const toggleSold = async (listingId: string, currentStatus: string) => {
+    console.log('Toggle Sold clicked:', listingId, currentStatus);
+    
+    const newStatus = currentStatus === 'sold' ? 'active' : 'sold';
+    
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .update({ status: newStatus })
+        .eq('id', listingId);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      // Update local state
+      setListings(listings.map(l => 
+        l.id === listingId ? { ...l, status: newStatus } : l
+      ));
+
+      alert(`Listing ${newStatus === 'sold' ? 'marked as Sold' : 'set back to Active'}!`);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status. Check console for details.');
     }
   };
 
   const deleteListing = async (listingId: string) => {
+    console.log('Delete clicked:', listingId);
+    
     if (!confirm('Are you sure you want to delete this listing? This cannot be undone.')) {
       return;
     }
@@ -81,13 +118,16 @@ export default function DashboardPage() {
         .delete()
         .eq('id', listingId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       setListings(listings.filter(l => l.id !== listingId));
       alert('Listing deleted successfully');
     } catch (error) {
       console.error('Error deleting listing:', error);
-      alert('Failed to delete listing');
+      alert('Failed to delete listing. Check console for details.');
     }
   };
 
@@ -281,8 +321,8 @@ export default function DashboardPage() {
                     {/* Quick Status Actions */}
                     <div className="flex gap-2 pt-3 border-t border-white/5">
                       <button
-                        onClick={() => updateStatus(listing.id, listing.status === 'active' ? 'under_offer' : 'active')}
-                        className={`px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase transition-all ${
+                        onClick={() => toggleUnderOffer(listing.id, listing.status || 'active')}
+                        className={`px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase transition-all cursor-pointer ${
                           listing.status === 'under_offer'
                             ? 'bg-[#C9922A] text-black'
                             : 'bg-transparent border border-[#C9922A]/30 text-[#C9922A] hover:bg-[#C9922A]/10'
@@ -291,8 +331,8 @@ export default function DashboardPage() {
                         {listing.status === 'under_offer' ? '✓ Under Offer' : 'Mark Under Offer'}
                       </button>
                       <button
-                        onClick={() => updateStatus(listing.id, listing.status === 'sold' ? 'active' : 'sold')}
-                        className={`px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase transition-all ${
+                        onClick={() => toggleSold(listing.id, listing.status || 'active')}
+                        className={`px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase transition-all cursor-pointer ${
                           listing.status === 'sold'
                             ? 'bg-red-500 text-white'
                             : 'bg-transparent border border-red-500/30 text-red-400 hover:bg-red-500/10'
@@ -302,7 +342,7 @@ export default function DashboardPage() {
                       </button>
                       <button
                         onClick={() => deleteListing(listing.id)}
-                        className="px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase bg-transparent border border-white/20 text-[#8A8E99] hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all"
+                        className="px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase bg-transparent border border-white/20 text-[#8A8E99] hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all cursor-pointer"
                       >
                         DELETE
                       </button>
