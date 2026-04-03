@@ -313,3 +313,136 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                 <div className="font-bold text-[16px] text-[#F0EDE8]">{seller?.full_name || 'Private Seller'}</div>
                 <div className="text-[12px] text-[#8A8E99]">
                   {listing.listing_type === 'dealer' ? 'Dealer' : 'Private Seller'}
+                </div>
+              </div>
+            </div>
+
+            {listing.listing_type === 'dealer' && (
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-5 h-5 rounded-full bg-[#2A9C6E]/10 flex items-center justify-center text-[10px] border border-[#2A9C6E]/30 text-[#2A9C6E]">✓</span>
+                <span className="text-[13px] text-[#F0EDE8]">Verified Dealer</span>
+              </div>
+            )}
+          </div>
+
+          {/* Specifications */}
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6 md:p-8">
+            <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-[18px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-5">
+              Specifications
+            </h3>
+            
+            <div className="flex flex-col gap-0">
+              {[
+                ['Make', listing.makes?.name || 'N/A'],
+                ['Calibre', listing.calibres?.name || 'N/A'],
+                ['Condition', listing.condition],
+                ['Category', listing.category],
+                ['Province', listing.province],
+              ].map(([label, val], i, arr) => (
+                <div key={label} className={`flex justify-between py-3 ${i !== arr.length - 1 ? 'border-b border-white/5' : ''}`}>
+                  <span className="text-[13px] text-[#8A8E99]">{label}</span>
+                  <span className="text-[13px] font-medium text-[#F0EDE8]">{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      {/* Similar Listings */}
+      {similarListings.length > 0 && (
+        <section className="max-w-[1280px] mx-auto w-full px-6 md:px-8 py-16">
+          <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-3xl md:text-4xl uppercase text-[#F0EDE8] mb-8">
+            Similar <span className="text-[#C9922A]">Listings</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {similarListings.map((item) => (
+              <ListingCard
+                key={item.id}
+                id={item.id}
+                title={item.title}
+                make={item.makes?.name || 'Unknown'}
+                calibre={item.calibres?.name || 'N/A'}
+                price={item.price}
+                province={item.province}
+                condition={item.condition}
+                category={item.category}
+                listingType={item.listing_type}
+                sellerName={item.users?.full_name || item.city || 'Private'}
+                images={item.images}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Contact Modal */}
+      {showContactModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-8 max-w-md w-full">
+            <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-4">
+              Contact Seller
+            </h3>
+            <textarea
+              value={contactMessage}
+              onChange={(e) => setContactMessage(e.target.value)}
+              placeholder="Hi, I'm interested in your listing..."
+              className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-4 text-[14px] text-[#F0EDE8] placeholder-[#8A8E99] focus:outline-none focus:border-[#C9922A] min-h-[150px] mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={sendMessage}
+                className="flex-1 bg-[#C9922A] text-black font-bold py-3 rounded-sm hover:brightness-110"
+              >
+                Send Message
+              </button>
+              <button
+                onClick={() => setShowContactModal(false)}
+                className="px-6 bg-transparent border border-white/20 text-[#F0EDE8] font-bold py-3 rounded-sm hover:bg-white/5"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-8 max-w-md w-full">
+            <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-4">
+              Report Listing
+            </h3>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-4 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A] mb-4"
+            >
+              <option value="">Select a reason...</option>
+              <option value="scam">Suspected scam</option>
+              <option value="illegal">Illegal item</option>
+              <option value="fake">Fake/counterfeit</option>
+              <option value="duplicate">Duplicate listing</option>
+              <option value="other">Other</option>
+            </select>
+            <div className="flex gap-3">
+              <button
+                onClick={submitReport}
+                className="flex-1 bg-red-500 text-white font-bold py-3 rounded-sm hover:brightness-110"
+              >
+                Submit Report
+              </button>
+              <button
+                onClick={() => setShowReportModal(false)}
+                className="px-6 bg-transparent border border-white/20 text-[#F0EDE8] font-bold py-3 rounded-sm hover:bg-white/5"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
