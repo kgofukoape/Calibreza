@@ -50,64 +50,80 @@ export default function DashboardPage() {
   };
 
   const toggleUnderOffer = async (listingId: string, currentStatus: string) => {
-    console.log('Toggle Under Offer clicked:', listingId, currentStatus);
-    
     const newStatus = currentStatus === 'under_offer' ? 'active' : 'under_offer';
     
+    console.log('=== TOGGLE UNDER OFFER ===');
+    console.log('Listing ID:', listingId);
+    console.log('Current Status:', currentStatus);
+    console.log('New Status:', newStatus);
+    console.log('User ID:', user?.id);
+    
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('listings')
         .update({ status: newStatus })
         .eq('id', listingId);
 
+      console.log('Update Response Data:', data);
+      console.log('Update Response Error:', error);
+
       if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+        console.error('FULL ERROR OBJECT:', JSON.stringify(error, null, 2));
+        alert(`Failed to update: ${error.message || JSON.stringify(error)}`);
+        return;
       }
 
-      // Update local state
       setListings(listings.map(l => 
         l.id === listingId ? { ...l, status: newStatus } : l
       ));
 
       alert(`Listing ${newStatus === 'under_offer' ? 'marked as Under Offer' : 'set back to Active'}!`);
-    } catch (error) {
-      console.error('Error updating status:', error);
-      alert('Failed to update status. Check console for details.');
+    } catch (error: any) {
+      console.error('CATCH ERROR:', error);
+      console.error('ERROR MESSAGE:', error?.message);
+      console.error('ERROR DETAILS:', JSON.stringify(error, null, 2));
+      alert(`Error: ${error?.message || 'Unknown error'}`);
     }
   };
 
   const toggleSold = async (listingId: string, currentStatus: string) => {
-    console.log('Toggle Sold clicked:', listingId, currentStatus);
-    
     const newStatus = currentStatus === 'sold' ? 'active' : 'sold';
     
+    console.log('=== TOGGLE SOLD ===');
+    console.log('Listing ID:', listingId);
+    console.log('Current Status:', currentStatus);
+    console.log('New Status:', newStatus);
+    console.log('User ID:', user?.id);
+    
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('listings')
         .update({ status: newStatus })
         .eq('id', listingId);
 
+      console.log('Update Response Data:', data);
+      console.log('Update Response Error:', error);
+
       if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+        console.error('FULL ERROR OBJECT:', JSON.stringify(error, null, 2));
+        alert(`Failed to update: ${error.message || JSON.stringify(error)}`);
+        return;
       }
 
-      // Update local state
       setListings(listings.map(l => 
         l.id === listingId ? { ...l, status: newStatus } : l
       ));
 
       alert(`Listing ${newStatus === 'sold' ? 'marked as Sold' : 'set back to Active'}!`);
-    } catch (error) {
-      console.error('Error updating status:', error);
-      alert('Failed to update status. Check console for details.');
+    } catch (error: any) {
+      console.error('CATCH ERROR:', error);
+      console.error('ERROR MESSAGE:', error?.message);
+      console.error('ERROR DETAILS:', JSON.stringify(error, null, 2));
+      alert(`Error: ${error?.message || 'Unknown error'}`);
     }
   };
 
   const deleteListing = async (listingId: string) => {
-    console.log('Delete clicked:', listingId);
-    
     if (!confirm('Are you sure you want to delete this listing? This cannot be undone.')) {
       return;
     }
@@ -118,16 +134,13 @@ export default function DashboardPage() {
         .delete()
         .eq('id', listingId);
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       setListings(listings.filter(l => l.id !== listingId));
       alert('Listing deleted successfully');
     } catch (error) {
       console.error('Error deleting listing:', error);
-      alert('Failed to delete listing. Check console for details.');
+      alert('Failed to delete listing');
     }
   };
 
@@ -283,7 +296,6 @@ export default function DashboardPage() {
                 {listings.map((listing) => (
                   <div key={listing.id} className="bg-[#0D0F13] border border-white/5 rounded-md p-4 flex flex-col gap-4">
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
-                      {/* Image */}
                       <div className="w-full md:w-24 h-24 bg-[#191C23] border border-white/10 rounded-sm overflow-hidden flex-shrink-0">
                         {listing.images && listing.images.length > 0 ? (
                           <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
@@ -292,7 +304,6 @@ export default function DashboardPage() {
                         )}
                       </div>
 
-                      {/* Info */}
                       <div className="flex-1">
                         <div className="flex items-start gap-3 mb-2">
                           <h3 className="text-lg font-bold text-[#F0EDE8]">{listing.title}</h3>
@@ -307,7 +318,6 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* Actions */}
                       <div className="flex gap-2 flex-wrap">
                         <a href={`/dashboard/listings/edit/${listing.id}`} className="bg-[#C9922A] text-black font-bold px-3 py-2 rounded-sm text-[12px] uppercase hover:brightness-110 transition-all">
                           EDIT
@@ -318,7 +328,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Quick Status Actions */}
                     <div className="flex gap-2 pt-3 border-t border-white/5">
                       <button
                         onClick={() => toggleUnderOffer(listing.id, listing.status || 'active')}
