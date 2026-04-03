@@ -17,6 +17,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
   const [newImages, setNewImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState('active');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -72,18 +73,13 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
         listing_type: listing.listing_type || 'private',
       });
 
+      setCurrentStatus(listing.status || 'active');
       setExistingImages(listing.images || []);
 
-      const { data: makesData } = await supabase
-        .from('makes')
-        .select('*')
-        .order('name');
+      const { data: makesData } = await supabase.from('makes').select('*').order('name');
       setMakes(makesData || []);
 
-      const { data: calibresData } = await supabase
-        .from('calibres')
-        .select('*')
-        .order('name');
+      const { data: calibresData } = await supabase.from('calibres').select('*').order('name');
       setCalibres(calibresData || []);
 
     } catch (error) {
@@ -180,6 +176,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
           description: formData.description,
           listing_type: formData.listing_type,
           images: allImages,
+          status: currentStatus,
           updated_at: new Date().toISOString(),
         })
         .eq('id', params.id);
@@ -202,11 +199,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     }
 
     try {
-      const { error } = await supabase
-        .from('listings')
-        .delete()
-        .eq('id', params.id);
-
+      const { error } = await supabase.from('listings').delete().eq('id', params.id);
       if (error) throw error;
 
       alert('Listing deleted successfully');
@@ -217,21 +210,8 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     }
   };
 
-  const handleMarkAsSold = async () => {
-    try {
-      const { error } = await supabase
-        .from('listings')
-        .update({ status: 'sold' })
-        .eq('id', params.id);
-
-      if (error) throw error;
-
-      alert('Listing marked as sold!');
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Error marking as sold:', error);
-      alert('Failed to mark as sold');
-    }
+  const toggleStatus = (newStatus: string) => {
+    setCurrentStatus(currentStatus === newStatus ? 'active' : newStatus);
   };
 
   if (loading) {
@@ -259,15 +239,53 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Status Toggles */}
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+            <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Listing Status</h2>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCurrentStatus('active')}
+                className={`px-6 py-3 rounded-sm font-bold text-[14px] uppercase transition-all ${
+                  currentStatus === 'active'
+                    ? 'bg-[#2A9C6E] text-white'
+                    : 'bg-transparent border border-white/20 text-[#8A8E99] hover:bg-white/5'
+                }`}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleStatus('under_offer')}
+                className={`px-6 py-3 rounded-sm font-bold text-[14px] uppercase transition-all ${
+                  currentStatus === 'under_offer'
+                    ? 'bg-[#C9922A] text-black'
+                    : 'bg-transparent border border-white/20 text-[#8A8E99] hover:bg-white/5'
+                }`}
+              >
+                Under Offer
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleStatus('sold')}
+                className={`px-6 py-3 rounded-sm font-bold text-[14px] uppercase transition-all ${
+                  currentStatus === 'sold'
+                    ? 'bg-red-500 text-white'
+                    : 'bg-transparent border border-white/20 text-[#8A8E99] hover:bg-white/5'
+                }`}
+              >
+                Sold
+              </button>
+            </div>
+          </div>
+
           {/* Basic Information */}
           <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
             <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Basic Information</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">
-                  Listing Title *
-                </label>
+                <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Listing Title *</label>
                 <input
                   type="text"
                   value={formData.title}
@@ -493,14 +511,6 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
               className="flex-1 bg-[#C9922A] text-black font-bold text-[16px] uppercase py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50"
             >
               {saving ? 'Saving...' : uploadingImages ? 'Uploading Images...' : 'Save Changes'}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleMarkAsSold}
-              className="flex-1 bg-[#2A9C6E] text-white font-bold text-[16px] uppercase py-4 rounded-sm hover:brightness-110 transition-all"
-            >
-              Mark as Sold
             </button>
 
             <button
