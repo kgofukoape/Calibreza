@@ -49,6 +49,58 @@ export default function DashboardPage() {
     router.push('/');
   };
 
+  const updateStatus = async (listingId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .update({ status: newStatus })
+        .eq('id', listingId);
+
+      if (error) throw error;
+
+      // Refresh listings
+      setListings(listings.map(l => 
+        l.id === listingId ? { ...l, status: newStatus } : l
+      ));
+
+      alert(`Listing marked as ${newStatus === 'sold' ? 'Sold' : newStatus === 'under_offer' ? 'Under Offer' : 'Active'}!`);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status');
+    }
+  };
+
+  const deleteListing = async (listingId: string) => {
+    if (!confirm('Are you sure you want to delete this listing? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .delete()
+        .eq('id', listingId);
+
+      if (error) throw error;
+
+      setListings(listings.filter(l => l.id !== listingId));
+      alert('Listing deleted successfully');
+    } catch (error) {
+      console.error('Error deleting listing:', error);
+      alert('Failed to delete listing');
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    if (status === 'sold') {
+      return <span className="px-2 py-1 rounded-sm text-[11px] font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30">Sold</span>;
+    }
+    if (status === 'under_offer') {
+      return <span className="px-2 py-1 rounded-sm text-[11px] font-bold uppercase bg-[#C9922A]/20 text-[#C9922A] border border-[#C9922A]/30">Under Offer</span>;
+    }
+    return <span className="px-2 py-1 rounded-sm text-[11px] font-bold uppercase bg-[#2A9C6E]/20 text-[#2A9C6E] border border-[#2A9C6E]/30">Active</span>;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
@@ -160,12 +212,16 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-              <div className="text-[13px] text-[#8A8E99] mb-2">Messages</div>
-              <div className="text-3xl font-bold text-[#F0EDE8]">0</div>
+              <div className="text-[13px] text-[#8A8E99] mb-2">Under Offer</div>
+              <div className="text-3xl font-bold text-[#C9922A]">
+                {listings.filter(l => l.status === 'under_offer').length}
+              </div>
             </div>
             <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
-              <div className="text-[13px] text-[#8A8E99] mb-2">Saved Items</div>
-              <div className="text-3xl font-bold text-[#F0EDE8]">0</div>
+              <div className="text-[13px] text-[#8A8E99] mb-2">Sold</div>
+              <div className="text-3xl font-bold text-red-400">
+                {listings.filter(l => l.status === 'sold').length}
+              </div>
             </div>
           </div>
 
@@ -185,35 +241,71 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-4">
                 {listings.map((listing) => (
-                  <div key={listing.id} className="bg-[#0D0F13] border border-white/5 rounded-md p-4 flex flex-col md:flex-row md:items-center gap-4">
-                    <div className="w-full md:w-24 h-24 bg-[#191C23] border border-white/10 rounded-sm overflow-hidden flex-shrink-0">
-                      {listing.images && listing.images.length > 0 ? (
-                        <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-3xl opacity-20">📷</div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-[#F0EDE8] mb-1">{listing.title}</h3>
-                      <div className="flex flex-wrap gap-3 text-[13px] text-[#8A8E99]">
-                        <span>R {listing.price?.toLocaleString()}</span>
-                        <span>•</span>
-                        <span>{listing.condition || 'N/A'}</span>
-                        <span>•</span>
-                        <span>{listing.views_count || 0} views</span>
-                        <span>•</span>
-                        <span className={`font-bold ${listing.status === 'active' ? 'text-[#2A9C6E]' : 'text-[#8A8E99]'}`}>
-                          {listing.status === 'active' ? 'Active' : 'Sold'}
-                        </span>
+                  <div key={listing.id} className="bg-[#0D0F13] border border-white/5 rounded-md p-4 flex flex-col gap-4">
+                    <div className="flex flex-col md:flex-row md:items-center gap-4">
+                      {/* Image */}
+                      <div className="w-full md:w-24 h-24 bg-[#191C23] border border-white/10 rounded-sm overflow-hidden flex-shrink-0">
+                        {listing.images && listing.images.length > 0 ? (
+                          <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-3xl opacity-20">📷</div>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1">
+                        <div className="flex items-start gap-3 mb-2">
+                          <h3 className="text-lg font-bold text-[#F0EDE8]">{listing.title}</h3>
+                          {getStatusBadge(listing.status || 'active')}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[13px] text-[#8A8E99]">
+                          <span>R {listing.price?.toLocaleString()}</span>
+                          <span>•</span>
+                          <span>{listing.condition || 'N/A'}</span>
+                          <span>•</span>
+                          <span>{listing.views_count || 0} views</span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 flex-wrap">
+                        <a href={`/dashboard/listings/edit/${listing.id}`} className="bg-[#C9922A] text-black font-bold px-3 py-2 rounded-sm text-[12px] uppercase hover:brightness-110 transition-all">
+                          EDIT
+                        </a>
+                        <a href={`/listings/${listing.id}`} className="bg-transparent border border-white/20 text-[#F0EDE8] font-bold px-3 py-2 rounded-sm text-[12px] uppercase hover:bg-white/5 transition-all">
+                          VIEW
+                        </a>
                       </div>
                     </div>
-                    <div className="flex gap-3">
-                      <a href={`/dashboard/listings/edit/${listing.id}`} className="bg-[#C9922A] text-black font-bold px-4 py-2 rounded-sm text-[13px] uppercase hover:brightness-110 transition-all">
-                        EDIT
-                      </a>
-                      <a href={`/listings/${listing.id}`} className="bg-transparent border border-white/20 text-[#F0EDE8] font-bold px-4 py-2 rounded-sm text-[13px] uppercase hover:bg-white/5 transition-all">
-                        VIEW
-                      </a>
+
+                    {/* Quick Status Actions */}
+                    <div className="flex gap-2 pt-3 border-t border-white/5">
+                      <button
+                        onClick={() => updateStatus(listing.id, listing.status === 'active' ? 'under_offer' : 'active')}
+                        className={`px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase transition-all ${
+                          listing.status === 'under_offer'
+                            ? 'bg-[#C9922A] text-black'
+                            : 'bg-transparent border border-[#C9922A]/30 text-[#C9922A] hover:bg-[#C9922A]/10'
+                        }`}
+                      >
+                        {listing.status === 'under_offer' ? '✓ Under Offer' : 'Mark Under Offer'}
+                      </button>
+                      <button
+                        onClick={() => updateStatus(listing.id, listing.status === 'sold' ? 'active' : 'sold')}
+                        className={`px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase transition-all ${
+                          listing.status === 'sold'
+                            ? 'bg-red-500 text-white'
+                            : 'bg-transparent border border-red-500/30 text-red-400 hover:bg-red-500/10'
+                        }`}
+                      >
+                        {listing.status === 'sold' ? '✓ Sold' : 'Mark as Sold'}
+                      </button>
+                      <button
+                        onClick={() => deleteListing(listing.id)}
+                        className="px-3 py-1.5 rounded-sm text-[11px] font-bold uppercase bg-transparent border border-white/20 text-[#8A8E99] hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all"
+                      >
+                        DELETE
+                      </button>
                     </div>
                   </div>
                 ))}
