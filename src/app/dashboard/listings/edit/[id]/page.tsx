@@ -9,17 +9,3 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     </div>
   );
 }
-```
-
-**Then:**
-1. Name it `page.tsx` (add `.tsx` to the filename)
-2. Click **"Commit changes..."** (green button)
-3. Confirm the commit
-
----
-
-## **Step 2: Delete the OLD wrong file**
-
-After you commit, navigate to:
-```
-src/app/dashboard/listings/[id]/page.tsx
