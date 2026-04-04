@@ -18,8 +18,6 @@ export default function SellPage() {
     title: '',
     description: '',
     price: '',
-    category: 'pistols',
-    firearm_type: 'handgun',
     make_id: '',
     model: '',
     calibre_id: '',
@@ -118,8 +116,6 @@ export default function SellPage() {
         p_title: formData.title,
         p_description: formData.description,
         p_price: parseFloat(formData.price),
-        p_category: formData.category,
-        p_firearm_type: formData.firearm_type,
         p_make_id: formData.make_id || null,
         p_model: formData.model,
         p_calibre_id: formData.calibre_id || null,
@@ -197,23 +193,6 @@ export default function SellPage() {
                   className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
                   placeholder="12500"
                 />
-              </div>
-
-              <div>
-                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
-                  Category <span className="text-red-400">*</span>
-                </label>
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
-                >
-                  <option value="pistols">Pistols</option>
-                  <option value="rifles">Rifles</option>
-                  <option value="shotguns">Shotguns</option>
-                </select>
               </div>
 
               <div>
