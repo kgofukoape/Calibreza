@@ -8,55 +8,63 @@ import { getCurrentUser } from '@/lib/auth';
 export default function SellPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [makes, setMakes] = useState<any[]>([]);
   const [calibres, setCalibres] = useState<any[]>([]);
   const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     title: '',
-    make_id: '',
-    calibre_id: '',
-    price: '',
-    condition: '',
-    category: '',
-    province: '',
-    city: '',
     description: '',
-    listing_type: 'private' as 'private' | 'dealer',
+    price: '',
+    category: 'pistols',
+    firearm_type: 'handgun',
+    make_id: '',
+    model: '',
+    calibre_id: '',
+    condition: 'new',
+    barrel_length: '',
+    action_type: '',
+    capacity: '',
+    province: '',
+    city: ''
   });
 
   useEffect(() => {
-    loadData();
+    loadInitialData();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        router.push('/login');
-        return;
-      }
-      setUser(currentUser);
-
-      const { data: makesData } = await supabase.from('makes').select('*').order('name');
-      setMakes(makesData || []);
-
-      const { data: calibresData } = await supabase.from('calibres').select('*').order('name');
-      setCalibres(calibresData || []);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
+  const loadInitialData = async () => {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      router.push('/login');
+      return;
     }
+    setUser(currentUser);
+
+    const { data: makesData } = await supabase
+      .from('makes')
+      .select('*')
+      .order('name');
+    setMakes(makesData || []);
+
+    const { data: calibresData } = await supabase
+      .from('calibres')
+      .select('*')
+      .order('name');
+    setCalibres(calibresData || []);
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
     if (images.length + files.length > 5) {
       alert('Maximum 5 images allowed');
       return;
@@ -64,223 +72,373 @@ export default function SellPage() {
 
     setImages([...images, ...files]);
 
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreviews(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
+    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
+    setImagePreviewUrls([...imagePreviewUrls, ...newPreviewUrls]);
   };
 
   const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
-    setImagePreviews(imagePreviews.filter((_, i) => i !== index));
-  };
-
-  const uploadImages = async () => {
-    const uploadedUrls: string[] = [];
-
-    for (const file of images) {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `listings/${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('images')
-        .getPublicUrl(filePath);
-
-      uploadedUrls.push(publicUrl);
-    }
-
-    return uploadedUrls;
+    const newImages = images.filter((_, i) => i !== index);
+    const newPreviews = imagePreviewUrls.filter((_, i) => i !== index);
+    setImages(newImages);
+    setImagePreviewUrls(newPreviews);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
+    setLoading(true);
 
     try {
-      const imageUrls = await uploadImages();
+      // Upload images to storage
+      const uploadedImageUrls: string[] = [];
+      
+      for (const image of images) {
+        const fileExt = image.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `listings/${user.id}/${fileName}`;
 
-      const { data, error } = await supabase
-        .from('listings')
-        .insert({
-          title: formData.title,
-          make_id: formData.make_id || null,
-          calibre_id: formData.calibre_id || null,
-          price: parseFloat(formData.price),
-          condition: formData.condition,
-          category: formData.category,
-          province: formData.province,
-          city: formData.city,
-          description: formData.description,
-          listing_type: formData.listing_type,
-          images: imageUrls,
-          seller_id: user.id,
-          status: 'active',
-        })
-        .select()
-        .single();
+        const { error: uploadError } = await supabase.storage
+          .from('images')
+          .upload(filePath, image);
 
-      if (error) throw error;
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error(`Failed to upload image: ${uploadError.message}`);
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('images')
+          .getPublicUrl(filePath);
+
+        uploadedImageUrls.push(publicUrl);
+      }
+
+      // Use Postgres function to create listing
+      const { data, error } = await supabase.rpc('create_listing', {
+        p_seller_id: user.id,
+        p_title: formData.title,
+        p_description: formData.description,
+        p_price: parseFloat(formData.price),
+        p_category: formData.category,
+        p_firearm_type: formData.firearm_type,
+        p_make_id: formData.make_id || null,
+        p_model: formData.model,
+        p_calibre_id: formData.calibre_id || null,
+        p_condition: formData.condition,
+        p_barrel_length: formData.barrel_length ? parseFloat(formData.barrel_length) : null,
+        p_action_type: formData.action_type || null,
+        p_capacity: formData.capacity ? parseInt(formData.capacity) : null,
+        p_province: formData.province,
+        p_city: formData.city,
+        p_images: uploadedImageUrls
+      });
+
+      if (error) {
+        console.error('Function error:', error);
+        throw new Error(`Failed to create listing: ${error.message}`);
+      }
+
+      if (data && !data.success) {
+        throw new Error(data.error || 'Failed to create listing');
+      }
 
       alert('Listing posted successfully!');
       router.push('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating listing:', error);
-      alert('Failed to create listing. Please try again.');
+      alert(error.message || 'Failed to create listing');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[#8A8E99]">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#0D0F13] py-8 px-6">
-      <div className="max-w-[900px] mx-auto">
+    <div className="min-h-screen bg-[#0D0F13] py-12 px-4">
+      <div className="max-w-3xl mx-auto">
         <div className="mb-8">
-          <a href="/dashboard" className="text-[#C9922A] text-[14px] hover:underline mb-4 inline-block">← Back to Dashboard</a>
-          <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-4xl font-extrabold uppercase text-[#F0EDE8] mb-2">Post a Listing</h1>
-          <p className="text-[#8A8E99] text-[14px]">Fill in the details below to create your listing</p>
+          <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-4xl font-extrabold uppercase text-[#F0EDE8] mb-2">
+            Post a Listing
+          </h1>
+          <p className="text-[14px] text-[#8A8E99]">
+            Fill in the details below to list your firearm for sale
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Info */}
           <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
             <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Basic Information</h2>
+            
             <div className="space-y-4">
               <div>
-                <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Listing Title *</label>
-                <input type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" placeholder="e.g., Glock 19 Gen 5 9mm" required />
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Title <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="e.g., Glock 19 Gen 5"
+                />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Make/Brand</label>
-                  <select value={formData.make_id} onChange={(e) => setFormData({...formData, make_id: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]">
-                    <option value="">Select make...</option>
-                    {makes.map(make => <option key={make.id} value={make.id}>{make.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Calibre</label>
-                  <select value={formData.calibre_id} onChange={(e) => setFormData({...formData, calibre_id: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]">
-                    <option value="">Select calibre...</option>
-                    {calibres.map(calibre => <option key={calibre.id} value={calibre.id}>{calibre.name}</option>)}
-                  </select>
-                </div>
-              </div>
+
               <div>
-                <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Price (R) *</label>
-                <input type="number" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" placeholder="12500" required />
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Price (ZAR) <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="price"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="12500"
+                />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Condition *</label>
-                  <select value={formData.condition} onChange={(e) => setFormData({...formData, condition: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" required>
-                    <option value="">Select...</option>
-                    <option value="Brand New">Brand New</option>
-                    <option value="Like New">Like New</option>
-                    <option value="Good">Good</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Used">Used</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Category *</label>
-                  <select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" required>
-                    <option value="">Select...</option>
-                    <option value="pistols">Pistols</option>
-                    <option value="rifles">Rifles</option>
-                    <option value="shotguns">Shotguns</option>
-                    <option value="revolvers">Revolvers</option>
-                    <option value="air-guns">Air Guns</option>
-                    <option value="accessories">Accessories</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Listing Type *</label>
-                  <select value={formData.listing_type} onChange={(e) => setFormData({...formData, listing_type: e.target.value as 'private' | 'dealer'})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" required>
-                    <option value="private">Private</option>
-                    <option value="dealer">Dealer</option>
-                  </select>
-                </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Category <span className="text-red-400">*</span>
+                </label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                >
+                  <option value="pistols">Pistols</option>
+                  <option value="rifles">Rifles</option>
+                  <option value="shotguns">Shotguns</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Condition <span className="text-red-400">*</span>
+                </label>
+                <select
+                  name="condition"
+                  value={formData.condition}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                >
+                  <option value="new">New</option>
+                  <option value="like_new">Like New</option>
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                </select>
               </div>
             </div>
           </div>
 
+          {/* Firearm Details */}
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+            <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Firearm Details</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">Make</label>
+                <select
+                  name="make_id"
+                  value={formData.make_id}
+                  onChange={handleInputChange}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                >
+                  <option value="">Select make...</option>
+                  {makes.map(make => (
+                    <option key={make.id} value={make.id}>{make.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Model <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="model"
+                  value={formData.model}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="e.g., 19 Gen 5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">Calibre</label>
+                <select
+                  name="calibre_id"
+                  value={formData.calibre_id}
+                  onChange={handleInputChange}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                >
+                  <option value="">Select calibre...</option>
+                  {calibres.map(calibre => (
+                    <option key={calibre.id} value={calibre.id}>{calibre.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">Barrel Length (inches)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  name="barrel_length"
+                  value={formData.barrel_length}
+                  onChange={handleInputChange}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="4.5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">Action Type</label>
+                <input
+                  type="text"
+                  name="action_type"
+                  value={formData.action_type}
+                  onChange={handleInputChange}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="e.g., Semi-Auto"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">Capacity</label>
+                <input
+                  type="number"
+                  name="capacity"
+                  value={formData.capacity}
+                  onChange={handleInputChange}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="15"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Location */}
           <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
             <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Location</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div className="space-y-4">
               <div>
-                <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">Province *</label>
-                <select value={formData.province} onChange={(e) => setFormData({...formData, province: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" required>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Province <span className="text-red-400">*</span>
+                </label>
+                <select
+                  name="province"
+                  value={formData.province}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                >
                   <option value="">Select province...</option>
-                  <option value="Gauteng">Gauteng</option>
                   <option value="Western Cape">Western Cape</option>
+                  <option value="Gauteng">Gauteng</option>
                   <option value="KwaZulu-Natal">KwaZulu-Natal</option>
                   <option value="Eastern Cape">Eastern Cape</option>
                   <option value="Free State">Free State</option>
                   <option value="Limpopo">Limpopo</option>
                   <option value="Mpumalanga">Mpumalanga</option>
-                  <option value="North West">North West</option>
                   <option value="Northern Cape">Northern Cape</option>
+                  <option value="North West">North West</option>
                 </select>
               </div>
+
               <div>
-                <label className="block text-[13px] font-medium text-[#F0EDE8] mb-2">City/Town *</label>
-                <input type="text" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]" placeholder="e.g., Cape Town" required />
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  City/Town <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                  placeholder="e.g., Cape Town"
+                />
               </div>
             </div>
           </div>
 
+          {/* Description */}
           <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
             <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Description</h2>
-            <textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-3 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A] min-h-[150px]" placeholder="Describe the item, its condition, what's included, reason for selling, etc." />
+            
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              required
+              rows={6}
+              className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+              placeholder="Describe your firearm, its condition, accessories included, etc."
+            />
           </div>
 
+          {/* Images */}
           <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
             <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Images (Max 5)</h2>
-            {imagePreviews.length > 0 && (
-              <div className="mb-4">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {imagePreviews.map((preview, idx) => (
-                    <div key={idx} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden group">
-                      <img src={preview} alt="" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-                    </div>
-                  ))}
+            
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+              {imagePreviewUrls.map((url, index) => (
+                <div key={index} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden">
+                  <img src={url} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600"
+                  >
+                    ×
+                  </button>
                 </div>
-              </div>
-            )}
-            {images.length < 5 && (
-              <div>
-                <label className="block w-full bg-[#0D0F13] border-2 border-dashed border-white/20 rounded-sm p-8 text-center cursor-pointer hover:border-[#C9922A] transition-colors">
-                  <span className="text-[14px] text-[#8A8E99]">Click to add images ({images.length}/5)</span>
-                  <input type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
+              ))}
+              
+              {images.length < 5 && (
+                <label className="aspect-square bg-[#0D0F13] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center cursor-pointer hover:border-[#C9922A] transition-colors">
+                  <div className="text-center">
+                    <span className="text-4xl text-[#8A8E99]">+</span>
+                    <p className="text-xs text-[#8A8E99] mt-2">Click to add images ({images.length}/5)</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
                 </label>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
+          {/* Submit */}
           <div className="flex gap-4">
-            <button type="submit" disabled={submitting} className="flex-1 bg-[#C9922A] text-black font-bold text-[16px] uppercase py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">{submitting ? 'Posting...' : 'Post Listing'}</button>
-            <a href="/dashboard" className="flex-1 bg-transparent border border-white/20 text-[#F0EDE8] font-bold text-[16px] uppercase py-4 rounded-sm text-center hover:bg-white/5 transition-all">Cancel</a>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-[#C9922A] text-black font-bold px-6 py-4 rounded-sm text-[14px] uppercase hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Posting...' : 'Post Listing'}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard')}
+              className="px-6 py-4 bg-transparent border border-white/20 text-[#F0EDE8] font-bold text-[14px] uppercase rounded-sm hover:bg-white/5 transition-all"
+            >
+              Cancel
+            </button>
           </div>
         </form>
       </div>
