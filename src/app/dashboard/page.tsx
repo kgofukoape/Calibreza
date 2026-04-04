@@ -53,15 +53,20 @@ export default function DashboardPage() {
     const newStatus = currentStatus === 'under_offer' ? 'active' : 'under_offer';
     
     try {
-      const { data, error } = await supabase
-        .from('listings')
-        .update({ status: newStatus })
-        .eq('id', listingId)
-        .eq('seller_id', user.id);
+      const { data, error } = await supabase.rpc('update_listing_status', {
+        listing_id: listingId,
+        user_id: user.id,
+        new_status: newStatus
+      });
 
       if (error) {
         console.error('Error:', error);
         alert(`Failed to update: ${error.message}`);
+        return;
+      }
+
+      if (data && !data.success) {
+        alert(`Failed: ${data.error}`);
         return;
       }
 
@@ -80,15 +85,20 @@ export default function DashboardPage() {
     const newStatus = currentStatus === 'sold' ? 'active' : 'sold';
     
     try {
-      const { data, error } = await supabase
-        .from('listings')
-        .update({ status: newStatus })
-        .eq('id', listingId)
-        .eq('seller_id', user.id);
+      const { data, error } = await supabase.rpc('update_listing_status', {
+        listing_id: listingId,
+        user_id: user.id,
+        new_status: newStatus
+      });
 
       if (error) {
         console.error('Error:', error);
         alert(`Failed to update: ${error.message}`);
+        return;
+      }
+
+      if (data && !data.success) {
+        alert(`Failed: ${data.error}`);
         return;
       }
 
