@@ -11,6 +11,7 @@ export default function SellPage() {
   const [loading, setLoading] = useState(false);
   const [makes, setMakes] = useState<any[]>([]);
   const [calibres, setCalibres] = useState<any[]>([]);
+  const [conditions, setConditions] = useState<any[]>([]);
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
@@ -21,7 +22,7 @@ export default function SellPage() {
     make_id: '',
     model: '',
     calibre_id: '',
-    condition: 'new',
+    condition_id: '',
     barrel_length: '',
     action_type: '',
     capacity: '',
@@ -52,6 +53,12 @@ export default function SellPage() {
       .select('*')
       .order('name');
     setCalibres(calibresData || []);
+
+    const { data: conditionsData } = await supabase
+      .from('conditions')
+      .select('*')
+      .order('name');
+    setConditions(conditionsData || []);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -119,7 +126,7 @@ export default function SellPage() {
         p_make_id: formData.make_id || null,
         p_model: formData.model,
         p_calibre_id: formData.calibre_id || null,
-        p_condition: formData.condition,
+        p_condition_id: formData.condition_id || null,
         p_barrel_length: formData.barrel_length ? parseFloat(formData.barrel_length) : null,
         p_action_type: formData.action_type || null,
         p_capacity: formData.capacity ? parseInt(formData.capacity) : null,
@@ -200,17 +207,16 @@ export default function SellPage() {
                   Condition <span className="text-red-400">*</span>
                 </label>
                 <select
-                  name="condition"
-                  value={formData.condition}
+                  name="condition_id"
+                  value={formData.condition_id}
                   onChange={handleInputChange}
                   required
                   className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
                 >
-                  <option value="new">New</option>
-                  <option value="like_new">Like New</option>
-                  <option value="excellent">Excellent</option>
-                  <option value="good">Good</option>
-                  <option value="fair">Fair</option>
+                  <option value="">Select condition...</option>
+                  {conditions.map(condition => (
+                    <option key={condition.id} value={condition.id}>{condition.name}</option>
+                  ))}
                 </select>
               </div>
             </div>
