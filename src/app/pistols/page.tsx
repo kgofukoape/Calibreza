@@ -1,84 +1,163 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Navbar from '@/components/layout/Navbar';
-import ListingCard from '@/components/listings/ListingCard';
 import { supabase } from '@/lib/supabase';
+import ListingCard from '@/components/listings/ListingCard';
 
-async function getFilteredListings(searchParams: any) {
-  let query = supabase
-    .from('listings')
-    .select(`
-      *,
-      makes:make_id(name),
-      calibres:calibre_id(name),
-      provinces:province_id(name),
-      conditions:condition_id(name),
-      users:seller_id(full_name, user_type)
-    `)
-    .eq('category_id', 'pistols')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false });
+const ITEMS_PER_PAGE = 12;
 
-  const { data, error } = await query;
+export default function PistolsPage() {
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Filter states
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedCalibres, setSelectedCalibres] = useState<string[]>([]);
+  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sellerTypes, setSellerTypes] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState('newest');
 
-  if (error) {
-    console.error('Error fetching listings:', error);
-    return [];
-  }
+  // Fetch listings with filters
+  useEffect(() => {
+    fetchListings();
+  }, [currentPage, selectedBrands, selectedCalibres, selectedProvinces, selectedConditions, minPrice, maxPrice, sellerTypes, sortBy]);
 
-  return data || [];
-}
+  const fetchListings = async () => {
+    setLoading(true);
+    try {
+      // Start query
+      let query = supabase
+        .from('listings')
+        .select('*', { count: 'exact' })
+        .eq('status', 'active');
 
-async function getFilterOptions() {
-  const { data: brandsData } = await supabase
-    .from('listings')
-    .select('makes:make_id(name)')
-    .eq('category_id', 'pistols')
-    .eq('status', 'active');
+      // Filter by category (pistols/handguns)
+      // Assuming you have a category field or firearm_type field
+      query = query.in('firearm_type', ['pistol', 'handgun']);
 
-  const brandNames = brandsData?.map((item: any) => item.makes?.name).filter(Boolean) || [];
-  const brands = Array.from(new Set(brandNames)).sort();
+      // Apply brand filter
+      if (selectedBrands.length > 0) {
+        query = query.in('make', selectedBrands);
+      }
 
-  const { data: calibresData } = await supabase
-    .from('calibres')
-    .select('name')
-    .eq('category', 'pistol')
-    .order('name');
+      // Apply calibre filter
+      if (selectedCalibres.length > 0) {
+        query = query.in('caliber', selectedCalibres);
+      }
 
-  const calibres = calibresData?.map((item: any) => item.name) || [];
+      // Apply province filter
+      if (selectedProvinces.length > 0) {
+        query = query.in('province', selectedProvinces);
+      }
 
-  const { data: provincesData } = await supabase
-    .from('provinces')
-    .select('name')
-    .order('name');
+      // Apply condition filter
+      if (selectedConditions.length > 0) {
+        query = query.in('condition', selectedConditions);
+      }
 
-  const provinces = provincesData?.map((item: any) => item.name) || [];
+      // Apply price range
+      if (minPrice) {
+        query = query.gte('price', parseInt(minPrice));
+      }
+      if (maxPrice) {
+        query = query.lte('price', parseInt(maxPrice));
+      }
 
-  return { brands, calibres, provinces };
-}
+      // Apply seller type filter
+      if (sellerTypes.length > 0) {
+        query = query.in('listing_type', sellerTypes);
+      }
 
-export default async function PistolsPage({ searchParams }: { searchParams: any }) {
-  const listings = await getFilteredListings(searchParams);
-  const { brands, calibres, provinces } = await getFilterOptions();
+      // Apply sorting
+      switch (sortBy) {
+        case 'price_asc':
+          query = query.order('price', { ascending: true });
+          break;
+        case 'price_desc':
+          query = query.order('price', { ascending: false });
+          break;
+        case 'condition':
+          query = query.order('condition', { ascending: false });
+          break;
+        default:
+          query = query.order('created_at', { ascending: false });
+      }
 
-  const transformedListings = listings.map((listing: any) => ({
-    id: listing.id,
-    title: listing.title,
-    make: listing.makes?.name || '',
-    price: listing.price,
-    province: listing.provinces?.name || listing.city,
-    condition: listing.conditions?.name || '',
-    category: listing.category_id,
-    listingType: listing.listing_type,
-    sellerName: listing.users?.full_name || listing.city,
-    calibre: listing.calibres?.name || '',
-    featured: listing.is_featured,
-  }));
+      // Pagination
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      setListings(data || []);
+      setTotalCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching listings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBrandToggle = (brand: string) => {
+    setSelectedBrands(prev =>
+      prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
+    );
+    setCurrentPage(1);
+  };
+
+  const handleCalibreToggle = (calibre: string) => {
+    setSelectedCalibres(prev =>
+      prev.includes(calibre) ? prev.filter(c => c !== calibre) : [...prev, calibre]
+    );
+    setCurrentPage(1);
+  };
+
+  const handleProvinceToggle = (province: string) => {
+    setSelectedProvinces(prev =>
+      prev.includes(province) ? prev.filter(p => p !== province) : [...prev, province]
+    );
+    setCurrentPage(1);
+  };
+
+  const handleConditionToggle = (condition: string) => {
+    setSelectedConditions(prev =>
+      prev.includes(condition) ? prev.filter(c => c !== condition) : [...prev, condition]
+    );
+    setCurrentPage(1);
+  };
+
+  const handleSellerTypeToggle = (type: string) => {
+    setSellerTypes(prev =>
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
+    setCurrentPage(1);
+  };
+
+  const clearAllFilters = () => {
+    setSelectedBrands([]);
+    setSelectedCalibres([]);
+    setSelectedProvinces([]);
+    setSelectedConditions([]);
+    setMinPrice('');
+    setMaxPrice('');
+    setSellerTypes([]);
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
-      <Navbar />
-
+      {/* Page Header */}
       <div className="bg-[#191C23] border-b border-white/5 pt-8 pb-8 px-6 md:px-8">
         <div className="max-w-[1280px] mx-auto">
           <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-3 flex items-center gap-2">
@@ -94,100 +173,238 @@ export default async function PistolsPage({ searchParams }: { searchParams: any 
 
       <div className="flex-1 max-w-[1280px] mx-auto w-full px-6 md:px-8 py-8 flex flex-col lg:flex-row gap-8">
         
+        {/* SIDEBAR FILTERS */}
         <aside className="w-full lg:w-[280px] flex-shrink-0 flex flex-col gap-6">
+          
           <div className="bg-[#191C23] border border-white/5 rounded-md p-5 flex flex-col gap-6">
             <div className="flex items-center justify-between border-b border-white/5 pb-4">
               <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-[18px] tracking-widest uppercase text-[#F0EDE8]">Filters</span>
-              <Link href="/pistols" className="text-[11px] text-[#C9922A] uppercase tracking-wider hover:underline">
+              <button onClick={clearAllFilters} className="text-[11px] text-[#C9922A] uppercase tracking-wider hover:underline">
                 Clear All
-              </Link>
+              </button>
             </div>
 
+            {/* Brand Filter */}
             <div className="flex flex-col gap-3">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Brand</span>
-              <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-2">
-                {brands.slice(0, 10).map(brand => (
-                  <div key={brand} className="flex items-center gap-3">
-                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10" />
-                    <span className="text-[14px] text-[#F0EDE8]">{brand}</span>
-                  </div>
+              <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {[
+                  'Astra', 'Beretta', 'Browning', 'BUL', 'Canik', 'Caracal', 'Colt', 
+                  'CZ', 'Desert Eagle', 'FN Herstal', 'Girsan', 'Glock', 'Grand Power', 
+                  'Heckler & Koch', 'HS Produkt', 'IWI', 'Kahr', 
+                  'KelTec', 'Kimber', 'Llama', 'Norinco', 'Remington', 'Ruger', 
+                  'SAR', 'Sarsilmaz', 'Sig Sauer', 'Smith & Wesson', 'Star', 
+                  'Steyr', 'Tanfoglio', 'Taurus', 'Tokarev', 'Vektor', 'Walther', 'Zastava'
+                ].map(brand => (
+                  <label key={brand} className="flex items-center gap-3 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBrands.includes(brand)}
+                      onChange={() => handleBrandToggle(brand)}
+                      className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" 
+                    />
+                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{brand}</span>
+                  </label>
                 ))}
               </div>
             </div>
 
+            {/* Calibre Filter */}
             <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Calibre</span>
-              <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2">
-                {calibres.slice(0, 10).map(calibre => (
-                  <div key={calibre} className="flex items-center gap-3">
-                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10" />
-                    <span className="text-[14px] text-[#F0EDE8]">{calibre}</span>
-                  </div>
+              <div className="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                {[
+                  '9mm Luger', '.45 ACP', '.40 S&W', '.357 Magnum', '.38 Special', 
+                  '10mm Auto', '.357 SIG', '.380 ACP', '.44 Magnum', '.22 LR', '.45 GAP', 
+                  '.41 Magnum', '.327 Federal Magnum', '.32 ACP', '.25 ACP', '.44 Special', 
+                  '.38 Super', '5.7x28mm', '9x18mm Makarov', '7.62x25mm Tokarev', 
+                  '.45 Colt', '.50 AE', '.454 Casull', '.22 WMR'
+                ].map(calibre => (
+                  <label key={calibre} className="flex items-center gap-3 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedCalibres.includes(calibre)}
+                      onChange={() => handleCalibreToggle(calibre)}
+                      className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" 
+                    />
+                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{calibre}</span>
+                  </label>
                 ))}
               </div>
             </div>
 
+            {/* Province Filter */}
             <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Location</span>
               <div className="flex flex-col gap-2.5">
-                {provinces.map(prov => (
-                  <div key={prov} className="flex items-center gap-3">
-                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10" />
-                    <span className="text-[14px] text-[#F0EDE8]">{prov}</span>
-                  </div>
+                {['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo', 'Mpumalanga', 'North West', 'Free State', 'Northern Cape'].map(prov => (
+                  <label key={prov} className="flex items-center gap-3 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedProvinces.includes(prov)}
+                      onChange={() => handleProvinceToggle(prov)}
+                      className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" 
+                    />
+                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{prov}</span>
+                  </label>
                 ))}
               </div>
             </div>
 
+            {/* Condition */}
             <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Condition</span>
               <div className="flex flex-col gap-2.5">
                 {['Brand New', 'Like New', 'Good', 'Fair'].map(cond => (
-                  <div key={cond} className="flex items-center gap-3">
-                    <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10" />
-                    <span className="text-[14px] text-[#F0EDE8]">{cond}</span>
-                  </div>
+                  <label key={cond} className="flex items-center gap-3 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedConditions.includes(cond)}
+                      onChange={() => handleConditionToggle(cond)}
+                      className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" 
+                    />
+                    <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{cond}</span>
+                  </label>
                 ))}
               </div>
             </div>
 
+            {/* Price Range */}
             <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Price Range</span>
               <div className="flex items-center gap-2">
-                <input type="number" placeholder="Min (R)" className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[13px] text-[#F0EDE8]" />
+                <input 
+                  type="number" 
+                  placeholder="Min (R)" 
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[13px] text-[#F0EDE8] outline-none focus:border-[#C9922A]" 
+                />
                 <span className="text-[#8A8E99]">-</span>
-                <input type="number" placeholder="Max (R)" className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[13px] text-[#F0EDE8]" />
+                <input 
+                  type="number" 
+                  placeholder="Max (R)" 
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[13px] text-[#F0EDE8] outline-none focus:border-[#C9922A]" 
+                />
               </div>
             </div>
+
+            {/* Seller Type */}
+            <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
+              <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Seller Type</span>
+              <div className="flex flex-col gap-2.5">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={sellerTypes.includes('dealer')}
+                    onChange={() => handleSellerTypeToggle('dealer')}
+                    className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" 
+                  />
+                  <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">Dealer Stock (🏪)</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={sellerTypes.includes('private')}
+                    onChange={() => handleSellerTypeToggle('private')}
+                    className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10 checked:bg-[#C9922A] checked:border-[#C9922A] appearance-none flex items-center justify-center relative after:content-['✓'] after:absolute after:text-black after:text-[10px] after:opacity-0 checked:after:opacity-100 transition-all flex-shrink-0" 
+                  />
+                  <span className="text-[14px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">Private Licence (👤)</span>
+                </label>
+              </div>
+            </div>
+
           </div>
         </aside>
 
+        {/* MAIN RESULTS AREA */}
         <div className="flex-1 flex flex-col gap-6">
+          
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#191C23] border border-white/5 rounded-md p-4">
             <span className="text-[13px] text-[#8A8E99]">
-              Showing <strong className="text-[#F0EDE8]">{transformedListings.length}</strong> results for Pistols
+              Showing <strong className="text-[#F0EDE8]">{totalCount}</strong> results for Pistols
             </span>
             
             <div className="flex items-center gap-3">
               <span className="text-[12px] font-bold tracking-widest uppercase text-[#8A8E99]">Sort by:</span>
-              <select className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[13px] px-4 py-2 rounded-sm">
-                <option>Newest First</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                style={{fontFamily:"'Barlow', sans-serif"}} 
+                className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[13px] font-medium px-4 py-2 rounded-sm cursor-pointer outline-none focus:border-[#C9922A] appearance-none min-w-[140px]"
+              >
+                <option value="newest">Newest First</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="condition">Condition: Best</option>
               </select>
             </div>
           </div>
 
-          {transformedListings.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-              {transformedListings.map((listing: any) => (
-                <ListingCard key={listing.id} {...listing} />
-              ))}
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C9922A]"></div>
+            </div>
+          ) : listings.length === 0 ? (
+            <div className="bg-[#191C23] border border-white/5 rounded-md p-12 text-center">
+              <p className="text-[#8A8E99] text-lg">No listings found matching your filters.</p>
+              <button 
+                onClick={clearAllFilters}
+                className="mt-4 text-[#C9922A] hover:underline text-sm font-semibold"
+              >
+                Clear all filters
+              </button>
             </div>
           ) : (
-            <div className="bg-[#191C23] border border-white/5 rounded-md p-12 text-center">
-              <p className="text-[#8A8E99] text-[15px]">No pistols available</p>
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+                {listings.map(listing => (
+                  <ListingCard key={listing.id} {...listing} />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="w-10 h-10 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    &lt;
+                  </button>
+                  
+                  {[...Array(Math.min(totalPages, 5))].map((_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <button 
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-10 h-10 flex items-center justify-center border rounded-sm font-bold transition-all ${
+                          currentPage === pageNum
+                            ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]'
+                            : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  {totalPages > 5 && <span className="text-[#8A8E99] px-2">...</span>}
+                  
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="w-10 h-10 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
