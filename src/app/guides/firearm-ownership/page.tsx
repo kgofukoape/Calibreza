@@ -321,4 +321,246 @@ export default function FirearmOwnershipGuidePage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className=
+                    <tr className="bg-[#0D0F13]">
+                      <th className="text-left p-4 text-[#C9922A] font-bold border-b border-white/10">Section</th>
+                      <th className="text-left p-4 text-[#C9922A] font-bold border-b border-white/10">Type</th>
+                      <th className="text-left p-4 text-[#C9922A] font-bold border-b border-white/10">Purpose</th>
+                      <th className="text-left p-4 text-[#C9922A] font-bold border-b border-white/10">Limit</th>
+                      <th className="text-left p-4 text-[#C9922A] font-bold border-b border-white/10">Validity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-white/5">
+                      <td className="p-4 text-[#F0EDE8] font-semibold">13</td>
+                      <td className="p-4 text-[#F0EDE8]">Self-Defence</td>
+                      <td className="p-4 text-[#8A8E99]">Personal protection</td>
+                      <td className="p-4 text-[#8A8E99]">1 handgun or non-auto shotgun</td>
+                      <td className="p-4 text-[#F0EDE8]">5 years</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-4 text-[#F0EDE8] font-semibold">14</td>
+                      <td className="p-4 text-[#F0EDE8]">Restricted Self-Defence</td>
+                      <td className="p-4 text-[#8A8E99]">Semi-auto rifles/shotguns (requires high proof of need)</td>
+                      <td className="p-4 text-[#8A8E99]">Limited</td>
+                      <td className="p-4 text-[#F0EDE8]">2 years</td>
+                    </tr>
+                    <tr className="border-b border-white/5">
+                      <td className="p-4 text-[#F0EDE8] font-semibold">15</td>
+                      <td className="p-4 text-[#F0EDE8]">Occasional Hunting/Sport</td>
+                      <td className="p-4 text-[#8A8E99]">Hobby hunters and sport shooters</td>
+                      <td className="p-4 text-[#8A8E99]">4 firearms total (including Sec 13)</td>
+                      <td className="p-4 text-[#F0EDE8]">10 years</td>
+                    </tr>
+                    <tr>
+                      <td className="p-4 text-[#F0EDE8] font-semibold">16</td>
+                      <td className="p-4 text-[#F0EDE8]">Dedicated Hunting/Sport</td>
+                      <td className="p-4 text-[#8A8E99]">Serious shooters (accredited club membership required)</td>
+                      <td className="p-4 text-[#C9922A] font-semibold">No limit</td>
+                      <td className="p-4 text-[#F0EDE8]">10 years</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          {/* Cost Breakdown */}
+          <section>
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-bold uppercase text-[#C9922A] mb-6">
+              Complete Cost Breakdown (2025/2026)
+            </h2>
+
+            <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+              <p className="text-[#8A8E99] mb-4">
+                While SAPS fees are low, the total cost adds up significantly:
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-[#F0EDE8]">Training & Proficiency (per module)</span>
+                  <span className="text-[#C9922A] font-semibold">R2,000 - R2,500</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-[#F0EDE8]">SAPS Competency Fee</span>
+                  <span className="text-[#C9922A] font-semibold">R92</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-[#F0EDE8]">SAPS Licence Fee</span>
+                  <span className="text-[#C9922A] font-semibold">R183</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-[#F0EDE8]">The Firearm</span>
+                  <span className="text-[#C9922A] font-semibold">R6,000 - R25,000+</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-[#F0EDE8]">SABS-Approved Safe</span>
+                  <span className="text-[#C9922A] font-semibold">R1,500 - R3,500</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-[#F0EDE8]">Professional Motivation (optional)</span>
+                  <span className="text-[#C9922A] font-semibold">R800 - R1,500</span>
+                </div>
+                <div className="flex justify-between items-center py-3 bg-[#C9922A]/10 rounded-sm px-3 mt-3">
+                  <span className="text-[#F0EDE8] font-bold text-lg">Estimated Total</span>
+                  <span className="text-[#C9922A] font-bold text-lg">R10,500 - R33,000+</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Renewals */}
+          <section>
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-bold uppercase text-[#C9922A] mb-6">
+              Licence Renewals
+            </h2>
+
+            <div className="bg-[#191C23] border border-white/5 rounded-md p-6 space-y-4">
+              <p className="text-[#F0EDE8]">
+                You must renew your firearm licence <strong className="text-[#C9922A]">at least 90 days before expiry</strong>. Late renewals can result in criminal charges.
+              </p>
+
+              <div className="bg-[#0D0F13] rounded-sm p-4 space-y-3">
+                <h3 className="text-[#F0EDE8] font-semibold mb-2">Renewal Fees (2025/2026):</h3>
+                <ul className="list-disc list-inside text-[#8A8E99] space-y-1">
+                  <li>Firearm Licence Renewal: <strong className="text-[#C9922A]">R92 per firearm</strong></li>
+                  <li>Competency Certificate Renewal: <strong className="text-[#C9922A]">R92</strong> (if required)</li>
+                </ul>
+              </div>
+
+              <div className="bg-[#0D0F13] rounded-sm p-4 space-y-3">
+                <h3 className="text-[#F0EDE8] font-semibold mb-2">Required Documents:</h3>
+                <ul className="list-disc list-inside text-[#8A8E99] space-y-1">
+                  <li>Original firearm licence</li>
+                  <li>South African ID</li>
+                  <li>Training certificate (if renewing competency)</li>
+                  <li>Four passport-sized color photos (not older than 3 months)</li>
+                  <li>Proof of address (not older than 3 months)</li>
+                  <li>Updated motivation (for Section 15/16)</li>
+                  <li>Proof of continued membership (for Section 16)</li>
+                </ul>
+              </div>
+
+              <div className="bg-[#0D0F13] rounded-sm p-4 space-y-3">
+                <h3 className="text-[#F0EDE8] font-semibold mb-2">Forms to Complete:</h3>
+                <ul className="list-disc list-inside text-[#8A8E99] space-y-1">
+                  <li>SAPS 518(a) - Renewal of Firearm Licence</li>
+                  <li>SAPS 517(g) - Renewal of Competency (if applicable)</li>
+                  <li>All forms in <strong>black ink only</strong></li>
+                </ul>
+              </div>
+
+              <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-4">
+                <p className="text-red-400 font-semibold">⚠️ Critical Renewal Rule:</p>
+                <p className="text-[#8A8E99] mt-2">
+                  If you apply <strong>before 90 days of expiry</strong>, your existing licence remains valid until SAPS processes your renewal - no matter how long that takes. 
+                  Always carry a copy of your payment receipt (Z263) with your licence as proof you've applied on time.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Pro Tips */}
+          <section>
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-3xl font-bold uppercase text-[#C9922A] mb-6">
+              Pro Tips for Success
+            </h2>
+
+            <div className="bg-[#191C23] border border-white/5 rounded-md p-6">
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <span className="text-[#C9922A] text-xl flex-shrink-0">💡</span>
+                  <div>
+                    <h3 className="text-[#F0EDE8] font-semibold mb-1">Do All Competencies at Once</h3>
+                    <p className="text-[#8A8E99]">
+                      Even if you only want a handgun now, do the training for rifle and shotgun at the same time. 
+                      It costs about the same per module and saves you from redoing the entire background check process later.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[#C9922A] text-xl flex-shrink-0">💡</span>
+                  <div>
+                    <h3 className="text-[#F0EDE8] font-semibold mb-1">The DFO is Your Gatekeeper</h3>
+                    <p className="text-[#8A8E99]">
+                      Be polite, professional, and ensure your paperwork is 100% tidy. One missing signature or incorrectly filled form can set you back months.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[#C9922A] text-xl flex-shrink-0">💡</span>
+                  <div>
+                    <h3 className="text-[#F0EDE8] font-semibold mb-1">Follow Up Regularly</h3>
+                    <p className="text-[#8A8E99]">
+                      Contact your DFO one month after submission to check status. After that, follow up twice weekly. 
+                      Applications can get lost in the system.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[#C9922A] text-xl flex-shrink-0">💡</span>
+                  <div>
+                    <h3 className="text-[#F0EDE8] font-semibold mb-1">Keep Complete Copies</h3>
+                    <p className="text-[#8A8E99]">
+                      Make a full photocopy of your entire application pack before submitting. Applications do get lost. 
+                      Your receipt proves you submitted on time.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[#C9922A] text-xl flex-shrink-0">💡</span>
+                  <div>
+                    <h3 className="text-[#F0EDE8] font-semibold mb-1">Invest in a Quality Motivation</h3>
+                    <p className="text-[#8A8E99]">
+                      If you're not a strong writer, consider hiring a professional motivation service (R800-R1,500). 
+                      A weak motivation is the #1 reason applications are denied.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[#C9922A] text-xl flex-shrink-0">💡</span>
+                  <div>
+                    <h3 className="text-[#F0EDE8] font-semibold mb-1">Start Renewal Early</h3>
+                    <p className="text-[#8A8E99]">
+                      Don't wait until the last minute. Start your renewal process 4-6 months before expiry to account for any delays.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Legal Disclaimer */}
+          <section>
+            <div className="bg-[#C9922A]/10 border border-[#C9922A]/30 rounded-md p-6">
+              <h3 className="text-xl font-bold text-[#F0EDE8] mb-3">⚖️ Legal Disclaimer</h3>
+              <p className="text-[#8A8E99]">
+                This guide provides general information about firearm ownership in South Africa based on the Firearms Control Act No. 60 of 2000. 
+                It is <strong>not legal advice</strong>. Firearm laws are complex and subject to change. Requirements may vary between different 
+                SAPS stations and DFOs. Always consult with your local Designated Firearm Centre and legal professionals for specific guidance 
+                on your individual situation.
+              </p>
+              <p className="text-[#8A8E99] mt-3">
+                Information current as of April 2026. SAPS fees and processes are subject to annual adjustments.
+              </p>
+            </div>
+          </section>
+
+          {/* Back to Home */}
+          <div className="text-center pt-8">
+            <Link 
+              href="/" 
+              className="inline-block bg-[#C9922A] text-black font-bold px-8 py-4 rounded-sm text-[14px] uppercase hover:brightness-110 transition-all"
+            >
+              Back to Marketplace
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
