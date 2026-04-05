@@ -82,6 +82,7 @@ export default function Navbar() {
             { label: 'WANTED', href: '/wanted' },
             { label: 'CLUBS & RANGES', href: '/sport-shooting' },
             { label: 'SERVICES', href: '/services' },
+            { label: 'FIREARM OWNERSHIP', href: '/guides/firearm-ownership' },
           ].map((item) => (
             <Link
               key={item.label}
