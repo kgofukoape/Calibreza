@@ -13,7 +13,16 @@ export default function PistolsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Filter states
+  // Active filter states (what's actually applied)
+  const [activeBrands, setActiveBrands] = useState<string[]>([]);
+  const [activeCalibres, setActiveCalibres] = useState<string[]>([]);
+  const [activeProvinces, setActiveProvinces] = useState<string[]>([]);
+  const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [activeMinPrice, setActiveMinPrice] = useState('');
+  const [activeMaxPrice, setActiveMaxPrice] = useState('');
+  const [activeSellerTypes, setActiveSellerTypes] = useState<string[]>([]);
+  
+  // Pending filter states (user selections before applying)
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedCalibres, setSelectedCalibres] = useState<string[]>([]);
   const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
@@ -21,57 +30,51 @@ export default function PistolsPage() {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sellerTypes, setSellerTypes] = useState<string[]>([]);
+  
   const [sortBy, setSortBy] = useState('newest');
 
-  // Fetch listings with filters
+  // Fetch listings when active filters change
   useEffect(() => {
     fetchListings();
-  }, [currentPage, selectedBrands, selectedCalibres, selectedProvinces, selectedConditions, minPrice, maxPrice, sellerTypes, sortBy]);
+  }, [currentPage, activeBrands, activeCalibres, activeProvinces, activeConditions, activeMinPrice, activeMaxPrice, activeSellerTypes, sortBy]);
 
   const fetchListings = async () => {
     setLoading(true);
     try {
-      // Start query
       let query = supabase
         .from('listings')
         .select('*', { count: 'exact' })
         .eq('status', 'active');
 
       // Filter by category (pistols/handguns)
-      // Assuming you have a category field or firearm_type field
       query = query.in('firearm_type', ['pistol', 'handgun']);
 
-      // Apply brand filter
-      if (selectedBrands.length > 0) {
-        query = query.in('make', selectedBrands);
+      // Apply active filters
+      if (activeBrands.length > 0) {
+        query = query.in('make', activeBrands);
       }
 
-      // Apply calibre filter
-      if (selectedCalibres.length > 0) {
-        query = query.in('caliber', selectedCalibres);
+      if (activeCalibres.length > 0) {
+        query = query.in('caliber', activeCalibres);
       }
 
-      // Apply province filter
-      if (selectedProvinces.length > 0) {
-        query = query.in('province', selectedProvinces);
+      if (activeProvinces.length > 0) {
+        query = query.in('province', activeProvinces);
       }
 
-      // Apply condition filter
-      if (selectedConditions.length > 0) {
-        query = query.in('condition', selectedConditions);
+      if (activeConditions.length > 0) {
+        query = query.in('condition', activeConditions);
       }
 
-      // Apply price range
-      if (minPrice) {
-        query = query.gte('price', parseInt(minPrice));
+      if (activeMinPrice) {
+        query = query.gte('price', parseInt(activeMinPrice));
       }
-      if (maxPrice) {
-        query = query.lte('price', parseInt(maxPrice));
+      if (activeMaxPrice) {
+        query = query.lte('price', parseInt(activeMaxPrice));
       }
 
-      // Apply seller type filter
-      if (sellerTypes.length > 0) {
-        query = query.in('listing_type', sellerTypes);
+      if (activeSellerTypes.length > 0) {
+        query = query.in('listing_type', activeSellerTypes);
       }
 
       // Apply sorting
@@ -111,37 +114,45 @@ export default function PistolsPage() {
     setSelectedBrands(prev =>
       prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
     );
-    setCurrentPage(1);
   };
 
   const handleCalibreToggle = (calibre: string) => {
     setSelectedCalibres(prev =>
       prev.includes(calibre) ? prev.filter(c => c !== calibre) : [...prev, calibre]
     );
-    setCurrentPage(1);
   };
 
   const handleProvinceToggle = (province: string) => {
     setSelectedProvinces(prev =>
       prev.includes(province) ? prev.filter(p => p !== province) : [...prev, province]
     );
-    setCurrentPage(1);
   };
 
   const handleConditionToggle = (condition: string) => {
     setSelectedConditions(prev =>
       prev.includes(condition) ? prev.filter(c => c !== condition) : [...prev, condition]
     );
-    setCurrentPage(1);
   };
 
   const handleSellerTypeToggle = (type: string) => {
     setSellerTypes(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     );
+  };
+
+  // Apply filters button handler
+  const applyFilters = () => {
+    setActiveBrands(selectedBrands);
+    setActiveCalibres(selectedCalibres);
+    setActiveProvinces(selectedProvinces);
+    setActiveConditions(selectedConditions);
+    setActiveMinPrice(minPrice);
+    setActiveMaxPrice(maxPrice);
+    setActiveSellerTypes(sellerTypes);
     setCurrentPage(1);
   };
 
+  // Clear all filters
   const clearAllFilters = () => {
     setSelectedBrands([]);
     setSelectedCalibres([]);
@@ -150,6 +161,14 @@ export default function PistolsPage() {
     setMinPrice('');
     setMaxPrice('');
     setSellerTypes([]);
+    
+    setActiveBrands([]);
+    setActiveCalibres([]);
+    setActiveProvinces([]);
+    setActiveConditions([]);
+    setActiveMinPrice('');
+    setActiveMaxPrice('');
+    setActiveSellerTypes([]);
     setCurrentPage(1);
   };
 
@@ -315,6 +334,14 @@ export default function PistolsPage() {
                 </label>
               </div>
             </div>
+
+            {/* Apply Filters Button */}
+            <button
+              onClick={applyFilters}
+              className="w-full bg-[#C9922A] text-black font-bold py-3 rounded-sm uppercase text-[13px] tracking-wider hover:brightness-110 transition-all mt-2"
+            >
+              Apply Filters
+            </button>
 
           </div>
         </aside>
