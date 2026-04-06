@@ -40,6 +40,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           *,
           makes:make_id(name),
           calibres:calibre_id(name),
+          categories:category_id(name),
+          conditions:condition_id(name),
+          provinces:province_id(name),
           users:seller_id(*)
         `)
         .eq('id', params.id)
@@ -56,9 +59,12 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           *,
           makes:make_id(name),
           calibres:calibre_id(name),
+          categories:category_id(name),
+          conditions:condition_id(name),
+          provinces:province_id(name),
           users:seller_id(full_name)
         `)
-        .eq('category', listingData.category)
+        .eq('category_id', listingData.category_id)
         .eq('status', 'active')
         .neq('id', params.id)
         .limit(4);
@@ -268,7 +274,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                 {listing.title}
               </h1>
               <p className="text-[13px] text-[#8A8E99] flex items-center gap-2">
-                📍 {listing.city}, {listing.province} • Listed {new Date(listing.created_at).toLocaleDateString()}
+                📍 {listing.city}, {listing.provinces?.name || 'N/A'} • Listed {new Date(listing.created_at).toLocaleDateString()}
               </p>
             </div>
 
@@ -337,9 +343,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               {[
                 ['Make', listing.makes?.name || 'N/A'],
                 ['Calibre', listing.calibres?.name || 'N/A'],
-                ['Condition', listing.condition],
-                ['Category', listing.category],
-                ['Province', listing.province],
+                ['Condition', listing.conditions?.name || 'N/A'],
+                ['Category', listing.categories?.name || 'N/A'],
+                ['Province', listing.provinces?.name || 'N/A'],
               ].map(([label, val], i, arr) => (
                 <div key={label} className={`flex justify-between py-3 ${i !== arr.length - 1 ? 'border-b border-white/5' : ''}`}>
                   <span className="text-[13px] text-[#8A8E99]">{label}</span>
@@ -366,9 +372,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                 make={item.makes?.name || 'Unknown'}
                 calibre={item.calibres?.name || 'N/A'}
                 price={item.price}
-                province={item.province}
-                condition={item.condition}
-                category={item.category}
+                province={item.provinces?.name || 'N/A'}
+                condition={item.conditions?.name || 'N/A'}
+                category={item.categories?.name || 'N/A'}
                 listingType={item.listing_type}
                 sellerName={item.users?.full_name || item.city || 'Private'}
                 images={item.images}

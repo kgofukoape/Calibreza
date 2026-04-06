@@ -69,8 +69,9 @@ export default function Navbar() {
           <span style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-[28px] font-black tracking-tighter text-[#F0EDE8] leading-none uppercase">
             GUN <span className="text-[#C9922A]">X</span>
           </span>
-          <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-[#8A8E99] mt-0.5">
-            Firearms Classifieds
+          <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-[#8A8E99] mt-0.5 leading-tight">
+            Firearms<br />
+            Classifieds
           </span>
         </Link>
 

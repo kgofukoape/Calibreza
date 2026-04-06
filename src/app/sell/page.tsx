@@ -12,6 +12,7 @@ export default function SellPage() {
   const [makes, setMakes] = useState<any[]>([]);
   const [calibres, setCalibres] = useState<any[]>([]);
   const [conditions, setConditions] = useState<any[]>([]);
+  const [provinces, setProvinces] = useState<any[]>([]);
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
@@ -19,6 +20,7 @@ export default function SellPage() {
     title: '',
     description: '',
     price: '',
+    category_id: 'pistols',
     make_id: '',
     model: '',
     calibre_id: '',
@@ -26,7 +28,7 @@ export default function SellPage() {
     barrel_length: '',
     action_type: '',
     capacity: '',
-    province: '',
+    province_id: '',
     city: ''
   });
 
@@ -59,6 +61,12 @@ export default function SellPage() {
       .select('*')
       .order('name');
     setConditions(conditionsData || []);
+
+    const { data: provincesData } = await supabase
+      .from('provinces')
+      .select('*')
+      .order('name');
+    setProvinces(provincesData || []);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -93,6 +101,21 @@ export default function SellPage() {
     setLoading(true);
 
     try {
+      // Resolve condition to the canonical ID from the conditions table.
+      const selectedCondition = formData.condition_id?.trim();
+      const resolvedConditionId = conditions.find((condition) => {
+        const id = String(condition.id || '').trim();
+        const name = String(condition.name || '').trim().toLowerCase();
+        const selected = selectedCondition.toLowerCase();
+        return id === selectedCondition || name === selected;
+      })?.id;
+
+      const conditionIdToSend = String(resolvedConditionId || '');
+
+      if (!conditionIdToSend) {
+        throw new Error('Please select a valid condition.');
+      }
+
       // Upload images to storage
       const uploadedImageUrls: string[] = [];
       
@@ -117,31 +140,34 @@ export default function SellPage() {
         uploadedImageUrls.push(publicUrl);
       }
 
-      // Use Postgres function to create listing
-      const { data, error } = await supabase.rpc('create_listing', {
-        p_seller_id: user.id,
-        p_title: formData.title,
-        p_description: formData.description,
-        p_price: parseFloat(formData.price),
-        p_make_id: formData.make_id || null,
-        p_model: formData.model,
-        p_calibre_id: formData.calibre_id || null,
-        p_condition_id: formData.condition_id || null,
-        p_barrel_length: formData.barrel_length ? parseFloat(formData.barrel_length) : null,
-        p_action_type: formData.action_type || null,
-        p_capacity: formData.capacity ? parseInt(formData.capacity) : null,
-        p_province: formData.province,
-        p_city: formData.city,
-        p_images: uploadedImageUrls
-      });
+      // Insert directly using the actual listings schema.
+      const { data, error } = await supabase
+        .from('listings')
+        .insert({
+          seller_id: user.id,
+          title: formData.title,
+          description: formData.description,
+          price: parseFloat(formData.price),
+          category_id: formData.category_id,
+          make_id: formData.make_id || null,
+          model: formData.model,
+          calibre_id: formData.calibre_id || null,
+          condition_id: conditionIdToSend,
+          barrel_length: formData.barrel_length || null,
+          action_type: formData.action_type || null,
+          capacity: formData.capacity || null,
+          province_id: formData.province_id,
+          city: formData.city,
+          images: uploadedImageUrls,
+          listing_type: 'private',
+          status: 'active'
+        })
+        .select('id')
+        .single();
 
       if (error) {
         console.error('Function error:', error);
         throw new Error(`Failed to create listing: ${error.message}`);
-      }
-
-      if (data && !data.success) {
-        throw new Error(data.error || 'Failed to create listing');
       }
 
       alert('Listing posted successfully!');
@@ -172,6 +198,32 @@ export default function SellPage() {
             <h2 className="text-xl font-bold text-[#F0EDE8] mb-4">Basic Information</h2>
             
             <div className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
+                  Category <span className="text-red-400">*</span>
+                </label>
+                <select
+                  name="category_id"
+                  value={formData.category_id}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
+                >
+                  <option value="pistols">Pistols</option>
+                  <option value="revolvers">Revolvers</option>
+                  <option value="rifles">Rifles</option>
+                  <option value="shotguns">Shotguns</option>
+                  <option value="air-guns">Air Guns</option>
+                  <option value="airsoft">Airsoft</option>
+                  <option value="ammunition">Ammunition</option>
+                  <option value="accessories">Accessories</option>
+                  <option value="holsters">Holsters</option>
+                  <option value="magazines">Magazines</option>
+                  <option value="reloading">Reloading</option>
+                  <option value="knives">Knives</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-[13px] font-medium text-[#8A8E99] mb-2">
                   Title <span className="text-red-400">*</span>
@@ -321,22 +373,18 @@ export default function SellPage() {
                   Province <span className="text-red-400">*</span>
                 </label>
                 <select
-                  name="province"
-                  value={formData.province}
+                  name="province_id"
+                  value={formData.province_id}
                   onChange={handleInputChange}
                   required
                   className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]"
                 >
                   <option value="">Select province...</option>
-                  <option value="Western Cape">Western Cape</option>
-                  <option value="Gauteng">Gauteng</option>
-                  <option value="KwaZulu-Natal">KwaZulu-Natal</option>
-                  <option value="Eastern Cape">Eastern Cape</option>
-                  <option value="Free State">Free State</option>
-                  <option value="Limpopo">Limpopo</option>
-                  <option value="Mpumalanga">Mpumalanga</option>
-                  <option value="Northern Cape">Northern Cape</option>
-                  <option value="North West">North West</option>
+                  {provinces.map((province) => (
+                    <option key={province.id} value={province.id}>
+                      {province.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
