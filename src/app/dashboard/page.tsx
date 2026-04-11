@@ -31,12 +31,22 @@ export default function DashboardPage() {
         .select(`
           *,
           makes:make_id(name),
-          calibres:calibre_id(name)
+          calibres:calibre_id(name),
+          categories:category_id(name),
+          conditions:condition_id(name),
+          provinces:province_id(name)
         `)
         .eq('seller_id', currentUser.id)
         .order('created_at', { ascending: false });
 
-      setListings(listingsData || []);
+      const normalizedListings = (listingsData || []).map((listing: any) => ({
+        ...listing,
+        category: listing.categories?.name || listing.category || listing.category_id || 'N/A',
+        condition: listing.conditions?.name || listing.condition || listing.condition_id || 'N/A',
+        province: listing.provinces?.name || listing.province || listing.province_id || 'N/A',
+      }));
+
+      setListings(normalizedListings);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     } finally {
