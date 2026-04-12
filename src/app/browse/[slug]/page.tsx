@@ -45,13 +45,12 @@ export default function BrowseCategoryPage() {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Lookup data
   const [makes, setMakes] = useState<any[]>([]);
   const [calibres, setCalibres] = useState<any[]>([]);
   const [conditions, setConditions] = useState<any[]>([]);
 
-  // Pending filters
   const [selectedMakeIds, setSelectedMakeIds] = useState<string[]>([]);
   const [selectedCalibreIds, setSelectedCalibreIds] = useState<string[]>([]);
   const [selectedConditionIds, setSelectedConditionIds] = useState<string[]>([]);
@@ -60,7 +59,6 @@ export default function BrowseCategoryPage() {
   const [maxPrice, setMaxPrice] = useState('');
   const [selectedSellerTypes, setSelectedSellerTypes] = useState<string[]>([]);
 
-  // Active filters (applied on button click)
   const [activeMakeIds, setActiveMakeIds] = useState<string[]>([]);
   const [activeCalibreIds, setActiveCalibreIds] = useState<string[]>([]);
   const [activeConditionIds, setActiveConditionIds] = useState<string[]>([]);
@@ -81,6 +79,13 @@ export default function BrowseCategoryPage() {
     fetchListings();
   }, [slug, currentPage, activeMakeIds, activeCalibreIds, activeConditionIds, activeProvinces, activeMinPrice, activeMaxPrice, activeSellerTypes, sortBy]);
 
+  // Lock scroll when filter drawer open on mobile
+  useEffect(() => {
+    if (filtersOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [filtersOpen]);
+
   const loadLookups = async () => {
     const [makesRes, calibresRes, conditionsRes] = await Promise.all([
       supabase.from('makes').select('id, name').order('name'),
@@ -94,16 +99,9 @@ export default function BrowseCategoryPage() {
 
   const fetchListings = async () => {
     setLoading(true);
-
     let query = supabase
       .from('listings')
-      .select(`
-        *,
-        makes:make_id(name),
-        calibres:calibre_id(name),
-        conditions:condition_id(name),
-        dealers:dealer_id(business_name, slug)
-      `, { count: 'exact' })
+      .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
       .eq('status', 'active')
       .eq('category_id', slug);
 
@@ -115,9 +113,7 @@ export default function BrowseCategoryPage() {
     if (activeMaxPrice) query = query.lte('price', parseFloat(activeMaxPrice));
     if (activeSellerTypes.length > 0) query = query.in('listing_type', activeSellerTypes);
 
-    // Featured first always
     query = query.order('is_featured', { ascending: false });
-
     switch (sortBy) {
       case 'price_asc':  query = query.order('price', { ascending: true }); break;
       case 'price_desc': query = query.order('price', { ascending: false }); break;
@@ -142,6 +138,7 @@ export default function BrowseCategoryPage() {
     setActiveMaxPrice(maxPrice);
     setActiveSellerTypes(selectedSellerTypes);
     setCurrentPage(1);
+    setFiltersOpen(false);
   };
 
   const clearAllFilters = () => {
@@ -161,14 +158,89 @@ export default function BrowseCategoryPage() {
 
   const CheckboxItem = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
     <label className="flex items-center gap-3 cursor-pointer group">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="w-4 h-4 flex-shrink-0 accent-[#C9922A]"
-      />
+      <input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 flex-shrink-0 accent-[#C9922A]" />
       <span className="text-[13px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{label}</span>
     </label>
+  );
+
+  const FilterPanel = () => (
+    <div className="bg-[#13151A] border border-white/5 rounded-sm p-4 flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-3 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-lg uppercase tracking-widest text-[#F0EDE8]">Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-[#C9922A] text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">{activeFilterCount}</span>
+          )}
+        </div>
+        {activeFilterCount > 0 && (
+          <button onClick={clearAllFilters} className="text-[11px] text-[#C9922A] font-bold uppercase tracking-wider hover:brightness-125">Clear All</button>
+        )}
+      </div>
+
+      {config.showMakes && makes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Brand / Make</span>
+          <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
+            {makes.map(make => (
+              <CheckboxItem key={make.id} label={make.name} checked={selectedMakeIds.includes(make.id)} onChange={() => toggleItem(make.id, selectedMakeIds, setSelectedMakeIds)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {config.showCalibres && calibres.length > 0 && (
+        <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Calibre</span>
+          <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1">
+            {calibres.map(calibre => (
+              <CheckboxItem key={calibre.id} label={calibre.name} checked={selectedCalibreIds.includes(calibre.id)} onChange={() => toggleItem(calibre.id, selectedCalibreIds, setSelectedCalibreIds)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Condition</span>
+        <div className="flex flex-col gap-2">
+          {conditions.map(cond => (
+            <CheckboxItem key={cond.id} label={cond.name} checked={selectedConditionIds.includes(cond.id)} onChange={() => toggleItem(cond.id, selectedConditionIds, setSelectedConditionIds)} />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province</span>
+        <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
+          {PROVINCES.map(prov => (
+            <CheckboxItem key={prov} label={prov} checked={selectedProvinces.includes(prov)} onChange={() => toggleItem(prov, selectedProvinces, setSelectedProvinces)} />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Price Range (R)</span>
+        <div className="flex items-center gap-2">
+          <input type="number" placeholder="Min" value={minPrice} onChange={e => setMinPrice(e.target.value)}
+            className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
+          <span className="text-[#8A8E99] flex-shrink-0">—</span>
+          <input type="number" placeholder="Max" value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
+            className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
+        <div className="flex flex-col gap-2">
+          <CheckboxItem label="🏪 Dealer Stock" checked={selectedSellerTypes.includes('dealer')} onChange={() => toggleItem('dealer', selectedSellerTypes, setSelectedSellerTypes)} />
+          <CheckboxItem label="👤 Private Seller" checked={selectedSellerTypes.includes('private')} onChange={() => toggleItem('private', selectedSellerTypes, setSelectedSellerTypes)} />
+        </div>
+      </div>
+
+      <button onClick={applyFilters} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+        className="w-full bg-[#C9922A] text-black font-black py-3 rounded-sm uppercase tracking-widest text-[14px] hover:brightness-110 transition-all">
+        Apply Filters
+      </button>
+    </div>
   );
 
   if (!config) {
@@ -177,12 +249,8 @@ export default function BrowseCategoryPage() {
         <Navbar />
         <div className="flex-1 flex items-center justify-center flex-col gap-4">
           <div className="text-5xl">🔍</div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase">
-            Category Not Found
-          </h1>
-          <Link href="/browse" className="text-[#C9922A] font-bold uppercase tracking-widest text-sm hover:brightness-125">
-            ← Back to Browse
-          </Link>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase">Category Not Found</h1>
+          <Link href="/browse" className="text-[#C9922A] font-bold uppercase tracking-widest text-sm hover:brightness-125">← Back to Browse</Link>
         </div>
       </div>
     );
@@ -193,185 +261,93 @@ export default function BrowseCategoryPage() {
       <Navbar />
 
       {/* PAGE HEADER */}
-      <div className="bg-[#13151A] border-b border-white/5 px-6 py-8">
+      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-5 md:py-8">
         <div className="max-w-[1400px] mx-auto">
-          <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-3 flex items-center gap-2">
+          <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
             <Link href="/" className="hover:text-[#C9922A] transition-colors">Home</Link>
             <span>/</span>
             <Link href="/browse" className="hover:text-[#C9922A] transition-colors">Browse</Link>
             <span>/</span>
             <span className="text-[#F0EDE8]">{config.label}</span>
           </div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-5xl md:text-6xl font-black uppercase tracking-tight">
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight">
             Browse <span className="text-[#C9922A]">{config.label}</span>
           </h1>
-          <p className="text-[#8A8E99] text-sm mt-2 uppercase tracking-widest font-bold">{config.description}</p>
+          <p className="text-[#8A8E99] text-sm mt-1 uppercase tracking-widest font-bold">{config.description}</p>
         </div>
       </div>
 
-      {/* TOP LEADERBOARD AD */}
-      <div className="w-full flex justify-center py-4 px-6 bg-[#0D0F13]">
-        <div className="w-full max-w-[970px] h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
+      {/* LEADERBOARD AD */}
+      <div className="w-full flex justify-center py-3 px-4 md:px-6 bg-[#0D0F13]">
+        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
           <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
           <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-8 flex gap-6">
+      {/* MOBILE FILTER TOGGLE BAR */}
+      <div className="lg:hidden sticky top-[68px] z-40 bg-[#0D0F13] border-b border-white/5 px-4 py-2.5 flex items-center justify-between">
+        <button
+          onClick={() => setFiltersOpen(true)}
+          className="flex items-center gap-2 bg-[#13151A] border border-white/10 px-4 py-2 rounded-sm text-[12px] font-black uppercase tracking-widest text-[#F0EDE8] hover:border-[#C9922A]/40 transition-all"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+          Filters {activeFilterCount > 0 && <span className="bg-[#C9922A] text-black text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{activeFilterCount}</span>}
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Sort:</span>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            className="bg-[#13151A] border border-white/10 text-[#F0EDE8] text-[11px] px-2 py-1.5 rounded-sm focus:outline-none appearance-none">
+            <option value="newest">Newest</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+          </select>
+        </div>
+      </div>
 
-        {/* LEFT SIDEBAR AD */}
-        <div className="hidden xl:flex flex-col items-center flex-shrink-0 w-[160px]">
+      {/* MOBILE FILTER DRAWER */}
+      {filtersOpen && (
+        <div className="lg:hidden fixed inset-0 z-[150] flex">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setFiltersOpen(false)} />
+          <div className="relative w-[85%] max-w-[320px] bg-[#0D0F13] h-full overflow-y-auto border-r border-white/10 p-4 flex flex-col gap-4">
+            <div className="flex items-center justify-between mb-2">
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest">Filters</span>
+              <button onClick={() => setFiltersOpen(false)} className="w-8 h-8 flex items-center justify-center text-[#8A8E99] hover:text-white">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <FilterPanel />
+          </div>
+        </div>
+      )}
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
+
+        {/* LEFT SIDEBAR AD — 2xl only */}
+        <div className="hidden 2xl:flex flex-col items-center flex-shrink-0 w-[160px]">
           <div className="w-[160px] h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6">
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Ad</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">
-              160 x 600
-            </div>
+            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
           </div>
         </div>
 
-        {/* FILTER SIDEBAR */}
-        <aside className="w-full lg:w-[260px] flex-shrink-0">
-          <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 flex flex-col gap-5 sticky top-6">
-
-            {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-lg uppercase tracking-widest text-[#F0EDE8]">
-                  Filters
-                </span>
-                {activeFilterCount > 0 && (
-                  <span className="bg-[#C9922A] text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </div>
-              {activeFilterCount > 0 && (
-                <button onClick={clearAllFilters} className="text-[11px] text-[#C9922A] font-bold uppercase tracking-wider hover:brightness-125">
-                  Clear All
-                </button>
-              )}
-            </div>
-
-            {/* Makes */}
-            {config.showMakes && makes.length > 0 && (
-              <div className="flex flex-col gap-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Brand / Make</span>
-                <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-                  {makes.map(make => (
-                    <CheckboxItem
-                      key={make.id}
-                      label={make.name}
-                      checked={selectedMakeIds.includes(make.id)}
-                      onChange={() => toggleItem(make.id, selectedMakeIds, setSelectedMakeIds)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Calibres */}
-            {config.showCalibres && calibres.length > 0 && (
-              <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Calibre</span>
-                <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
-                  {calibres.map(calibre => (
-                    <CheckboxItem
-                      key={calibre.id}
-                      label={calibre.name}
-                      checked={selectedCalibreIds.includes(calibre.id)}
-                      onChange={() => toggleItem(calibre.id, selectedCalibreIds, setSelectedCalibreIds)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Condition */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Condition</span>
-              <div className="flex flex-col gap-2">
-                {conditions.map(cond => (
-                  <CheckboxItem
-                    key={cond.id}
-                    label={cond.name}
-                    checked={selectedConditionIds.includes(cond.id)}
-                    onChange={() => toggleItem(cond.id, selectedConditionIds, setSelectedConditionIds)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Province */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province</span>
-              <div className="flex flex-col gap-2">
-                {PROVINCES.map(prov => (
-                  <CheckboxItem
-                    key={prov}
-                    label={prov}
-                    checked={selectedProvinces.includes(prov)}
-                    onChange={() => toggleItem(prov, selectedProvinces, setSelectedProvinces)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Price Range */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Price Range (R)</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={minPrice}
-                  onChange={e => setMinPrice(e.target.value)}
-                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50"
-                />
-                <span className="text-[#8A8E99] flex-shrink-0">—</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={maxPrice}
-                  onChange={e => setMaxPrice(e.target.value)}
-                  className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50"
-                />
-              </div>
-            </div>
-
-            {/* Seller Type */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
-              <div className="flex flex-col gap-2">
-                <CheckboxItem
-                  label="🏪 Dealer Stock"
-                  checked={selectedSellerTypes.includes('dealer')}
-                  onChange={() => toggleItem('dealer', selectedSellerTypes, setSelectedSellerTypes)}
-                />
-                <CheckboxItem
-                  label="👤 Private Seller"
-                  checked={selectedSellerTypes.includes('private')}
-                  onChange={() => toggleItem('private', selectedSellerTypes, setSelectedSellerTypes)}
-                />
-              </div>
-            </div>
-
-            {/* Apply Button */}
-            <button
-              onClick={applyFilters}
-              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="w-full bg-[#C9922A] text-black font-black py-3 rounded-sm uppercase tracking-widest text-[14px] hover:brightness-110 transition-all mt-2"
-            >
-              Apply Filters
-            </button>
+        {/* DESKTOP FILTER SIDEBAR */}
+        <aside className="hidden lg:block w-[240px] xl:w-[260px] flex-shrink-0">
+          <div className="sticky top-6">
+            <FilterPanel />
           </div>
         </aside>
 
-        {/* RESULTS AREA */}
-        <div className="flex-1 min-w-0 flex flex-col gap-5">
+        {/* RESULTS */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4">
 
-          {/* Results bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
+          {/* Results bar — desktop only (mobile uses top bar) */}
+          <div className="hidden lg:flex items-center justify-between bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
             <span className="text-[13px] text-[#8A8E99]">
               {loading ? 'Loading...' : (
                 <>
@@ -383,16 +359,18 @@ export default function BrowseCategoryPage() {
             </span>
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[12px] px-3 py-2 rounded-sm cursor-pointer focus:outline-none focus:border-[#C9922A]/50 appearance-none"
-              >
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[12px] px-3 py-2 rounded-sm cursor-pointer focus:outline-none focus:border-[#C9922A]/50 appearance-none">
                 <option value="newest">Newest First</option>
                 <option value="price_asc">Price: Low to High</option>
                 <option value="price_desc">Price: High to Low</option>
               </select>
             </div>
+          </div>
+
+          {/* Mobile results count */}
+          <div className="lg:hidden text-[12px] text-[#8A8E99]">
+            {!loading && <><strong className="text-[#F0EDE8]">{totalCount}</strong> listing{totalCount !== 1 ? 's' : ''} in <span className="text-[#C9922A]">{config.label}</span></>}
           </div>
 
           {/* Listings Grid */}
@@ -404,25 +382,16 @@ export default function BrowseCategoryPage() {
               </div>
             </div>
           ) : listings.length === 0 ? (
-            <div className="bg-[#13151A] border border-white/5 rounded-sm p-16 text-center">
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-12 text-center">
               <div className="text-5xl mb-4">🔍</div>
-              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">
-                No listings found
-              </h3>
-              <p className="text-[#8A8E99] text-sm mb-6">
-                {activeFilterCount > 0 ? 'Try adjusting or clearing your filters' : `No ${config.label} listings yet`}
-              </p>
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No listings found</h3>
+              <p className="text-[#8A8E99] text-sm mb-6">{activeFilterCount > 0 ? 'Try adjusting or clearing your filters' : `No ${config.label} listings yet`}</p>
               {activeFilterCount > 0 && (
-                <button
-                  onClick={clearAllFilters}
-                  className="text-[#C9922A] font-bold text-sm uppercase tracking-widest hover:brightness-125"
-                >
-                  Clear All Filters
-                </button>
+                <button onClick={clearAllFilters} className="text-[#C9922A] font-bold text-sm uppercase tracking-widest hover:brightness-125">Clear All Filters</button>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {listings.map(listing => (
                 <ListingCard
                   key={listing.id}
@@ -445,49 +414,36 @@ export default function BrowseCategoryPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="w-10 h-10 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                 ‹
               </button>
               {[...Array(Math.min(totalPages, 7))].map((_, i) => {
                 const pageNum = i + 1;
                 return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-10 h-10 flex items-center justify-center border rounded-sm font-bold text-sm transition-all ${
-                      currentPage === pageNum
-                        ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]'
-                        : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
+                  <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
+                    className={`w-9 h-9 flex items-center justify-center border rounded-sm font-bold text-sm transition-all ${
+                      currentPage === pageNum ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]' : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
+                    }`}>
                     {pageNum}
                   </button>
                 );
               })}
               {totalPages > 7 && <span className="text-[#8A8E99]">...</span>}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="w-10 h-10 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                 ›
               </button>
             </div>
           )}
         </div>
 
-        {/* RIGHT SIDEBAR AD */}
-        <div className="hidden xl:flex flex-col items-center flex-shrink-0 w-[160px]">
+        {/* RIGHT SIDEBAR AD — 2xl only */}
+        <div className="hidden 2xl:flex flex-col items-center flex-shrink-0 w-[160px]">
           <div className="w-[160px] h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6">
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Ad</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">
-              160 x 600
-            </div>
+            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
           </div>
         </div>
 

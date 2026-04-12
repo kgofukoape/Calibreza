@@ -11,9 +11,27 @@ if (!supabaseUrl || !supabasePublicKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabasePublicKey);
+export const supabase = createClient(supabaseUrl, supabasePublicKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
 
-// Database types for TypeScript
+// Clear bad sessions automatically
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'TOKEN_REFRESHED' && !session) {
+    supabase.auth.signOut();
+  }
+  if (event === 'SIGNED_OUT') {
+    // Clear any stale admin session
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('gunx_admin_session');
+    }
+  }
+});
+
 export type Listing = {
   id: string;
   title: string;
