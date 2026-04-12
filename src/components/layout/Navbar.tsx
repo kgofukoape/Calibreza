@@ -1,408 +1,439 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-const ADMIN_EMAIL = 'kgofu.koape@gmail.com';
-
-type Stats = {
-  totalUsers: number;
-  totalListings: number;
-  totalDealers: number;
-  pendingApplications: number;
-  totalViews: number;
-  activeListings: number;
+type SearchResult = {
+  listings: any[];
+  dealers: any[];
 };
 
-type RecentActivity = {
-  id: string;
-  type: 'listing' | 'dealer' | 'user';
-  title: string;
-  subtitle: string;
-  time: string;
-  status?: string;
-};
+const POPULAR_SEARCHES = [
+  'Glock 17', 'Beretta', 'Remington 700', 'CZ P-10',
+  'Smith & Wesson', '9mm Ammo', 'Holster', 'Tikka',
+];
 
-export default function AdminOverviewPage() {
+export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState<any>(null);
+  const [dealer, setDealer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<Stats>({
-    totalUsers: 0,
-    totalListings: 0,
-    totalDealers: 0,
-    pendingApplications: 0,
-    totalViews: 0,
-    activeListings: 0,
-  });
-  const [recentListings, setRecentListings] = useState<any[]>([]);
-  const [recentDealers, setRecentDealers] = useState<any[]>([]);
-  const [pendingDealers, setPendingDealers] = useState<any[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult>({ listings: [], dealers: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [inlineMode, setInlineMode] = useState(false);
+  const [hoverMode, setHoverMode] = useState(false);
+
+  const searchIconRef = useRef<HTMLDivElement>(null);
+  const inlineInputRef = useRef<HTMLInputElement>(null);
+  const hoverInputRef = useRef<HTMLInputElement>(null);
+  const hoverBarRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const hoverTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
-    checkAdmin();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setUser(session.user); checkDealer(session.user.id); }
+      else setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) { setUser(session.user); checkDealer(session.user.id); }
+      else { setUser(null); setDealer(null); setLoading(false); }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdmin = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.email !== ADMIN_EMAIL) {
-      router.push('/');
-      return;
-    }
-    await loadData();
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false);
+      if (
+        searchIconRef.current && !searchIconRef.current.contains(e.target as Node) &&
+        hoverBarRef.current && !hoverBarRef.current.contains(e.target as Node)
+      ) {
+        setInlineMode(false); setHoverMode(false);
+        setSearchQuery(''); setSearchResults({ listings: [], dealers: [] });
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setDropdownOpen(false); setInlineMode(false); setHoverMode(false);
+    setSearchQuery(''); setSearchResults({ listings: [], dealers: [] });
+  }, [pathname]);
+
+  useEffect(() => { if (inlineMode && inlineInputRef.current) inlineInputRef.current.focus(); }, [inlineMode]);
+  useEffect(() => { if (hoverMode && hoverInputRef.current) hoverInputRef.current.focus(); }, [hoverMode]);
+
+  const checkDealer = async (userId: string) => {
+    const { data } = await supabase.from('dealers')
+      .select('id, business_name, slug, subscription_tier, status')
+      .eq('user_id', userId).eq('status', 'approved').single();
+    setDealer(data || null);
     setLoading(false);
   };
 
-  const loadData = async () => {
-    const [
-      listingsRes,
-      dealersRes,
-      pendingRes,
-      recentListingsRes,
-      recentDealersRes,
-    ] = await Promise.all([
-      supabase.from('listings').select('id, status, views_count', { count: 'exact' }),
-      supabase.from('dealers').select('id, status', { count: 'exact' }),
-      supabase.from('dealers').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
-      supabase.from('listings').select('id, title, status, created_at, category_id, price').order('created_at', { ascending: false }).limit(5),
-      supabase.from('dealers').select('id, business_name, status, created_at, city, province').order('created_at', { ascending: false }).limit(5),
+  const handleSearch = useCallback(async (query: string) => {
+    if (query.length < 2) { setSearchResults({ listings: [], dealers: [] }); return; }
+    setSearchLoading(true);
+    const [listingsRes, dealersRes] = await Promise.all([
+      supabase.from('listings').select('id, title, price, category_id, images, city, is_negotiable')
+        .eq('status', 'active').ilike('title', `%${query}%`).limit(6),
+      supabase.from('dealers').select('id, business_name, slug, city, province, logo_url, subscription_tier')
+        .eq('status', 'approved').ilike('business_name', `%${query}%`).limit(3),
     ]);
+    setSearchResults({ listings: listingsRes.data || [], dealers: dealersRes.data || [] });
+    setSearchLoading(false);
+  }, []);
 
-    const listings = listingsRes.data || [];
-    const dealers = dealersRes.data || [];
-
-    setStats({
-      totalListings: listings.length,
-      activeListings: listings.filter((l) => l.status === 'active').length,
-      totalViews: listings.reduce((sum, l) => sum + (l.views_count || 0), 0),
-      totalDealers: dealers.filter((d) => d.status === 'approved').length,
-      pendingApplications: dealers.filter((d) => d.status === 'pending').length,
-      totalUsers: 0,
-    });
-
-    setRecentListings(recentListingsRes.data || []);
-    setRecentDealers(recentDealersRes.data || []);
-    setPendingDealers(pendingRes.data || []);
+  const handleQueryChange = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => handleSearch(value), 300);
   };
 
-  const handleQuickApprove = async (dealerId: string) => {
-    await supabase.from('dealers').update({ status: 'approved' }).eq('id', dealerId);
-    setPendingDealers((prev) => prev.filter((d) => d.id !== dealerId));
-    setStats((prev) => ({
-      ...prev,
-      pendingApplications: prev.pendingApplications - 1,
-      totalDealers: prev.totalDealers + 1,
-    }));
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setInlineMode(false); setHoverMode(false);
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
   };
 
-  const handleQuickReject = async (dealerId: string) => {
-    await supabase.from('dealers').update({ status: 'rejected' }).eq('id', dealerId);
-    setPendingDealers((prev) => prev.filter((d) => d.id !== dealerId));
-    setStats((prev) => ({
-      ...prev,
-      pendingApplications: prev.pendingApplications - 1,
-    }));
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setInlineMode(false); setHoverMode(false);
+      setSearchQuery(''); setSearchResults({ listings: [], dealers: [] });
+    }
   };
 
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('en-ZA', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    });
+  const handleIconMouseEnter = () => {
+    if (inlineMode) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => { if (!inlineMode) setHoverMode(true); }, 150);
+  };
+  const handleIconMouseLeave = () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); };
+  const handleHoverBarMouseLeave = () => {
+    if (inlineMode) return;
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (!inlineMode) { setHoverMode(false); if (!searchQuery) setSearchResults({ listings: [], dealers: [] }); }
+    }, 300);
+  };
+  const handleHoverBarMouseEnter = () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); };
+  const handleIconClick = () => { setHoverMode(false); setInlineMode(true); };
+  const clearSearch = () => { setSearchQuery(''); setSearchResults({ listings: [], dealers: [] }); };
+  const handleLogout = async () => { await supabase.auth.signOut(); setDropdownOpen(false); router.push('/'); };
+
+  const getInitial = () => {
+    if (dealer) return dealer.business_name?.charAt(0) || 'D';
+    if (user?.user_metadata?.full_name) return user.user_metadata.full_name.charAt(0);
+    return user?.email?.charAt(0).toUpperCase() || 'U';
+  };
+
+  const getDisplayName = () => {
+    if (dealer) return dealer.business_name;
+    if (user?.user_metadata?.full_name) return user.user_metadata.full_name.split(' ')[0];
+    return user?.email?.split('@')[0] || 'Account';
+  };
 
   const formatCategory = (cat: string) =>
-    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#080B12] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-2 border-[#E63946] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[#E63946] font-black uppercase tracking-widest text-sm">Loading Command Center...</span>
-        </div>
-      </div>
-    );
-  }
+  const totalResults = searchResults.listings.length + searchResults.dealers.length;
 
-  return (
-    <div className="min-h-screen bg-[#080B12] text-[#E8EAF0] flex">
-
-      {/* SIDEBAR */}
-      <aside className="w-[260px] bg-[#0D1420] border-r border-white/5 flex flex-col fixed h-full z-50">
-
-        {/* Logo */}
-        <div className="p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#E63946] rounded-sm flex items-center justify-center">
-              <span className="text-white font-black text-sm">GX</span>
-            </div>
-            <div>
-              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase tracking-widest text-white leading-none">
-                Command Center
-              </p>
-              <p className="text-[9px] font-bold text-[#E63946] uppercase tracking-[0.3em]">Admin Access</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Admin badge */}
-        <div className="px-6 py-4 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#E63946] flex items-center justify-center text-white font-black text-xs">K</div>
-            <div>
-              <p className="text-xs font-black text-white uppercase tracking-widest">Kgofu</p>
-              <p className="text-[9px] text-[#E63946] font-bold uppercase tracking-widest">Super Admin</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 p-4">
-          <div className="mb-2">
-            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Main</p>
-            <ul className="space-y-1">
-              <li>
-                <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded-sm bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946] font-black text-[11px] uppercase tracking-widest">
-                  <span>⚡</span><span>Overview</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/dealers" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                  <span>🏪</span>
-                  <span>Dealers</span>
-                  {stats.pendingApplications > 0 && (
-                    <span className="ml-auto bg-[#F59E0B] text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                      {stats.pendingApplications}
-                    </span>
-                  )}
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/listings" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                  <span>📋</span><span>Listings</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/users" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                  <span>👥</span><span>Users</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/analytics" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                  <span>📈</span><span>Analytics</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div className="mt-6">
-            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Quick Links</p>
-            <ul className="space-y-1">
-              <li>
-                <Link href="/" target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                  <span>🌐</span><span>View Site</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="https://supabase.com/dashboard/project/xklyirzvbjncedymrjqj" target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                  <span>🗄️</span><span>Supabase</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </nav>
-
-        {/* Bottom */}
-        <div className="p-4 border-t border-white/5">
-          <button
-            onClick={async () => { await supabase.auth.signOut(); router.push('/'); }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-red-400 hover:bg-red-500/10 font-black text-[11px] uppercase tracking-widest transition-all"
-          >
-            <span>🚪</span><span>Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main className="flex-1 ml-[260px] overflow-y-auto">
-
-        {/* Header */}
-        <header className="bg-[#0D1420] border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
-          <div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight text-white">
-              System <span className="text-[#E63946]">Overview</span>
-            </h1>
-            <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-bold">
-              {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-          </div>
-          {stats.pendingApplications > 0 && (
-            <Link href="/admin/dealers" className="flex items-center gap-2 bg-[#F59E0B]/10 border border-[#F59E0B]/30 px-4 py-2 rounded-sm text-[#F59E0B] font-black text-[11px] uppercase tracking-widest hover:bg-[#F59E0B]/20 transition-all">
-              <span className="animate-pulse">●</span>
-              {stats.pendingApplications} Pending Application{stats.pendingApplications !== 1 ? 's' : ''}
-            </Link>
-          )}
-        </header>
-
-        <div className="p-8 space-y-8">
-
-          {/* STATS GRID */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-            {[
-              { label: 'Total Listings', value: stats.totalListings, icon: '📋', color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20' },
-              { label: 'Active Listings', value: stats.activeListings, icon: '✅', color: 'text-[#10B981]', border: 'border-[#10B981]/20' },
-              { label: 'Total Views', value: stats.totalViews.toLocaleString(), icon: '👁️', color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20' },
-              { label: 'Approved Dealers', value: stats.totalDealers, icon: '🏪', color: 'text-[#10B981]', border: 'border-[#10B981]/20' },
-              { label: 'Pending Applications', value: stats.pendingApplications, icon: '⏳', color: 'text-[#F59E0B]', border: 'border-[#F59E0B]/20' },
-              { label: 'Total Users', value: 'N/A', icon: '👥', color: 'text-white/40', border: 'border-white/10' },
-            ].map((stat) => (
-              <div key={stat.label} className={`bg-[#0D1420] border ${stat.border} rounded-sm p-4`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{stat.label}</span>
-                  <span className="text-lg">{stat.icon}</span>
-                </div>
-                <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className={`text-3xl font-black ${stat.color}`}>
-                  {stat.value}
-                </div>
-              </div>
+  const ResultsDropdown = ({ inputQuery }: { inputQuery: string }) => (
+    <div className="absolute top-full mt-2 left-0 right-0 bg-[#13151A] border border-white/10 rounded-sm shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-[300] overflow-hidden">
+      {!inputQuery || inputQuery.length < 2 ? (
+        <div className="p-4">
+          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#8A8E99] mb-3">Popular Searches</p>
+          <div className="flex flex-wrap gap-2">
+            {POPULAR_SEARCHES.map((term) => (
+              <button key={term} onClick={() => handleQueryChange(term)}
+                className="flex items-center gap-1.5 bg-[#0D0F13] border border-white/10 px-3 py-1.5 rounded-sm text-[11px] font-bold text-[#8A8E99] hover:border-[#C9922A]/40 hover:text-[#C9922A] transition-all">
+                <svg className="w-3 h-3 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {term}
+              </button>
             ))}
           </div>
-
-          {/* PENDING APPLICATIONS — Priority Section */}
-          {pendingDealers.length > 0 && (
-            <div className="bg-[#0D1420] border border-[#F59E0B]/20 rounded-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-[#F59E0B]/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
-                  <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase text-[#F59E0B]">
-                    Pending Dealer Applications
-                  </h2>
-                </div>
-                <Link href="/admin/dealers" className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
-                  View All →
-                </Link>
+        </div>
+      ) : searchLoading ? (
+        <div className="flex items-center justify-center py-8 gap-3">
+          <div className="w-4 h-4 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+          <span className="text-[#8A8E99] text-xs uppercase tracking-widest font-bold">Searching...</span>
+        </div>
+      ) : totalResults === 0 ? (
+        <div className="py-8 text-center">
+          <div className="text-3xl mb-2">🔍</div>
+          <p className="text-[#8A8E99] text-xs font-bold uppercase tracking-widest">No results for "{inputQuery}"</p>
+          <Link href={`/search?q=${encodeURIComponent(inputQuery)}`}
+            className="mt-3 inline-block text-[11px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125"
+            onClick={() => { setInlineMode(false); setHoverMode(false); }}>
+            Search all listings →
+          </Link>
+        </div>
+      ) : (
+        <>
+          {searchResults.listings.length > 0 && (
+            <div>
+              <div className="px-4 py-2 bg-[#0D0F13] border-b border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#8A8E99]">Listings ({searchResults.listings.length})</span>
               </div>
-              <div className="divide-y divide-white/5">
-                {pendingDealers.map((dealer) => (
-                  <div key={dealer.id} className="px-6 py-4 flex items-center gap-4">
-                    <div className="w-10 h-10 bg-[#F59E0B]/10 border border-[#F59E0B]/20 rounded-sm flex items-center justify-center text-[#F59E0B] font-black flex-shrink-0">
-                      {dealer.business_name?.charAt(0) || 'D'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm text-white truncate">{dealer.business_name}</p>
-                      <p className="text-[11px] text-white/40 uppercase tracking-wider">
-                        {dealer.city}, {dealer.province} · Applied {formatDate(dealer.created_at)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Link
-                        href={`/admin/dealers`}
-                        className="text-[10px] font-black uppercase tracking-widest text-[#4CC9F0] border border-[#4CC9F0]/30 px-3 py-1.5 rounded-sm hover:bg-[#4CC9F0]/10 transition-all"
-                      >
-                        View
-                      </Link>
-                      <button
-                        onClick={() => handleQuickApprove(dealer.id)}
-                        className="text-[10px] font-black uppercase tracking-widest text-[#10B981] border border-[#10B981]/30 px-3 py-1.5 rounded-sm hover:bg-[#10B981]/10 transition-all"
-                      >
-                        ✓ Approve
-                      </button>
-                      <button
-                        onClick={() => handleQuickReject(dealer.id)}
-                        className="text-[10px] font-black uppercase tracking-widest text-[#E63946] border border-[#E63946]/30 px-3 py-1.5 rounded-sm hover:bg-[#E63946]/10 transition-all"
-                      >
-                        ✗ Reject
-                      </button>
-                    </div>
+              {searchResults.listings.map((listing) => (
+                <Link key={listing.id} href={`/listings/${listing.id}`}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0"
+                  onClick={() => { setInlineMode(false); setHoverMode(false); clearSearch(); }}>
+                  <div className="w-10 h-10 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
+                    {listing.images?.length > 0 ? <img src={listing.images[0]} alt="" className="w-full h-full object-cover" /> : <span className="text-sm">🔫</span>}
                   </div>
-                ))}
-              </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-[#F0EDE8] truncate">{listing.title}</p>
+                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-wider">{formatCategory(listing.category_id)} · {listing.city || 'N/A'}</p>
+                  </div>
+                  <span className="text-sm font-black text-[#C9922A] flex-shrink-0">
+                    R {listing.price?.toLocaleString('en-ZA')}
+                    {listing.is_negotiable && <span className="text-[9px] text-[#8A8E99] ml-1">ONO</span>}
+                  </span>
+                </Link>
+              ))}
             </div>
           )}
-
-          {/* BOTTOM ROW — Recent Listings + Recent Dealers */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
-            {/* Recent Listings */}
-            <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase text-white">
-                  Recent <span className="text-[#4CC9F0]">Listings</span>
-                </h2>
-                <Link href="/admin/listings" className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
-                  View All →
-                </Link>
+          {searchResults.dealers.length > 0 && (
+            <div>
+              <div className="px-4 py-2 bg-[#0D0F13] border-b border-white/5 border-t border-t-white/5">
+                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#8A8E99]">Dealers ({searchResults.dealers.length})</span>
               </div>
-              <div className="divide-y divide-white/5">
-                {recentListings.map((listing) => (
-                  <div key={listing.id} className="px-6 py-3 flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{listing.title}</p>
-                      <p className="text-[10px] text-white/40 uppercase tracking-wider">
-                        {formatCategory(listing.category_id)} · R {listing.price?.toLocaleString('en-ZA')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-sm ${
-                        listing.status === 'active'
-                          ? 'bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20'
-                          : 'bg-white/5 text-white/40 border border-white/10'
-                      }`}>
-                        {listing.status}
-                      </span>
-                      <span className="text-[10px] text-white/30">{formatDate(listing.created_at)}</span>
-                    </div>
+              {searchResults.dealers.map((d) => (
+                <Link key={d.id} href={`/dealers/${d.slug}`}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0"
+                  onClick={() => { setInlineMode(false); setHoverMode(false); clearSearch(); }}>
+                  <div className="w-10 h-10 bg-[#C9922A] rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
+                    {d.logo_url ? <img src={d.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-black font-black text-sm">{d.business_name?.charAt(0)}</span>}
                   </div>
-                ))}
-                {recentListings.length === 0 && (
-                  <div className="px-6 py-8 text-center text-white/30 text-sm">No listings yet</div>
-                )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-[#F0EDE8] truncate">{d.business_name}</p>
+                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-wider">{d.city}, {d.province}</p>
+                  </div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/30 px-2 py-0.5 rounded-sm flex-shrink-0">{d.subscription_tier}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          <div className="px-4 py-3 bg-[#0D0F13] border-t border-white/5">
+            <Link href={`/search?q=${encodeURIComponent(inputQuery)}`}
+              className="flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#C9922A] hover:brightness-125 transition-all"
+              onClick={() => { setInlineMode(false); setHoverMode(false); }}>
+              View all {totalResults} results for "{inputQuery}" →
+            </Link>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <nav className="w-full bg-[#0D0F13] border-b border-white/5 z-[100] relative">
+        <div className="max-w-[1400px] mx-auto px-6 h-[80px] flex items-center justify-between gap-4">
+
+          {/* LOGO */}
+          <Link href="/" className="flex flex-col items-start group flex-shrink-0">
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black text-[#F0EDE8] leading-none tracking-tighter uppercase group-hover:text-[#C9922A] transition-colors">
+              GUN <span className="text-[#C9922A] group-hover:text-[#F0EDE8]">X</span>
+            </span>
+            <span className="text-[9px] font-bold text-[#8A8E99] tracking-[0.3em] uppercase mt-1">Classifieds</span>
+          </Link>
+
+          {/* DESKTOP NAV */}
+          <div className="hidden lg:flex items-center gap-6 flex-shrink-0">
+            <div className="relative group h-[80px] flex items-center">
+              <Link href="/browse" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="flex items-center gap-2 text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] group-hover:text-[#C9922A] transition-colors">
+                Browse <span className="text-[10px] opacity-40 group-hover:rotate-180 transition-transform duration-300">▼</span>
+              </Link>
+              <div className="absolute top-[80px] left-[-20px] w-[950px] bg-[#191C23] border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[110] p-10 grid grid-cols-5 gap-8">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Firearms</h3>
+                  <Link href="/browse/pistols" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pistols</Link>
+                  <Link href="/browse/rifles" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifles</Link>
+                  <Link href="/browse/shotguns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Shotguns</Link>
+                  <Link href="/browse/revolvers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Revolvers</Link>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Blades</h3>
+                  <Link href="/browse/knives" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Knives</Link>
+                  <Link href="/browse/knives?type=folding" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Folding Knives</Link>
+                  <Link href="/browse/knives?type=fixed" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Fixed Blades</Link>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Air Guns</h3>
+                  <Link href="/browse/air-guns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Air Rifles</Link>
+                  <Link href="/browse/airsoft" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Airsoft</Link>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Accessories</h3>
+                  <Link href="/browse/holsters" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Holsters & Carry</Link>
+                  <Link href="/browse/magazines" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Magazines</Link>
+                  <Link href="/browse/ammunition" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Ammunition</Link>
+                  <Link href="/browse/reloading" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Reloading</Link>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Other</h3>
+                  <Link href="/services" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Services</Link>
+                  <Link href="/clubs" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs & Ranges</Link>
+                  <Link href="/wanted" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
+                  <Link href="/jobs" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
+                </div>
+                <div className="col-span-5 mt-4 pt-6 border-t border-white/5 text-center">
+                  <Link href="/browse" className="text-[11px] text-[#C9922A] font-bold uppercase tracking-[0.3em] hover:brightness-150 transition-all">
+                    View Full Category Directory →
+                  </Link>
+                </div>
               </div>
             </div>
+            <Link href="/dealers" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Dealers</Link>
+            <Link href="/wanted" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Wanted</Link>
+            <Link href="/clubs" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
+            <Link href="/services" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
+            <Link href="/jobs" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
+            <Link href="/firearm-ownership" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">FA Ownership</Link>
+          </div>
 
-            {/* Recent Dealers */}
-            <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase text-white">
-                  Recent <span className="text-[#E63946]">Dealers</span>
-                </h2>
-                <Link href="/admin/dealers" className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">
-                  View All →
-                </Link>
-              </div>
-              <div className="divide-y divide-white/5">
-                {recentDealers.map((dealer) => (
-                  <div key={dealer.id} className="px-6 py-3 flex items-center gap-4">
-                    <div className="w-8 h-8 bg-[#E63946]/10 border border-[#E63946]/20 rounded-sm flex items-center justify-center text-[#E63946] font-black text-xs flex-shrink-0">
-                      {dealer.business_name?.charAt(0) || 'D'}
+          {/* RIGHT */}
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div ref={searchIconRef} className="relative flex items-center">
+              {inlineMode ? (
+                <form onSubmit={handleSubmit} className="relative">
+                  <div className="flex items-center gap-2 bg-[#13151A] border border-[#C9922A]/50 rounded-sm px-3 py-1.5 w-[280px] transition-all">
+                    <svg className="w-3.5 h-3.5 text-[#C9922A] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input ref={inlineInputRef} type="text" value={searchQuery} onChange={(e) => handleQueryChange(e.target.value)}
+                      onKeyDown={handleKeyDown} placeholder="Search..."
+                      className="bg-transparent text-[12px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none w-full" />
+                    <button type="button" onClick={() => { setInlineMode(false); clearSearch(); }}
+                      className="text-[#8A8E99] hover:text-white transition-colors flex-shrink-0">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="absolute top-full mt-2 right-0 w-[420px]">
+                    <ResultsDropdown inputQuery={searchQuery} />
+                  </div>
+                </form>
+              ) : (
+                <button onClick={handleIconClick} onMouseEnter={handleIconMouseEnter} onMouseLeave={handleIconMouseLeave}
+                  className="flex items-center justify-center w-8 h-8 group" title="Search">
+                  <svg className="w-4 h-4 text-[#C9922A] group-hover:scale-110 transition-transform duration-200"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            <Link href="/sell" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="bg-[#C9922A] text-black px-6 py-3 rounded-[2px] font-black uppercase tracking-widest text-[14px] hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,146,42,0.2)] flex-shrink-0">
+              + Post Ad
+            </Link>
+
+            {loading ? (
+              <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />
+            ) : user ? (
+              <div className="relative" ref={dropdownRef}>
+                <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center gap-2 group">
+                  <div className="w-9 h-9 rounded-full bg-[#C9922A] flex items-center justify-center text-black font-black text-sm flex-shrink-0">
+                    {getInitial()}
+                  </div>
+                  <div className="hidden md:flex flex-col items-start">
+                    <span className="text-[11px] font-black text-[#F0EDE8] uppercase tracking-widest leading-none">{getDisplayName()}</span>
+                    {dealer && <span className="text-[9px] text-[#C9922A] font-bold uppercase tracking-widest">{dealer.subscription_tier} dealer</span>}
+                  </div>
+                  <span className={`text-[10px] text-[#8A8E99] transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                {dropdownOpen && (
+                  <div className="absolute right-0 top-[calc(100%+12px)] w-[220px] bg-[#191C23] border border-white/10 rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[200] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/5">
+                      <p className="text-[11px] font-black uppercase tracking-widest text-[#F0EDE8] truncate">{getDisplayName()}</p>
+                      <p className="text-[10px] text-[#8A8E99] truncate">{user.email}</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{dealer.business_name}</p>
-                      <p className="text-[10px] text-white/40 uppercase tracking-wider">
-                        {dealer.city}, {dealer.province}
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-sm ${
-                        dealer.status === 'approved'
-                          ? 'bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20'
-                          : dealer.status === 'pending'
-                          ? 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20'
-                          : 'bg-[#E63946]/10 text-[#E63946] border border-[#E63946]/20'
-                      }`}>
-                        {dealer.status}
-                      </span>
+                    {dealer ? (
+                      <>
+                        <Link href="/dealer-dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> Dashboard</Link>
+                        <Link href="/dealer-dashboard/inventory" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📦</span> Inventory</Link>
+                        <Link href="/dealer-dashboard/add-listing" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>➕</span> Add Listing</Link>
+                        <Link href="/dealer-dashboard/jobs" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>💼</span> Job Listings</Link>
+                        <Link href={`/dealers/${dealer.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>🏪</span> My Storefront</Link>
+                        <Link href="/dealer-dashboard/profile" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Profile</Link>
+                      </>
+                    ) : (
+                      <>
+                        <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> My Dashboard</Link>
+                        <Link href="/dashboard/listings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📋</span> My Listings</Link>
+                        <Link href="/dashboard/wishlist" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>❤️</span> Wishlist</Link>
+                        <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Settings</Link>
+                      </>
+                    )}
+                    <div className="border-t border-white/5">
+                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-all">
+                        <span>🚪</span> Logout
+                      </button>
                     </div>
                   </div>
-                ))}
-                {recentDealers.length === 0 && (
-                  <div className="px-6 py-8 text-center text-white/30 text-sm">No dealers yet</div>
                 )}
               </div>
-            </div>
+            ) : (
+              <>
+                <Link href="/login" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[12px] hover:text-white transition-colors flex-shrink-0">Sign In</Link>
+                <Link href="/signup" className="text-[#8A8E99] border border-white/10 px-4 py-2 rounded-[2px] font-bold uppercase tracking-widest text-[11px] hover:bg-white/5 transition-all flex-shrink-0">Register</Link>
+                <Link href="/dealer/login" className="flex items-center gap-2 text-[#C9922A] font-bold uppercase tracking-widest text-[12px] hover:brightness-110 transition-all flex-shrink-0">
+                  <span className="text-[16px]">🏪</span>Dealer Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
-      </main>
-    </div>
+      </nav>
+
+      {/* HOVER SEARCH BAR */}
+      {hoverMode && !inlineMode && (
+        <div ref={hoverBarRef} onMouseEnter={handleHoverBarMouseEnter} onMouseLeave={handleHoverBarMouseLeave}
+          className="fixed top-[80px] left-0 right-0 z-[99] bg-[#0D0F13] border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.6)] transition-all">
+          <div className="max-w-[1400px] mx-auto px-6 py-4">
+            <form onSubmit={handleSubmit} className="relative">
+              <div className="flex items-center gap-3 bg-[#13151A] border border-white/10 focus-within:border-[#C9922A]/50 rounded-sm px-4 py-3 transition-all">
+                <svg className="w-4 h-4 text-[#C9922A] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input ref={hoverInputRef} type="text" value={searchQuery} onChange={(e) => handleQueryChange(e.target.value)}
+                  onKeyDown={handleKeyDown} placeholder="Search listings, dealers, makes, calibres..."
+                  className="flex-1 bg-transparent text-sm text-[#F0EDE8] placeholder-[#8A8E99]/40 focus:outline-none" />
+                {searchQuery && (
+                  <button type="button" onClick={clearSearch} className="text-[#8A8E99] hover:text-white transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+                <button type="submit" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                  className="bg-[#C9922A] text-black px-6 py-2 rounded-sm font-black uppercase tracking-widest text-[13px] hover:brightness-110 transition-all flex-shrink-0">
+                  Search
+                </button>
+              </div>
+              <ResultsDropdown inputQuery={searchQuery} />
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

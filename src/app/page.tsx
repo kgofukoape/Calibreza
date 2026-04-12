@@ -20,6 +20,7 @@ const CATEGORIES = [
   { n: 'Services', slug: 'services', i: '🏠' },
   { n: 'Clubs & Ranges', slug: 'clubs', i: '⊕' },
   { n: 'Wanted', slug: 'wanted', i: '🔍' },
+  { n: 'Industry Jobs', slug: 'jobs', i: '💼' },
 ];
 
 export default function HomePage() {
@@ -76,22 +77,18 @@ export default function HomePage() {
 
       <main className="relative flex-1 w-full">
 
-        {/* SIDEBAR ADS — only on very large screens */}
+        {/* SIDEBAR ADS */}
         <aside className="hidden xl:block absolute left-2 2xl:left-4 top-[-100px] w-[160px] 2xl:w-[220px] h-[520px] bg-[#12141a] border border-white/5 z-0">
           <div className="h-full w-full flex flex-col items-center justify-center p-3 text-center">
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">
-              160 x 480
-            </div>
+            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
           </div>
         </aside>
 
         <aside className="hidden xl:block absolute right-2 2xl:right-4 top-[-100px] w-[160px] 2xl:w-[220px] h-[520px] bg-[#12141a] border border-white/5 z-0">
           <div className="h-full w-full flex flex-col items-center justify-center p-3 text-center">
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">
-              160 x 480
-            </div>
+            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
           </div>
         </aside>
 
@@ -113,12 +110,10 @@ export default function HomePage() {
           )}
 
           <div className="flex flex-col sm:flex-row justify-center gap-3 mb-4 lg:mb-6">
-            <Link href="/browse"
-              className="bg-[#C9922A] text-black px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.2)]">
+            <Link href="/browse" className="bg-[#C9922A] text-black px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.2)]">
               BROWSE LISTINGS
             </Link>
-            <Link href="/sell"
-              className="border border-white/10 text-white px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-white/5 transition-all">
+            <Link href="/sell" className="border border-white/10 text-white px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-white/5 transition-all">
               POST FREE LISTING
             </Link>
           </div>
@@ -175,7 +170,7 @@ export default function HomePage() {
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.slug}
-                href={`/browse/${cat.slug}`}
+                href={cat.slug === 'jobs' ? '/jobs' : `/browse/${cat.slug}`}
                 className="bg-[#13151A] border border-white/5 p-3 lg:p-4 flex flex-col items-center group hover:border-[#C9922A]/30 transition-all rounded-sm text-center"
               >
                 <span className="text-lg mb-1.5 opacity-60 group-hover:opacity-100 transition-opacity">{cat.i}</span>
@@ -237,12 +232,10 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex flex-col gap-3 w-full sm:w-auto">
-              <Link href="/dealer/apply"
-                className="bg-[#C9922A] text-black px-8 py-3 font-black uppercase tracking-widest text-[13px] hover:brightness-110 transition-all text-center whitespace-nowrap">
+              <Link href="/dealer/apply" className="bg-[#C9922A] text-black px-8 py-3 font-black uppercase tracking-widest text-[13px] hover:brightness-110 transition-all text-center whitespace-nowrap">
                 Apply for Dealer Account
               </Link>
-              <Link href="/dealer/pricing"
-                className="border border-white/10 text-white px-8 py-3 font-black uppercase tracking-widest text-[13px] hover:bg-white/5 transition-all text-center whitespace-nowrap">
+              <Link href="/dealer/pricing" className="border border-white/10 text-white px-8 py-3 font-black uppercase tracking-widest text-[13px] hover:bg-white/5 transition-all text-center whitespace-nowrap">
                 View Pricing
               </Link>
             </div>
@@ -277,7 +270,7 @@ export default function HomePage() {
               <div>
                 <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[13px] font-black uppercase tracking-widest text-[#F0EDE8] mb-3">Platform</h3>
                 <ul className="space-y-2">
-                  {[['How it Works', '/how-it-works'], ['Dealer Directory', '/dealers'], ['Post a Listing', '/sell'], ['Dealer Plans', '/dealer/pricing'], ['Price Guide', '/price-guide']].map(([label, href]) => (
+                  {[['Dealer Directory', '/dealers'], ['Post a Listing', '/sell'], ['Clubs & Ranges', '/clubs'], ['Services', '/services'], ['Industry Jobs', '/jobs'], ['Wanted Ads', '/wanted']].map(([label, href]) => (
                     <li key={label}><Link href={href} className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{label}</Link></li>
                   ))}
                 </ul>
@@ -285,7 +278,7 @@ export default function HomePage() {
               <div>
                 <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[13px] font-black uppercase tracking-widest text-[#F0EDE8] mb-3">Company</h3>
                 <ul className="space-y-2">
-                  {[['About Us', '/about'], ['Contact', '/contact'], ['FAQs', '/faqs'], ['Blog', '/blog'], ['Report a Listing', '/report']].map(([label, href]) => (
+                  {[['About Us', '/about'], ['Contact', '/contact'], ['FAQs', '/faqs'], ['FA Ownership', '/firearm-ownership'], ['Report a Listing', '/report']].map(([label, href]) => (
                     <li key={label}><Link href={href} className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{label}</Link></li>
                   ))}
                 </ul>
