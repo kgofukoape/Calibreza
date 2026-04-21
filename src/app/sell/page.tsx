@@ -47,7 +47,7 @@ export default function SellPage() {
     setUser(currentUser);
 
     const [makesData, calibresData, conditionsData, provincesData] = await Promise.all([
-      supabase.from('makes').select('*').filter('categories', 'cs', '{pistols}').order('name'),
+      supabase.from('makes').select('*').filter('categories', 'cs', '{"pistols"}').order('name'),
       supabase.from('calibres').select('*').order('name'),
       supabase.from('conditions').select('*').order('name'),
       supabase.from('provinces').select('*').order('name'),
@@ -63,7 +63,7 @@ export default function SellPage() {
     const { data } = await supabase
       .from('makes')
       .select('*')
-      .filter('categories', 'cs', `{${categoryId}}`)
+      .filter('categories', 'cs', `{"${categoryId}"}`)
       .order('name');
     setMakes(data || []);
   };
