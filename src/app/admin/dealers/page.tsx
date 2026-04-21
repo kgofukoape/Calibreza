@@ -446,7 +446,7 @@ export default function AdminDealersPage() {
                       <div key={doc.label}>
                         <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">{doc.label}</p>
                         {doc.url ? (
-                          
+                          <a
                             href={doc.url}
                             target="_blank"
                             rel="noopener noreferrer"
