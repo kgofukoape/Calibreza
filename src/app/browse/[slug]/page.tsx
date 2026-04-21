@@ -88,7 +88,7 @@ export default function BrowseCategoryPage() {
 
   const loadLookups = async () => {
     const [makesRes, calibresRes, conditionsRes] = await Promise.all([
-      supabase.from('makes').select('id, name').filter('categories', 'cs', `{"${slug}"}`).order('name'),
+      supabase.from('makes').select('id, name').order('name').order('name'),
       supabase.from('calibres').select('id, name').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
     ]);
