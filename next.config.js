@@ -11,4 +11,12 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Exclude Supabase edge functions from Next.js build
+const withExcludes = {
+  ...nextConfig,
+  webpack: (config) => {
+    config.watchOptions = { ...config.watchOptions, ignored: /supabase\/functions/ };
+    return config;
+  },
+};
+module.exports = withExcludes
