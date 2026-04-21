@@ -259,7 +259,11 @@ export default function Navbar() {
                 className="flex items-center gap-2 text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] group-hover:text-[#C9922A] transition-colors">
                 Browse <span className="text-[10px] opacity-40 group-hover:rotate-180 transition-transform duration-300">▼</span>
               </Link>
-              <div className="absolute top-[80px] left-[-20px] w-[950px] bg-[#191C23] border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[110] p-10 grid grid-cols-5 gap-8">
+
+              {/* MEGA MENU — 6 columns */}
+              <div className="absolute top-[80px] left-[-20px] w-[1100px] bg-[#191C23] border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[110] p-10 grid grid-cols-6 gap-8">
+
+                {/* Col 1 — Firearms */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Firearms</h3>
                   <Link href="/browse/pistols" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pistols</Link>
@@ -267,17 +271,26 @@ export default function Navbar() {
                   <Link href="/browse/shotguns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Shotguns</Link>
                   <Link href="/browse/revolvers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Revolvers</Link>
                 </div>
+
+                {/* Col 2 — Blades & Air */}
                 <div className="flex flex-col gap-3">
-                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Blades</h3>
-                  <Link href="/browse/knives" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Knives</Link>
-                  <Link href="/browse/knives?type=folding" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Folding Knives</Link>
-                  <Link href="/browse/knives?type=fixed" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Fixed Blades</Link>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Air Guns</h3>
-                  <Link href="/browse/air-guns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Air Rifles</Link>
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Blades & Air</h3>
+                  <Link href="/browse/knives" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Knives & Blades</Link>
+                  <Link href="/browse/air-guns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Air Guns</Link>
                   <Link href="/browse/airsoft" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Airsoft</Link>
                 </div>
+
+                {/* Col 3 — Optics & Sights */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Optics & Sights</h3>
+                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Optics</Link>
+                  <Link href="/browse/optics?type=rifle-scope" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifle Scopes</Link>
+                  <Link href="/browse/optics?type=red-dot" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dots</Link>
+                  <Link href="/browse/optics?type=night-vision" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Night Vision</Link>
+                  <Link href="/browse/optics?type=thermal" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal</Link>
+                </div>
+
+                {/* Col 4 — Accessories */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Accessories</h3>
                   <Link href="/browse/holsters" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Holsters & Carry</Link>
@@ -285,6 +298,18 @@ export default function Navbar() {
                   <Link href="/browse/ammunition" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Ammunition</Link>
                   <Link href="/browse/reloading" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Reloading</Link>
                 </div>
+
+                {/* Col 5 — Firearms Accessories */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Parts & Gear</h3>
+                  <Link href="/browse/accessories?type=stocks" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
+                  <Link href="/browse/accessories?type=barrels" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
+                  <Link href="/browse/accessories?type=triggers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Triggers & Actions</Link>
+                  <Link href="/browse/accessories?type=lights" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
+                  <Link href="/browse/accessories?type=cleaning" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Cleaning & Maintenance</Link>
+                </div>
+
+                {/* Col 6 — Other */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Other</h3>
                   <Link href="/services" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Services</Link>
@@ -292,13 +317,15 @@ export default function Navbar() {
                   <Link href="/wanted" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
                   <Link href="/jobs" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
                 </div>
-                <div className="col-span-5 mt-4 pt-6 border-t border-white/5 text-center">
+
+                <div className="col-span-6 mt-4 pt-6 border-t border-white/5 text-center">
                   <Link href="/browse" className="text-[11px] text-[#C9922A] font-bold uppercase tracking-[0.3em] hover:brightness-150 transition-all">
                     View Full Category Directory →
                   </Link>
                 </div>
               </div>
             </div>
+
             <Link href="/dealers" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Dealers</Link>
             <Link href="/wanted" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Wanted</Link>
             <Link href="/clubs" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
@@ -307,7 +334,7 @@ export default function Navbar() {
             <Link href="/firearm-ownership" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">FA Ownership</Link>
           </div>
 
-          {/* RIGHT */}
+          {/* RIGHT — Search + Auth */}
           <div className="flex items-center gap-4 flex-shrink-0">
             <div ref={searchIconRef} className="relative flex items-center">
               {inlineMode ? (

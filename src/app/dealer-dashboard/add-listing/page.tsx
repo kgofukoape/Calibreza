@@ -18,6 +18,7 @@ const CATEGORIES = [
   { id: 'ammunition', label: 'Ammunition' },
   { id: 'optics', label: 'Optics & Sights' },
   { id: 'reloading', label: 'Reloading' },
+  { id: 'accessories', label: 'Accessories & Parts' },
 ];
 
 const STATUSES = [
@@ -114,7 +115,7 @@ function AddListingForm() {
 
   const loadLookups = async (categoryId: string) => {
     const [makesRes, calibresRes, conditionsRes, provincesRes] = await Promise.all([
-      supabase.from('makes').select('id, name').order('name').order('name'),
+      supabase.from('makes').select('id, name').contains('categories', [categoryId]).order('name'),
       supabase.from('calibres').select('id, name').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
       supabase.from('provinces').select('id, name').order('name'),
@@ -129,7 +130,7 @@ function AddListingForm() {
     const { data } = await supabase
       .from('makes')
       .select('id, name')
-      .order('name')
+      .contains('categories', [categoryId])
       .order('name');
     setMakes(data || []);
   };

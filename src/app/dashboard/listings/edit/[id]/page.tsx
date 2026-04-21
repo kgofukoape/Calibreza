@@ -63,7 +63,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
       const { data: makesData } = await supabase
         .from('makes')
         .select('*')
-        .order('name')
+        .contains('categories', [listing.category_id || 'pistols'])
         .order('name');
 
       setFormData({
@@ -99,7 +99,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     const { data } = await supabase
       .from('makes')
       .select('*')
-      .order('name')
+      .contains('categories', [categoryId])
       .order('name');
     setMakes(data || []);
   };
@@ -199,6 +199,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     { value: 'optics', label: 'Optics & Sights' },
     { value: 'reloading', label: 'Reloading' },
     { value: 'knives', label: 'Knives & Blades' },
+    { value: 'accessories', label: 'Accessories & Parts' },
   ];
 
   if (loading) {

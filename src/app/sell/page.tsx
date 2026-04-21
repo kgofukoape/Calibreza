@@ -47,7 +47,7 @@ export default function SellPage() {
     setUser(currentUser);
 
     const [makesData, calibresData, conditionsData, provincesData] = await Promise.all([
-      supabase.from('makes').select('*').order('name').order('name'),
+      supabase.from('makes').select('*').contains('categories', ['pistols']).order('name'),
       supabase.from('calibres').select('*').order('name'),
       supabase.from('conditions').select('*').order('name'),
       supabase.from('provinces').select('*').order('name'),
@@ -63,7 +63,7 @@ export default function SellPage() {
     const { data } = await supabase
       .from('makes')
       .select('*')
-      .order('name')
+      .contains('categories', [categoryId])
       .order('name');
     setMakes(data || []);
   };
@@ -223,6 +223,7 @@ export default function SellPage() {
                   <option value="optics">Optics & Sights</option>
                   <option value="reloading">Reloading</option>
                   <option value="knives">Knives & Blades</option>
+                  <option value="accessories">Accessories & Parts</option>
                 </select>
               </div>
               <div>
