@@ -43,7 +43,7 @@ const PLANS = [
   },
   {
     id: 'premium', label: 'Premium', price: 799, priceLabel: 'R799', billingLabel: 'per month',
-    listingLimit: null, listingLimitLabel:Unlimited', icon: '👑',
+    listingLimit: null, listingLimitLabel: 'Unlimited', icon: '👑',
     features: [
       { label: 'Storefront page', included: true },
       { label: 'Featured listings', included: true },
