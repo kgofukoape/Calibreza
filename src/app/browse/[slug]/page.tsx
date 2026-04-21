@@ -34,6 +34,7 @@ const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   magazines:  { label: 'Magazines',        showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse factory and aftermarket magazines' },
   ammunition: { label: 'Ammunition',       showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse FMJ, HP, hunting and specialty ammo' },
   reloading:  { label: 'Reloading',        showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse presses, dies, brass and reloading components' },
+  optics:     { label: 'Optics & Sights',  showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse scopes, red dots, iron sights and mounts' },
 };
 
 export default function BrowseCategoryPage() {
@@ -79,7 +80,6 @@ export default function BrowseCategoryPage() {
     fetchListings();
   }, [slug, currentPage, activeMakeIds, activeCalibreIds, activeConditionIds, activeProvinces, activeMinPrice, activeMaxPrice, activeSellerTypes, sortBy]);
 
-  // Lock scroll when filter drawer open on mobile
   useEffect(() => {
     if (filtersOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -88,7 +88,7 @@ export default function BrowseCategoryPage() {
 
   const loadLookups = async () => {
     const [makesRes, calibresRes, conditionsRes] = await Promise.all([
-      supabase.from('makes').select('id, name').order('name'),
+      supabase.from('makes').select('id, name').contains('categories', [slug]).order('name'),
       supabase.from('calibres').select('id, name').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
     ]);
@@ -328,7 +328,7 @@ export default function BrowseCategoryPage() {
       {/* MAIN CONTENT */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
 
-        {/* LEFT SIDEBAR AD — 2xl only */}
+        {/* LEFT SIDEBAR AD */}
         <div className="hidden 2xl:flex flex-col items-center flex-shrink-0 w-[160px]">
           <div className="w-[160px] h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6">
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Ad</span>
@@ -346,7 +346,6 @@ export default function BrowseCategoryPage() {
         {/* RESULTS */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
 
-          {/* Results bar — desktop only (mobile uses top bar) */}
           <div className="hidden lg:flex items-center justify-between bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
             <span className="text-[13px] text-[#8A8E99]">
               {loading ? 'Loading...' : (
@@ -368,12 +367,10 @@ export default function BrowseCategoryPage() {
             </div>
           </div>
 
-          {/* Mobile results count */}
           <div className="lg:hidden text-[12px] text-[#8A8E99]">
             {!loading && <><strong className="text-[#F0EDE8]">{totalCount}</strong> listing{totalCount !== 1 ? 's' : ''} in <span className="text-[#C9922A]">{config.label}</span></>}
           </div>
 
-          {/* Listings Grid */}
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="flex flex-col items-center gap-4">
@@ -412,7 +409,6 @@ export default function BrowseCategoryPage() {
             </div>
           )}
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-2">
               <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
@@ -439,7 +435,7 @@ export default function BrowseCategoryPage() {
           )}
         </div>
 
-        {/* RIGHT SIDEBAR AD — 2xl only */}
+        {/* RIGHT SIDEBAR AD */}
         <div className="hidden 2xl:flex flex-col items-center flex-shrink-0 w-[160px]">
           <div className="w-[160px] h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6">
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Ad</span>

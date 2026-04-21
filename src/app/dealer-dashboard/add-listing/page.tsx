@@ -12,10 +12,11 @@ const CATEGORIES = [
   { id: 'revolvers', label: 'Revolvers' },
   { id: 'air-guns', label: 'Air Guns' },
   { id: 'airsoft', label: 'Airsoft' },
-  { id: 'knives', label: 'Knives' },
+  { id: 'knives', label: 'Knives & Blades' },
   { id: 'holsters', label: 'Holsters & Carry' },
   { id: 'magazines', label: 'Magazines' },
   { id: 'ammunition', label: 'Ammunition' },
+  { id: 'optics', label: 'Optics & Sights' },
   { id: 'reloading', label: 'Reloading' },
 ];
 
@@ -102,7 +103,7 @@ function AddListingForm() {
     }
 
     setDealer(dealerData);
-    await loadLookups();
+    await loadLookups('pistols');
 
     if (isEditMode && editId) {
       await loadListing(editId, dealerData.id);
@@ -111,9 +112,9 @@ function AddListingForm() {
     setLoading(false);
   };
 
-  const loadLookups = async () => {
+  const loadLookups = async (categoryId: string) => {
     const [makesRes, calibresRes, conditionsRes, provincesRes] = await Promise.all([
-      supabase.from('makes').select('id, name').order('name'),
+      supabase.from('makes').select('id, name').contains('categories', [categoryId]).order('name'),
       supabase.from('calibres').select('id, name').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
       supabase.from('provinces').select('id, name').order('name'),
@@ -122,6 +123,15 @@ function AddListingForm() {
     setCalibres(calibresRes.data || []);
     setConditions(conditionsRes.data || []);
     setProvinces(provincesRes.data || []);
+  };
+
+  const loadMakesForCategory = async (categoryId: string) => {
+    const { data } = await supabase
+      .from('makes')
+      .select('id, name')
+      .contains('categories', [categoryId])
+      .order('name');
+    setMakes(data || []);
   };
 
   const loadListing = async (id: string, dealerId: string) => {
@@ -158,6 +168,8 @@ function AddListingForm() {
       status: data.status || 'active',
     });
 
+    // Load makes filtered to the listing's category
+    await loadMakesForCategory(data.category_id || 'pistols');
     setExistingImages(data.images || []);
   };
 
@@ -165,6 +177,11 @@ function AddListingForm() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const target = e.target as HTMLInputElement;
+    if (target.name === 'category_id') {
+      setFormData((prev) => ({ ...prev, category_id: target.value, make_id: '' }));
+      loadMakesForCategory(target.value);
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [target.name]: target.type === 'checkbox' ? target.checked : target.value,
@@ -464,7 +481,7 @@ function AddListingForm() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Make</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Make / Brand</label>
                   <select
                     name="make_id"
                     value={formData.make_id}

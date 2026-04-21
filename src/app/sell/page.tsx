@@ -47,7 +47,7 @@ export default function SellPage() {
     setUser(currentUser);
 
     const [makesData, calibresData, conditionsData, provincesData] = await Promise.all([
-      supabase.from('makes').select('*').order('name'),
+      supabase.from('makes').select('*').contains('categories', ['pistols']).order('name'),
       supabase.from('calibres').select('*').order('name'),
       supabase.from('conditions').select('*').order('name'),
       supabase.from('provinces').select('*').order('name'),
@@ -59,8 +59,22 @@ export default function SellPage() {
     setProvinces(provincesData.data || []);
   };
 
+  const loadMakesForCategory = async (categoryId: string) => {
+    const { data } = await supabase
+      .from('makes')
+      .select('*')
+      .contains('categories', [categoryId])
+      .order('name');
+    setMakes(data || []);
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+    if (name === 'category_id') {
+      setFormData(prev => ({ ...prev, category_id: value, make_id: '' }));
+      loadMakesForCategory(value);
+      return;
+    }
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
@@ -204,10 +218,11 @@ export default function SellPage() {
                   <option value="air-guns">Air Guns</option>
                   <option value="airsoft">Airsoft</option>
                   <option value="ammunition">Ammunition</option>
-                  <option value="holsters">Holsters</option>
+                  <option value="holsters">Holsters & Carry</option>
                   <option value="magazines">Magazines</option>
+                  <option value="optics">Optics & Sights</option>
                   <option value="reloading">Reloading</option>
-                  <option value="knives">Knives</option>
+                  <option value="knives">Knives & Blades</option>
                 </select>
               </div>
               <div>
@@ -228,11 +243,11 @@ export default function SellPage() {
           {/* Firearm Details */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest text-[#F0EDE8] mb-4 pb-3 border-b border-white/5">
-              Firearm Details
+              Item Details
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Make</label>
+                <label className={labelClass}>Make / Brand</label>
                 <select name="make_id" value={formData.make_id} onChange={handleInputChange} className={inputClass}>
                   <option value="">Select make...</option>
                   {makes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -296,7 +311,7 @@ export default function SellPage() {
             </h2>
             <textarea name="description" value={formData.description} onChange={handleInputChange} required rows={5}
               className={`${inputClass} resize-none`}
-              placeholder="Describe your firearm — condition, accessories included, reason for selling, etc." />
+              placeholder="Describe your item — condition, accessories included, reason for selling, etc." />
           </div>
 
           {/* Images */}

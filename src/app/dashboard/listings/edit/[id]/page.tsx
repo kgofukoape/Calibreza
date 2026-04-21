@@ -7,11 +7,6 @@ import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 
-const PROVINCES = [
-  'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
-  'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
-];
-
 export default function EditListingPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -49,9 +44,8 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
       if (!currentUser) { router.push('/login'); return; }
       setUser(currentUser);
 
-      const [listingRes, makesRes, calibresRes, conditionsRes] = await Promise.all([
+      const [listingRes, calibresRes, conditionsRes] = await Promise.all([
         supabase.from('listings').select('*').eq('id', params.id).single(),
-        supabase.from('makes').select('*').order('name'),
         supabase.from('calibres').select('*').order('name'),
         supabase.from('conditions').select('*').order('name'),
       ]);
@@ -64,6 +58,13 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
         router.push('/dashboard');
         return;
       }
+
+      // Load makes filtered by this listing's category
+      const { data: makesData } = await supabase
+        .from('makes')
+        .select('*')
+        .contains('categories', [listing.category_id || 'pistols'])
+        .order('name');
 
       setFormData({
         title: listing.title || '',
@@ -82,7 +83,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
 
       setCurrentStatus(listing.status || 'active');
       setExistingImages(listing.images || []);
-      setMakes(makesRes.data || []);
+      setMakes(makesData || []);
       setCalibres(calibresRes.data || []);
       setConditions(conditionsRes.data || []);
     } catch (error) {
@@ -94,8 +95,23 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     }
   };
 
+  const loadMakesForCategory = async (categoryId: string) => {
+    const { data } = await supabase
+      .from('makes')
+      .select('*')
+      .contains('categories', [categoryId])
+      .order('name');
+    setMakes(data || []);
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'category_id') {
+      setFormData(prev => ({ ...prev, category_id: value, make_id: '' }));
+      loadMakesForCategory(value);
+      return;
+    }
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,6 +186,21 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
   const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5";
   const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6";
 
+  const CATEGORIES = [
+    { value: 'pistols', label: 'Pistols' },
+    { value: 'revolvers', label: 'Revolvers' },
+    { value: 'rifles', label: 'Rifles' },
+    { value: 'shotguns', label: 'Shotguns' },
+    { value: 'air-guns', label: 'Air Guns' },
+    { value: 'airsoft', label: 'Airsoft' },
+    { value: 'ammunition', label: 'Ammunition' },
+    { value: 'holsters', label: 'Holsters & Carry' },
+    { value: 'magazines', label: 'Magazines' },
+    { value: 'optics', label: 'Optics & Sights' },
+    { value: 'reloading', label: 'Reloading' },
+    { value: 'knives', label: 'Knives & Blades' },
+  ];
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0D0F13] flex flex-col">
@@ -242,8 +273,8 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
                 <label className={labelClass}>Category <span className="text-red-400">*</span></label>
                 <select name="category_id" value={formData.category_id} onChange={handleChange} required className={inputClass}>
                   <option value="">Select category...</option>
-                  {['pistols','revolvers','rifles','shotguns','air-guns','airsoft','ammunition','holsters','magazines','reloading','knives'].map(c => (
-                    <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1).replace('-', ' ')}</option>
+                  {CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
                   ))}
                 </select>
               </div>
@@ -252,7 +283,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
                 <input type="number" name="price" value={formData.price} onChange={handleChange} required className={inputClass} placeholder="12500" />
               </div>
               <div>
-                <label className={labelClass}>Make</label>
+                <label className={labelClass}>Make / Brand</label>
                 <select name="make_id" value={formData.make_id} onChange={handleChange} className={inputClass}>
                   <option value="">Select make...</option>
                   {makes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -305,7 +336,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
             </h2>
             <textarea name="description" value={formData.description} onChange={handleChange} rows={5}
               className={`${inputClass} resize-none`}
-              placeholder="Describe your firearm — condition, accessories included, reason for selling..." />
+              placeholder="Describe your item — condition, accessories included, reason for selling..." />
           </div>
 
           {/* Images */}
