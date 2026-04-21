@@ -63,7 +63,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
       const { data: makesData } = await supabase
         .from('makes')
         .select('*')
-        .contains('categories', [listing.category_id || 'pistols'])
+        .filter('categories', 'cs', `{${listing.category_id || 'pistols'}}`)
         .order('name');
 
       setFormData({
@@ -99,7 +99,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
     const { data } = await supabase
       .from('makes')
       .select('*')
-      .contains('categories', [categoryId])
+      .filter('categories', 'cs', `{${categoryId}}`)
       .order('name');
     setMakes(data || []);
   };
