@@ -12,13 +12,13 @@ const CATEGORIES = [
   { n: 'Revolvers', slug: 'revolvers', i: '🎡' },
   { n: 'Air Guns', slug: 'air-guns', i: '💨' },
   { n: 'Airsoft', slug: 'airsoft', i: '⚡' },
+  { n: 'Optics', slug: 'optics', i: '🔬' },
   { n: 'Holsters & Carry', slug: 'holsters', i: '∪' },
   { n: 'Magazines', slug: 'magazines', i: '⋮' },
   { n: 'Ammunition', slug: 'ammunition', i: '⧊' },
   { n: 'Reloading', slug: 'reloading', i: '🔧' },
   { n: 'Knives & Blades', slug: 'knives', i: '🖋️' },
-  { n: 'Services', slug: 'services', i: '🏠' },
-  { n: 'Clubs & Ranges', slug: 'clubs', i: '⊕' },
+  { n: 'Accessories', slug: 'accessories', i: '🛠️' },
   { n: 'Wanted', slug: 'wanted', i: '🔍' },
   { n: 'Industry Jobs', slug: 'jobs', i: '💼' },
 ];
@@ -67,33 +67,32 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] overflow-x-hidden flex flex-col">
       <Navbar />
 
-      {/* TOP LEADERBOARD AD */}
+      {/* TOP LEADERBOARD AD — taller */}
       <div className="w-full flex justify-center pt-3 pb-2 px-4">
-        <div className="w-full max-w-[970px] h-[90px] lg:h-[110px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
+        <div className="w-full max-w-[970px] h-[120px] lg:h-[160px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
           <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Top Leaderboard Ad Space</span>
           <div className="absolute inset-0 border border-dashed border-white/10 opacity-20"></div>
         </div>
       </div>
 
-      <main className="relative flex-1 w-full">
+      <main className="flex-1 w-full">
 
-        {/* SIDEBAR ADS */}
-        <aside className="hidden xl:block absolute left-2 2xl:left-4 top-[-100px] w-[160px] 2xl:w-[220px] h-[520px] bg-[#12141a] border border-white/5 z-0">
-          <div className="h-full w-full flex flex-col items-center justify-center p-3 text-center">
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
-          </div>
-        </aside>
+        {/* 3-COLUMN LAYOUT: left ad | content | right ad */}
+        <div className="flex w-full items-start">
 
-        <aside className="hidden xl:block absolute right-2 2xl:right-4 top-[-100px] w-[160px] 2xl:w-[220px] h-[520px] bg-[#12141a] border border-white/5 z-0">
-          <div className="h-full w-full flex flex-col items-center justify-center p-3 text-center">
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
-          </div>
-        </aside>
+          {/* LEFT AD — in document flow, sticky */}
+          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-6">
+            <div className="sticky top-4 w-full h-[480px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center">
+              <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
+              <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
+            </div>
+          </aside>
+
+          {/* CENTER CONTENT */}
+          <div className="flex-1 min-w-0">
 
         {/* HERO */}
-        <section className="relative pt-4 lg:pt-6 pb-4 px-4 md:px-6 text-center max-w-[900px] xl:max-w-[1050px] mx-auto z-10">
+        <section className="relative pt-6 lg:pt-8 pb-4 px-4 md:px-6 text-center max-w-[900px] mx-auto">
           <h1
             style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
             className="text-[36px] sm:text-[52px] md:text-[64px] lg:text-[72px] xl:text-[80px] font-black uppercase tracking-tighter leading-[0.85] mb-4 lg:mb-6"
@@ -109,7 +108,7 @@ export default function HomePage() {
             </p>
           )}
 
-          <div className="flex flex-col sm:flex-row justify-center gap-3 mb-4 lg:mb-6">
+          <div className="flex flex-col sm:flex-row justify-center gap-3 mb-6 lg:mb-8">
             <Link href="/browse" className="bg-[#C9922A] text-black px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.2)]">
               BROWSE LISTINGS
             </Link>
@@ -117,42 +116,42 @@ export default function HomePage() {
               POST FREE LISTING
             </Link>
           </div>
-
-          {/* REEL */}
-          {displayReel.length > 0 && (
-            <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] py-3 border-y border-white/5 bg-[#12141a]/50 overflow-hidden">
-              <div className="flex gap-3 animate-scroll whitespace-nowrap px-4">
-                {displayReel.map((item, idx) => (
-                  <Link
-                    key={idx}
-                    href={`/listings/${item.id}`}
-                    style={{ width: '250px', minWidth: '250px', maxWidth: '250px' }}
-                    className="bg-[#191C23] border border-white/5 p-2 rounded-sm shrink-0 flex-none text-left hover:border-[#C9922A]/40 transition-colors block"
-                  >
-                    <div className="relative overflow-hidden bg-[#0D0F13] mb-1.5" style={{ height: '160px' }}>
-                      {item.images?.length > 0 ? (
-                        <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-lg opacity-20">🔫</div>
-                      )}
-                      <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 py-0.5 uppercase tracking-tighter z-10 leading-none">
-                        {formatCategory(item.category_id)}
-                      </div>
-                      {item.is_featured && <div className="absolute top-1 right-1 text-[9px] z-10">⭐</div>}
-                    </div>
-                    <h4 className="font-bold text-[10px] uppercase mb-0.5 truncate text-[#F0EDE8] leading-tight">{item.title}</h4>
-                    <p className="text-[#C9922A] font-black text-[11px] leading-none mb-0.5">R {item.price?.toLocaleString('en-ZA')}</p>
-                    <p className="text-[8px] text-[#8A8E99] uppercase tracking-widest font-bold">
-                      {item.listing_type === 'dealer' ? '🏪 Dealer' : '👤 Private'}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
         </section>
 
-        {/* BROWSE BY CATEGORY */}
+        {/* REEL */}
+        {displayReel.length > 0 && (
+          <div className="relative w-full py-3 border-y border-white/5 bg-[#12141a]/50 overflow-hidden">
+            <div className="flex gap-3 animate-scroll whitespace-nowrap px-4">
+              {displayReel.map((item, idx) => (
+                <Link
+                  key={idx}
+                  href={`/listings/${item.id}`}
+                  style={{ width: '250px', minWidth: '250px', maxWidth: '250px' }}
+                  className="bg-[#191C23] border border-white/5 p-2 rounded-sm shrink-0 flex-none text-left hover:border-[#C9922A]/40 transition-colors block"
+                >
+                  <div className="relative overflow-hidden bg-[#0D0F13] mb-1.5" style={{ height: '160px' }}>
+                    {item.images?.length > 0 ? (
+                      <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg opacity-20">🔫</div>
+                    )}
+                    <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 py-0.5 uppercase tracking-tighter z-10 leading-none">
+                      {formatCategory(item.category_id)}
+                    </div>
+                    {item.is_featured && <div className="absolute top-1 right-1 text-[9px] z-10">⭐</div>}
+                  </div>
+                  <h4 className="font-bold text-[10px] uppercase mb-0.5 truncate text-[#F0EDE8] leading-tight">{item.title}</h4>
+                  <p className="text-[#C9922A] font-black text-[11px] leading-none mb-0.5">R {item.price?.toLocaleString('en-ZA')}</p>
+                  <p className="text-[8px] text-[#8A8E99] uppercase tracking-widest font-bold">
+                    {item.listing_type === 'dealer' ? '🏪 Dealer' : '👤 Private'}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+          {/* BROWSE BY CATEGORY */}
         <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12">
           <div className="text-center mb-6 lg:mb-10">
             <h2
@@ -170,7 +169,7 @@ export default function HomePage() {
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.slug}
-                href={cat.slug === 'jobs' ? '/jobs' : `/browse/${cat.slug}`}
+                href={cat.slug === 'jobs' ? '/jobs' : cat.slug === 'wanted' ? '/wanted' : `/browse/${cat.slug}`}
                 className="bg-[#13151A] border border-white/5 p-3 lg:p-4 flex flex-col items-center group hover:border-[#C9922A]/30 transition-all rounded-sm text-center"
               >
                 <span className="text-lg mb-1.5 opacity-60 group-hover:opacity-100 transition-opacity">{cat.i}</span>
@@ -260,7 +259,7 @@ export default function HomePage() {
               <div>
                 <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[13px] font-black uppercase tracking-widest text-[#F0EDE8] mb-3">Browse</h3>
                 <ul className="space-y-2">
-                  {['Pistols', 'Rifles', 'Shotguns', 'Revolvers', 'Air Guns', 'Airsoft', 'Holsters', 'Magazines', 'Ammunition', 'Knives'].map(item => (
+                  {['Pistols', 'Rifles', 'Shotguns', 'Revolvers', 'Air Guns', 'Airsoft', 'Optics', 'Holsters', 'Magazines', 'Ammunition', 'Knives', 'Accessories'].map(item => (
                     <li key={item}>
                       <Link href={`/browse/${item.toLowerCase().replace(/ /g, '-')}`} className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{item}</Link>
                     </li>
@@ -294,6 +293,18 @@ export default function HomePage() {
             </div>
           </div>
         </footer>
+          </div>{/* end center content */}
+
+          {/* RIGHT AD — in document flow, sticky */}
+          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-6">
+            <div className="sticky top-4 w-full h-[480px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center">
+              <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
+              <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
+            </div>
+          </aside>
+
+        </div>{/* end 3-col layout */}
+
       </main>
 
       <style jsx global>{`
