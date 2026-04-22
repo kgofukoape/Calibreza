@@ -284,10 +284,10 @@ export default function Navbar() {
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Optics & Sights</h3>
                   <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Optics</Link>
-                  <Link href="/browse/optics?type=rifle-scope" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifle Scopes</Link>
-                  <Link href="/browse/optics?type=red-dot" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dots</Link>
-                  <Link href="/browse/optics?type=night-vision" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Night Vision</Link>
-                  <Link href="/browse/optics?type=thermal" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal</Link>
+                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifle Scopes</Link>
+                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dots</Link>
+                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Night Vision</Link>
+                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal</Link>
                 </div>
 
                 {/* Col 4 — Accessories */}
@@ -302,11 +302,11 @@ export default function Navbar() {
                 {/* Col 5 — Firearms Accessories */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Parts & Gear</h3>
-                  <Link href="/browse/accessories?type=stocks" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
-                  <Link href="/browse/accessories?type=barrels" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
-                  <Link href="/browse/accessories?type=triggers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Triggers & Actions</Link>
-                  <Link href="/browse/accessories?type=lights" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
-                  <Link href="/browse/accessories?type=cleaning" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Cleaning & Maintenance</Link>
+                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
+                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
+                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Triggers & Actions</Link>
+                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
+                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Gun Safes & Vaults</Link>
                 </div>
 
                 {/* Col 6 — Other */}
