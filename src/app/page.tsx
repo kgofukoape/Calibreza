@@ -81,10 +81,10 @@ export default function HomePage() {
         <div className="flex w-full items-start">
 
           {/* LEFT AD — in document flow, sticky */}
-          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-6">
-            <div className="sticky top-4 w-full h-[480px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center">
+          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2">
+            <div className="sticky top-4 w-full h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center">
               <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-              <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
+              <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
             </div>
           </aside>
 
@@ -92,10 +92,10 @@ export default function HomePage() {
           <div className="flex-1 min-w-0">
 
         {/* HERO */}
-        <section className="relative pt-6 lg:pt-8 pb-4 px-4 md:px-6 text-center max-w-[900px] mx-auto">
+        <section className="relative pt-3 pb-2 px-4 md:px-6 text-center max-w-[900px] mx-auto">
           <h1
             style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-[36px] sm:text-[52px] md:text-[64px] lg:text-[72px] xl:text-[80px] font-black uppercase tracking-tighter leading-[0.85] mb-4 lg:mb-6"
+            className="text-[28px] sm:text-[38px] md:text-[48px] lg:text-[54px] xl:text-[60px] font-black uppercase tracking-tighter leading-[0.85] mb-2 lg:mb-3"
           >
             SOUTH AFRICA&apos;S <br className="hidden sm:block" />
             <span className="text-[#C9922A]">PREMIER FIREARMS</span> <br />
@@ -108,7 +108,7 @@ export default function HomePage() {
             </p>
           )}
 
-          <div className="flex flex-col sm:flex-row justify-center gap-3 mb-6 lg:mb-8">
+          <div className="flex flex-col sm:flex-row justify-center gap-3 mb-3 lg:mb-4">
             <Link href="/browse" className="bg-[#C9922A] text-black px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.2)]">
               BROWSE LISTINGS
             </Link>
@@ -296,10 +296,10 @@ export default function HomePage() {
           </div>{/* end center content */}
 
           {/* RIGHT AD — in document flow, sticky */}
-          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-6">
-            <div className="sticky top-4 w-full h-[480px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center">
+          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2">
+            <div className="sticky top-4 w-full h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center">
               <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-              <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 480</div>
+              <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
             </div>
           </aside>
 
