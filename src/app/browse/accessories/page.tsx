@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
@@ -49,7 +49,7 @@ const ACCESSORY_BRANDS = [
   'US Optics', 'UTG', 'Vortex', 'VZ Grips', 'Weaver', 'Yankee Hill Machine', 'Zeiss',
 ];
 
-export default function AccessoriesBrowsePage() {
+function AccessoriesBrowseInner() {
   const searchParams = useSearchParams();
   const typeParam = searchParams.get('type');
 
@@ -417,5 +417,17 @@ export default function AccessoriesBrowsePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AccessoriesBrowsePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <AccessoriesBrowseInner />
+    </Suspense>
   );
 }
