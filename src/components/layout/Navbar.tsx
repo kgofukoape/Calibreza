@@ -37,6 +37,7 @@ export default function Navbar() {
   const hoverBarRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
+  const unreadChannelRef = useRef<any>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -93,11 +94,12 @@ export default function Navbar() {
   };
 
   const subscribeUnread = (userId: string) => {
+    if (unreadChannelRef.current) return;
     const channel = supabase.channel(`unread_messages_${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${userId}` },
         () => loadUnreadCount(userId))
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    unreadChannelRef.current = channel;
   };
 
   const handleSearch = useCallback(async (query: string) => {
