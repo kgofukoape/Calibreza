@@ -19,6 +19,7 @@ const BLADE_TYPES = [
 
 const FREE_LISTING_LIMIT = 5;
 const PAID_LISTING_PRICE = 29;
+const ADMIN_IDS = ['faeca651-cae2-47d1-b866-2cbc02c41dd0']; // Add more admin user IDs here if needed
 
 export default function SellPage() {
   const router = useRouter();
@@ -54,7 +55,8 @@ export default function SellPage() {
     blade_length_cm: '',
   });
 
-  const isPaid = listingCount >= FREE_LISTING_LIMIT;
+  const isAdmin = user && ADMIN_IDS.includes(user.id);
+  const isPaid = !isAdmin && listingCount >= FREE_LISTING_LIMIT;
   const isKnives = formData.category_id === 'knives';
 
   useEffect(() => { loadInitialData(); }, []);
@@ -241,17 +243,33 @@ export default function SellPage() {
 
         {/* Listing count banner */}
         {!listingCountLoading && (
-          <div className={`mb-5 rounded-sm p-4 flex items-center justify-between ${isPaid ? 'bg-[#C9922A]/10 border border-[#C9922A]/30' : 'bg-[#13151A] border border-white/5'}`}>
+          <div className={`mb-5 rounded-sm p-4 flex items-center justify-between ${
+            isAdmin ? 'bg-[#2A9C6E]/10 border border-[#2A9C6E]/30' :
+            isPaid ? 'bg-[#C9922A]/10 border border-[#C9922A]/30' :
+            'bg-[#13151A] border border-white/5'
+          }`}>
             <div>
               <p className="text-[12px] font-black uppercase tracking-widest text-[#F0EDE8]">
-                {isPaid ? 'Free listings used up' : `${FREE_LISTING_LIMIT - listingCount} free listing${FREE_LISTING_LIMIT - listingCount !== 1 ? 's' : ''} remaining`}
+                {isAdmin
+                  ? 'Admin — Unlimited Listings'
+                  : isPaid
+                  ? 'Free listings used up'
+                  : `${FREE_LISTING_LIMIT - listingCount} free listing${FREE_LISTING_LIMIT - listingCount !== 1 ? 's' : ''} remaining`}
               </p>
               <p className="text-[11px] text-[#8A8E99] mt-0.5">
-                {isPaid ? `Each additional listing is R${PAID_LISTING_PRICE} — paid securely via PayFast` : `You've used ${listingCount} of ${FREE_LISTING_LIMIT} free listings`}
+                {isAdmin
+                  ? `You've posted ${listingCount} listings total — no limit applies to your account`
+                  : isPaid
+                  ? `Each additional listing is R${PAID_LISTING_PRICE} — paid securely via PayFast`
+                  : `You've used ${listingCount} of ${FREE_LISTING_LIMIT} free listings`}
               </p>
             </div>
-            <div className={`text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-sm ${isPaid ? 'bg-[#C9922A] text-black' : 'bg-white/5 text-[#8A8E99]'}`}>
-              {listingCount}/{FREE_LISTING_LIMIT}
+            <div className={`text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-sm ${
+              isAdmin ? 'bg-[#2A9C6E] text-white' :
+              isPaid ? 'bg-[#C9922A] text-black' :
+              'bg-white/5 text-[#8A8E99]'
+            }`}>
+              {isAdmin ? '∞' : `${listingCount}/${FREE_LISTING_LIMIT}`}
             </div>
           </div>
         )}

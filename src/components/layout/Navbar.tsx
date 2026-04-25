@@ -39,18 +39,47 @@ export default function Navbar() {
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
   const unreadChannelRef = useRef<any>(null);
 
-  
-
   useEffect(() => {
+    let userId: string | null = null;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setUser(session.user); checkDealer(session.user.id); }
-      else setLoading(false);
+      if (session?.user) {
+        userId = session.user.id;
+        setUser(session.user);
+        checkDealer(session.user.id);
+        loadUnreadCount(session.user.id);
+        if (!unreadChannelRef.current) {
+          const ch = supabase.channel(`unread_${session.user.id}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${session.user.id}` },
+              () => loadUnreadCount(session.user.id))
+            .subscribe();
+          unreadChannelRef.current = ch;
+        }
+      } else {
+        setLoading(false);
+      }
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) { setUser(session.user); checkDealer(session.user.id); }
-      else { setUser(null); setDealer(null); setLoading(false); }
+      if (session?.user) {
+        setUser(session.user);
+        checkDealer(session.user.id);
+      } else {
+        setUser(null); setDealer(null); setLoading(false);
+        if (unreadChannelRef.current) {
+          supabase.removeChannel(unreadChannelRef.current);
+          unreadChannelRef.current = null;
+        }
+      }
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      if (unreadChannelRef.current) {
+        supabase.removeChannel(unreadChannelRef.current);
+        unreadChannelRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
