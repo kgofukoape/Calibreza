@@ -1,502 +1,403 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
-import ListingCard from '@/components/listings/ListingCard';
 import { supabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 
-export default function ListingDetailsPage({ params }: { params: { id: string } }) {
+export default function EditListingPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [listing, setListing] = useState<any>(null);
-  const [seller, setSeller] = useState<any>(null);
-  const [similarListings, setSimilarListings] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [selectedImage, setSelectedImage] = useState(0);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState('');
-  const [shareCopied, setShareCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [makes, setMakes] = useState<any[]>([]);
+  const [calibres, setCalibres] = useState<any[]>([]);
+  const [conditions, setConditions] = useState<any[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [newImages, setNewImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [currentStatus, setCurrentStatus] = useState('active');
 
-  useEffect(() => {
-    loadData();
-    incrementViews();
-  }, [params.id]);
+  const [formData, setFormData] = useState({
+    title: '',
+    make_id: '',
+    calibre_id: '',
+    condition_id: '',
+    price: '',
+    category_id: '',
+    city: '',
+    description: '',
+    model: '',
+    action_type: '',
+    barrel_length: '',
+    capacity: '',
+  });
 
-  const formatCategory = (cat: string) =>
-    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'N/A';
+  useEffect(() => { loadData(); }, [params.id]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const user = await getCurrentUser();
-      setCurrentUser(user);
+      const currentUser = await getCurrentUser();
+      if (!currentUser) { router.push('/login'); return; }
+      setUser(currentUser);
 
-      const { data: listingData, error: listingError } = await supabase
-        .from('listings')
-        .select(`
-          *,
-          makes:make_id(name),
-          calibres:calibre_id(name),
-          conditions:condition_id(name),
-          provinces:province_id(name),
-          dealers:dealer_id(business_name, slug, logo_url, phone, email, rating)
-        `)
-        .eq('id', params.id)
-        .single();
+      const [listingRes, calibresRes, conditionsRes] = await Promise.all([
+        supabase.from('listings').select('*').eq('id', params.id).single(),
+        supabase.from('calibres').select('*').order('name'),
+        supabase.from('conditions').select('*').order('name'),
+      ]);
 
-      if (listingError || !listingData) throw listingError;
-      setListing(listingData);
+      if (listingRes.error) throw listingRes.error;
+      const listing = listingRes.data;
 
-      if (listingData.listing_type === 'dealer' && listingData.dealers) {
-        setSeller({
-          full_name: listingData.dealers.business_name,
-          slug: listingData.dealers.slug,
-          logo_url: listingData.dealers.logo_url,
-          phone: listingData.dealers.phone,
-          email: listingData.dealers.email,
-          rating: listingData.dealers.rating,
-          is_dealer: true,
-        });
-      } else if (listingData.seller_id) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', listingData.seller_id)
-          .single();
-        setSeller(userData ? { ...userData, is_dealer: false } : null);
+      if (listing.seller_id !== currentUser.id) {
+        alert('You do not have permission to edit this listing');
+        router.push('/dashboard');
+        return;
       }
 
-      const { data: similarData } = await supabase
-        .from('listings')
-        .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), provinces:province_id(name)`)
-        .eq('category_id', listingData.category_id)
-        .eq('status', 'active')
-        .neq('id', params.id)
-        .limit(4);
+      // Load makes filtered by this listing's category
+      const { data: makesData } = await supabase
+        .from('makes')
+        .select('*')
+        .contains('categories', [listing.category_id || 'pistols'])
+        .order('name');
 
-      setSimilarListings(similarData || []);
+      setFormData({
+        title: listing.title || '',
+        make_id: listing.make_id || '',
+        calibre_id: listing.calibre_id || '',
+        condition_id: listing.condition_id || '',
+        price: listing.price?.toString() || '',
+        category_id: listing.category_id || '',
+        city: listing.city || '',
+        description: listing.description || '',
+        model: listing.model || '',
+        action_type: listing.action_type || '',
+        barrel_length: listing.barrel_length || '',
+        capacity: listing.capacity || '',
+      });
+
+      setCurrentStatus(listing.status || 'active');
+      setExistingImages(listing.images || []);
+      setMakes(makesData || []);
+      setCalibres(calibresRes.data || []);
+      setConditions(conditionsRes.data || []);
     } catch (error) {
       console.error('Error loading listing:', error);
-      setListing(null);
+      alert('Failed to load listing');
+      router.push('/dashboard');
     } finally {
       setLoading(false);
     }
   };
 
-  const incrementViews = async () => {
+  const loadMakesForCategory = async (categoryId: string) => {
+    const { data } = await supabase
+      .from('makes')
+      .select('*')
+      .contains('categories', [categoryId])
+      .order('name');
+    setMakes(data || []);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name === 'category_id') {
+      setFormData(prev => ({ ...prev, category_id: value, make_id: '' }));
+      loadMakesForCategory(value);
+      return;
+    }
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const total = existingImages.length + newImages.length + files.length;
+    if (total > 5) { alert('Maximum 5 images allowed'); return; }
+    setNewImages(prev => [...prev, ...files]);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreviews(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const uploadImages = async () => {
+    if (newImages.length === 0) return [];
+    const uploadedUrls: string[] = [];
+    for (const file of newImages) {
+      const ext = file.name.split('.').pop();
+      const filePath = `listings/${user.id}/${Math.random().toString(36).substring(2)}.${ext}`;
+      const { error } = await supabase.storage.from('images').upload(filePath, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+      uploadedUrls.push(publicUrl);
+    }
+    return uploadedUrls;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
     try {
-      await supabase.rpc('increment_listing_views', { listing_id: params.id });
+      const newUrls = await uploadImages();
+      const { error } = await supabase.from('listings').update({
+        title: formData.title,
+        make_id: formData.make_id || null,
+        calibre_id: formData.calibre_id || null,
+        condition_id: formData.condition_id || null,
+        price: parseFloat(formData.price),
+        category_id: formData.category_id,
+        city: formData.city,
+        description: formData.description,
+        model: formData.model,
+        action_type: formData.action_type || null,
+        barrel_length: formData.barrel_length || null,
+        capacity: formData.capacity || null,
+        images: [...existingImages, ...newUrls],
+        status: currentStatus,
+      }).eq('id', params.id);
+
+      if (error) throw error;
+      router.push('/dashboard');
     } catch (error) {
-      console.error('Error incrementing views:', error);
+      console.error('Error updating listing:', error);
+      alert('Failed to update listing. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleContactSeller = () => {
-    if (!currentUser) { router.push('/login'); return; }
-    setShowContactModal(true);
-  };
-
-  const handleShare = async () => {
-    const url = window.location.href;
+  const handleDelete = async () => {
+    if (!confirm('Delete this listing permanently?')) return;
     try {
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    } catch {
-      // fallback for older browsers
-      const el = document.createElement('textarea');
-      el.value = url;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
+      await supabase.from('listings').delete().eq('id', params.id);
+      router.push('/dashboard');
+    } catch (error) {
+      alert('Failed to delete listing');
     }
   };
 
-  const submitReport = async () => {
-    if (!reportReason.trim()) return;
-    alert(`Report submitted. Reason: ${reportReason}`);
-    setShowReportModal(false);
-    setReportReason('');
-  };
+  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 transition-colors";
+  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5";
+  const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6";
+
+  const CATEGORIES = [
+    { value: 'pistols', label: 'Pistols' },
+    { value: 'revolvers', label: 'Revolvers' },
+    { value: 'rifles', label: 'Rifles' },
+    { value: 'shotguns', label: 'Shotguns' },
+    { value: 'air-guns', label: 'Air Guns' },
+    { value: 'airsoft', label: 'Airsoft' },
+    { value: 'ammunition', label: 'Ammunition' },
+    { value: 'holsters', label: 'Holsters & Carry' },
+    { value: 'magazines', label: 'Magazines' },
+    { value: 'optics', label: 'Optics & Sights' },
+    { value: 'reloading', label: 'Reloading' },
+    { value: 'knives', label: 'Knives & Blades' },
+    { value: 'accessories', label: 'Accessories & Parts' },
+  ];
 
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#0D0F13]">
+      <div className="min-h-screen bg-[#0D0F13] flex flex-col">
         <Navbar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="w-12 h-12 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-[14px] text-[#8A8E99]">Loading listing...</p>
+            <div className="w-12 h-12 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-[#8A8E99]">Loading listing...</p>
           </div>
         </div>
       </div>
     );
   }
-
-  if (!listing) {
-    return (
-      <div className="flex flex-col min-h-screen bg-[#0D0F13]">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-[#F0EDE8] mb-2">Listing Not Found</h2>
-            <p className="text-[#8A8E99] mb-6">This listing may have been removed or doesn't exist.</p>
-            <Link href="/browse" className="bg-[#C9922A] text-black font-bold px-6 py-3 rounded-sm">Browse Listings</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const images = listing?.images && Array.isArray(listing.images) && listing.images.length > 0 ? listing.images : null;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      {/* Breadcrumb */}
-      <div className="bg-[#191C23] border-b border-white/5 py-3 px-4 md:px-6">
-        <div className="max-w-[1280px] mx-auto text-[11px] text-[#8A8E99] tracking-widest uppercase flex items-center gap-2 flex-wrap">
-          <Link href="/" className="hover:text-[#C9922A] transition-colors">Home</Link>
-          <span>/</span>
-          <Link href="/browse" className="hover:text-[#C9922A] transition-colors">Browse</Link>
-          <span>/</span>
-          <Link href={`/browse/${listing.category_id}`} className="hover:text-[#C9922A] transition-colors">{formatCategory(listing.category_id)}</Link>
-          <span>/</span>
-          <span className="text-[#F0EDE8] truncate max-w-[200px]">{listing.title}</span>
+      <main className="flex-1 max-w-[900px] mx-auto w-full px-4 md:px-6 py-6 md:py-10">
+
+        {/* Header */}
+        <div className="mb-6">
+          <div className="text-[11px] text-[#8A8E99] uppercase tracking-widest mb-2 flex items-center gap-2">
+            <Link href="/dashboard" className="hover:text-[#C9922A]">Dashboard</Link>
+            <span>/</span>
+            <Link href="/dashboard/listings" className="hover:text-[#C9922A]">My Listings</Link>
+            <span>/</span>
+            <span className="text-[#F0EDE8]">Edit</span>
+          </div>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl md:text-4xl font-black uppercase mb-1">
+            Edit <span className="text-[#C9922A]">Listing</span>
+          </h1>
+          <p className="text-[13px] text-[#8A8E99]">Update your listing details below</p>
         </div>
-      </div>
 
-      <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 md:px-6 py-5 md:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-        {/* LEFT: Images & Description */}
-        <div className="flex-1 min-w-0 flex flex-col gap-5">
-
-          {/* Image Gallery */}
-          <div className="flex flex-col gap-2">
-            <div className="w-full bg-[#191C23] border border-white/5 rounded-sm flex items-center justify-center relative overflow-hidden" style={{ aspectRatio: '4/3', maxHeight: '480px' }}>
-              {images ? (
-                <img src={images[selectedImage]} alt={listing.title} className="w-full h-full object-contain" />
-              ) : (
-                <span className="text-6xl opacity-10">📷</span>
-              )}
-              {images && images.length > 1 && (
-                <>
-                  <button onClick={() => setSelectedImage(i => Math.max(0, i - 1))}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-all">
-                    ‹
-                  </button>
-                  <button onClick={() => setSelectedImage(i => Math.min(images.length - 1, i + 1))}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-all">
-                    ›
-                  </button>
-                  <div className="absolute top-3 right-3 bg-black/70 text-white text-[11px] font-bold px-2.5 py-1 rounded-sm">
-                    {selectedImage + 1} / {images.length}
-                  </div>
-                </>
-              )}
-              {listing.is_featured && (
-                <div className="absolute top-3 left-3 bg-[#C9922A] text-black text-[10px] font-black px-2 py-1 uppercase tracking-tight rounded-sm">
-                  ⭐ Featured
-                </div>
-              )}
-            </div>
-
-            {images && images.length > 1 && (
-              <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                {images.slice(0, 8).map((img: string, idx: number) => (
-                  <button key={idx} onClick={() => setSelectedImage(idx)}
-                    className={`aspect-square bg-[#191C23] rounded-sm overflow-hidden transition-all ${
-                      selectedImage === idx ? 'border-2 border-[#C9922A]' : 'border border-white/10 hover:border-[#C9922A]/50'
-                    }`}>
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* MOBILE: Price + CTA */}
-          <div className="lg:hidden bg-[#191C23] border border-white/5 rounded-sm p-5">
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl uppercase text-[#F0EDE8] leading-tight mb-1">{listing.title}</h1>
-            <p className="text-[12px] text-[#8A8E99] mb-3">📍 {listing.city} • {new Date(listing.created_at).toLocaleDateString()}</p>
-            <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-4xl text-[#C9922A] leading-none mb-4">
-              R {listing.price.toLocaleString()}
-              {listing.is_negotiable && <span className="text-[16px] text-[#8A8E99] ml-2 font-bold">ONO</span>}
-            </div>
-            <button onClick={handleContactSeller} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="w-full bg-[#C9922A] text-black font-bold text-[16px] tracking-widest uppercase py-3.5 rounded-sm hover:brightness-110 transition-all">
-              Contact Seller
-            </button>
-          </div>
-
-          {/* Description */}
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-5 md:p-6">
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-xl tracking-wide uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
-              Description
+          {/* Status */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Listing Status
             </h2>
-            <div className="text-[14px] text-[#8A8E99] leading-relaxed whitespace-pre-wrap">
-              {listing.description || 'No description provided.'}
-            </div>
-          </div>
-
-          {/* Legal Notice */}
-          <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5">
-            <h3 className="font-bold text-[13px] text-[#C9922A] mb-2 flex items-center gap-2">
-              <span>⚠️</span> Legal Compliance Notice
-            </h3>
-            <p className="text-[13px] text-[#8A8E99] leading-relaxed">
-              All firearm transactions must comply with the Firearms Control Act (Act 60 of 2000). Buyer must possess a valid firearm licence for the appropriate category.
-            </p>
-          </div>
-        </div>
-
-        {/* RIGHT: Details & Actions */}
-        <aside className="hidden lg:flex w-[320px] xl:w-[380px] flex-shrink-0 flex-col gap-4">
-
-          {/* Main Card */}
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-5 xl:p-6 flex flex-col gap-5">
-            <div>
-              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl xl:text-3xl uppercase text-[#F0EDE8] leading-tight mb-1">
-                {listing.title}
-              </h1>
-              <p className="text-[12px] text-[#8A8E99]">📍 {listing.city} • Listed {new Date(listing.created_at).toLocaleDateString()}</p>
-            </div>
-            <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-[36px] xl:text-[44px] text-[#C9922A] leading-none">
-              R {listing.price.toLocaleString()}
-              {listing.is_negotiable && <span className="text-[16px] text-[#8A8E99] ml-2 font-bold">ONO</span>}
-            </div>
-            <button onClick={handleContactSeller} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="w-full bg-[#C9922A] text-black font-bold text-[16px] tracking-widest uppercase py-4 rounded-sm hover:brightness-110 transition-all shadow-lg">
-              Contact Seller
-            </button>
-            <div className="flex items-center justify-center gap-4 text-[11px] font-bold tracking-widest uppercase text-[#8A8E99] border-t border-white/5 pt-4">
-              <button className="hover:text-[#F0EDE8] transition-colors">⭐ Save</button>
-              <span>|</span>
-              <button onClick={handleShare} className={`transition-colors ${shareCopied ? 'text-[#2A9C6E]' : 'hover:text-[#F0EDE8]'}`}>
-                {shareCopied ? '✓ Link Copied!' : '🔗 Share'}
-              </button>
-              <span>|</span>
-              <button onClick={() => { if (!currentUser) { router.push('/login'); return; } setShowReportModal(true); }}
-                className="hover:text-red-400 transition-colors text-red-500/70">🚩 Report</button>
-            </div>
-          </div>
-
-          {/* Seller Info */}
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-5 xl:p-6">
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[16px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
-              {seller?.is_dealer ? 'Dealer Information' : 'Seller Information'}
-            </h3>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden flex-shrink-0">
-                {seller?.logo_url ? (
-                  <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-bold text-black">
-                    {seller?.full_name?.charAt(0) || seller?.business_name?.charAt(0) || 'S'}
-                  </span>
-                )}
-              </div>
-              <div>
-                <div className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || seller?.business_name || 'Private Seller'}</div>
-                <div className="text-[11px] text-[#8A8E99]">{seller?.is_dealer ? 'Licensed Dealer' : 'Private Seller'}</div>
-              </div>
-            </div>
-            {seller?.is_dealer && seller?.slug && (
-              <Link href={`/dealers/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 transition-all block mb-4">
-                View Dealer Storefront →
-              </Link>
-            )}
-          </div>
-
-          {/* Specifications */}
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-5 xl:p-6">
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[16px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
-              Specifications
-            </h3>
-            <div className="flex flex-col gap-0">
+            <div className="flex flex-wrap gap-3">
               {[
-                ['Make', listing.makes?.name || 'N/A'],
-                ['Model', listing.model || 'N/A'],
-                ['Calibre', listing.calibres?.name || 'N/A'],
-                ['Condition', listing.conditions?.name || 'N/A'],
-                ['Category', formatCategory(listing.category_id)],
-                ['Action Type', listing.action_type || 'N/A'],
-                ['Capacity', listing.capacity || 'N/A'],
-                ['Barrel Length', listing.barrel_length || 'N/A'],
-                ['Province', listing.provinces?.name || 'N/A'],
-              ].filter(([, val]) => val !== 'N/A').map(([label, val], i, arr) => (
-                <div key={label} className={`flex justify-between py-2.5 ${i !== arr.length - 1 ? 'border-b border-white/5' : ''}`}>
-                  <span className="text-[12px] text-[#8A8E99]">{label}</span>
-                  <span className="text-[12px] font-medium text-[#F0EDE8] text-right ml-4">{val}</span>
-                </div>
+                { id: 'active', label: 'Active', color: 'bg-[#2A9C6E] text-white' },
+                { id: 'under_offer', label: 'Under Offer', color: 'bg-[#C9922A] text-black' },
+                { id: 'sold', label: 'Sold', color: 'bg-red-500 text-white' },
+              ].map(s => (
+                <button key={s.id} type="button" onClick={() => setCurrentStatus(s.id)}
+                  className={`px-5 py-2.5 rounded-sm font-black text-[13px] uppercase tracking-widest transition-all ${
+                    currentStatus === s.id ? s.color : 'border border-white/20 text-[#8A8E99] hover:bg-white/5'
+                  }`}>
+                  {s.label}
+                </button>
               ))}
             </div>
           </div>
-        </aside>
-      </main>
 
-      {/* MOBILE: Specs */}
-      <div className="lg:hidden max-w-[1280px] mx-auto w-full px-4 pb-6">
-        <div className="bg-[#191C23] border border-white/5 rounded-sm p-5">
-          <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[16px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
-            Specifications
-          </h3>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            {[
-              ['Make', listing.makes?.name || 'N/A'],
-              ['Model', listing.model || 'N/A'],
-              ['Calibre', listing.calibres?.name || 'N/A'],
-              ['Condition', listing.conditions?.name || 'N/A'],
-              ['Category', formatCategory(listing.category_id)],
-              ['Province', listing.provinces?.name || 'N/A'],
-            ].filter(([, val]) => val !== 'N/A').map(([label, val]) => (
-              <div key={label}>
-                <span className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold block">{label}</span>
-                <span className="text-[13px] text-[#F0EDE8] font-medium">{val}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Mobile share */}
-        <div className="flex items-center justify-center gap-6 mt-4 text-[11px] font-bold tracking-widest uppercase text-[#8A8E99]">
-          <button onClick={handleShare} className={`transition-colors ${shareCopied ? 'text-[#2A9C6E]' : 'hover:text-[#F0EDE8]'}`}>
-            {shareCopied ? '✓ Link Copied!' : '🔗 Share'}
-          </button>
-          <span>|</span>
-          <button onClick={() => { if (!currentUser) { router.push('/login'); return; } setShowReportModal(true); }}
-            className="hover:text-red-400 transition-colors text-red-500/70">🚩 Report</button>
-        </div>
-      </div>
-
-      {/* Similar Listings */}
-      {similarListings.length > 0 && (
-        <section className="max-w-[1280px] mx-auto w-full px-4 md:px-6 py-8">
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl md:text-3xl uppercase text-[#F0EDE8] mb-5">
-            Similar <span className="text-[#C9922A]">Listings</span>
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {similarListings.map((item) => (
-              <ListingCard
-                key={item.id} id={item.id} title={item.title}
-                make={item.makes?.name || 'Unknown'} calibre={item.calibres?.name || 'N/A'}
-                price={item.price} province={item.provinces?.name || 'N/A'}
-                condition={item.conditions?.name || 'N/A'} category={formatCategory(item.category_id)}
-                listingType={item.listing_type} sellerName={item.city || 'Private'}
-                images={item.images}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ─── CONTACT MODAL ─── */}
-      {showContactModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#191C23] border border-white/10 rounded-sm p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-5">
-              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-2xl uppercase text-[#F0EDE8]">
-                Contact {seller?.is_dealer ? 'Dealer' : 'Seller'}
-              </h3>
-              <button onClick={() => setShowContactModal(false)} className="text-[#8A8E99] hover:text-white transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Seller name + avatar */}
-            <div className="flex items-center gap-3 mb-5 pb-5 border-b border-white/5">
-              <div className="w-12 h-12 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden flex-shrink-0">
-                {seller?.logo_url ? (
-                  <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-black font-black text-lg">
-                    {(seller?.full_name || seller?.business_name || 'S').charAt(0)}
-                  </span>
-                )}
+          {/* Basic Info */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Basic Information
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className={labelClass}>Title <span className="text-red-400">*</span></label>
+                <input name="title" value={formData.title} onChange={handleChange} required className={inputClass} placeholder="e.g., Glock 19 Gen 5 9mm" />
               </div>
               <div>
-                <p className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || seller?.business_name || 'Private Seller'}</p>
-                <p className="text-[11px] text-[#8A8E99] uppercase tracking-wider">{seller?.is_dealer ? 'Licensed Dealer' : 'Private Seller'}</p>
+                <label className={labelClass}>Category <span className="text-red-400">*</span></label>
+                <select name="category_id" value={formData.category_id} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select category...</option>
+                  {CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Price (R) <span className="text-red-400">*</span></label>
+                <input type="number" name="price" value={formData.price} onChange={handleChange} required className={inputClass} placeholder="12500" />
+              </div>
+              <div>
+                <label className={labelClass}>Make / Brand</label>
+                <select name="make_id" value={formData.make_id} onChange={handleChange} className={inputClass}>
+                  <option value="">Select make...</option>
+                  {makes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Model</label>
+                <input name="model" value={formData.model} onChange={handleChange} className={inputClass} placeholder="e.g., 19 Gen 5" />
+              </div>
+              <div>
+                <label className={labelClass}>Calibre</label>
+                <select name="calibre_id" value={formData.calibre_id} onChange={handleChange} className={inputClass}>
+                  <option value="">Select calibre...</option>
+                  {calibres.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Condition <span className="text-red-400">*</span></label>
+                <select name="condition_id" value={formData.condition_id} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select condition...</option>
+                  {conditions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Action Type</label>
+                <input name="action_type" value={formData.action_type} onChange={handleChange} className={inputClass} placeholder="e.g., Semi-Auto" />
+              </div>
+              <div>
+                <label className={labelClass}>Barrel Length (inches)</label>
+                <input type="number" step="0.1" name="barrel_length" value={formData.barrel_length} onChange={handleChange} className={inputClass} placeholder="4.5" />
               </div>
             </div>
+          </div>
 
-            {/* Contact details */}
-            <div className="flex flex-col gap-3">
-              {seller?.phone && (
-                <a href={`tel:${seller.phone}`}
-                  className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
-                  <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Phone</p>
-                    <p className="text-[14px] font-bold text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{seller.phone}</p>
-                  </div>
-                </a>
-              )}
+          {/* Location */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Location
+            </h2>
+            <div>
+              <label className={labelClass}>City / Province <span className="text-red-400">*</span></label>
+              <input name="city" value={formData.city} onChange={handleChange} required className={inputClass} placeholder="e.g., Cape Town, Western Cape" />
+            </div>
+          </div>
 
-              {seller?.email && (
-                <a href={`mailto:${seller.email}?subject=Enquiry: ${encodeURIComponent(listing?.title || 'Listing')}`}
-                  className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
-                  <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Email</p>
-                    <p className="text-[14px] font-bold text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{seller.email}</p>
-                  </div>
-                </a>
-              )}
+          {/* Description */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Description
+            </h2>
+            <textarea name="description" value={formData.description} onChange={handleChange} rows={5}
+              className={`${inputClass} resize-none`}
+              placeholder="Describe your item — condition, accessories included, reason for selling..." />
+          </div>
 
-              {!seller?.phone && !seller?.email && (
-                <div className="bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-4 text-center">
-                  <p className="text-[13px] text-[#8A8E99]">Contact details not available for this seller.</p>
+          {/* Images */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Photos <span className="text-[#8A8E99] normal-case font-normal text-sm">({existingImages.length + newImages.length}/5)</span>
+            </h2>
+
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-3">
+              {existingImages.map((url, idx) => (
+                <div key={`e-${idx}`} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden group">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  {idx === 0 && <div className="absolute bottom-0 left-0 right-0 bg-[#C9922A] text-black text-[8px] font-black uppercase text-center py-0.5">Cover</div>}
+                  <button type="button" onClick={() => setExistingImages(prev => prev.filter((_, i) => i !== idx))}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    ×
+                  </button>
                 </div>
+              ))}
+              {imagePreviews.map((preview, idx) => (
+                <div key={`n-${idx}`} className="relative aspect-square bg-[#0D0F13] border border-[#C9922A]/30 rounded-sm overflow-hidden group">
+                  <img src={preview} alt="" className="w-full h-full object-cover" />
+                  <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 rounded-sm">New</div>
+                  <button type="button" onClick={() => {
+                    setNewImages(prev => prev.filter((_, i) => i !== idx));
+                    setImagePreviews(prev => prev.filter((_, i) => i !== idx));
+                  }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    ×
+                  </button>
+                </div>
+              ))}
+              {(existingImages.length + newImages.length) < 5 && (
+                <label className="aspect-square bg-[#0D0F13] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center cursor-pointer hover:border-[#C9922A]/50 transition-colors">
+                  <div className="text-center">
+                    <span className="text-2xl text-[#8A8E99]">+</span>
+                  </div>
+                  <input type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
+                </label>
               )}
             </div>
-
-            <p className="text-[11px] text-[#8A8E99] mt-4 text-center">
-              Always arrange to meet at a licensed dealer for all transfers.
-            </p>
           </div>
-        </div>
-      )}
 
-      {/* ─── REPORT MODAL ─── */}
-      {showReportModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 max-w-md w-full">
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-4">Report Listing</h3>
-            <select value={reportReason} onChange={(e) => setReportReason(e.target.value)}
-              className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-4 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A] mb-4">
-              <option value="">Select a reason...</option>
-              <option value="scam">Suspected scam</option>
-              <option value="illegal">Illegal item</option>
-              <option value="fake">Fake/counterfeit</option>
-              <option value="duplicate">Duplicate listing</option>
-              <option value="other">Other</option>
-            </select>
-            <div className="flex gap-3">
-              <button onClick={submitReport} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-sm hover:brightness-110">Submit Report</button>
-              <button onClick={() => setShowReportModal(false)} className="px-5 bg-transparent border border-white/20 text-[#F0EDE8] font-bold py-3 rounded-sm hover:bg-white/5">Cancel</button>
-            </div>
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button type="submit" disabled={saving}
+              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            <Link href="/dashboard/listings"
+              className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
+              Cancel
+            </Link>
+            <button type="button" onClick={handleDelete}
+              className="sm:w-auto px-6 py-4 bg-red-500/10 border border-red-500/30 text-red-400 font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-red-500/20 transition-all">
+              Delete
+            </button>
           </div>
-        </div>
-      )}
+        </form>
+      </main>
     </div>
   );
 }
