@@ -26,7 +26,7 @@ export default function WantedPage() {
                 <span className="text-[#F0EDE8]">Wanted</span>
               </div>
               <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                className="text-4xl md:text-6xl font-black uppercase tracking-tight">
+                className="text-4xl md:text-5xl font-black uppercase tracking-tight">
                 Community <span className="text-[#C9922A]">Bounty Board</span>
               </h1>
               <p className="text-[#8A8E99] text-sm mt-2 max-w-[600px]">
@@ -43,7 +43,7 @@ export default function WantedPage() {
 
       {/* LEADERBOARD AD */}
       <div className="w-full flex justify-center py-3 px-4 md:px-6">
-        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
+        <div className="w-full max-w-[970px] h-[120px] md:h-[160px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
           <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
           <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
         </div>

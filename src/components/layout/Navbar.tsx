@@ -39,6 +39,8 @@ export default function Navbar() {
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
   const unreadChannelRef = useRef<any>(null);
 
+  
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); checkDealer(session.user.id); }
@@ -81,7 +83,6 @@ export default function Navbar() {
     setDealer(data || null);
     setLoading(false);
     loadUnreadCount(userId);
-    subscribeUnread(userId);
   };
 
   const loadUnreadCount = async (userId: string) => {
@@ -93,14 +94,7 @@ export default function Navbar() {
     setUnreadMessages(count || 0);
   };
 
-  const subscribeUnread = (userId: string) => {
-    if (unreadChannelRef.current) return;
-    const channel = supabase.channel(`unread_messages_${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${userId}` },
-        () => loadUnreadCount(userId))
-      .subscribe();
-    unreadChannelRef.current = channel;
-  };
+
 
   const handleSearch = useCallback(async (query: string) => {
     if (query.length < 2) { setSearchResults({ listings: [], dealers: [] }); return; }
