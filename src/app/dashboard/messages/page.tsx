@@ -67,25 +67,12 @@ export default function DashboardMessagesPage() {
 
     if (error || !data) { setLoading(false); return; }
 
-    // Get unique user IDs to fetch profiles
-    const userIds = new Set<string>();
-    data.forEach(m => {
-      if (m.sender_id !== userId) userIds.add(m.sender_id);
-      if (m.recipient_id !== userId) userIds.add(m.recipient_id);
-    });
-
+    // Build a simple name map — use sender_name field if available, otherwise 'User'
     const profileMap: Record<string, { full_name: string; email: string }> = {};
-    if (userIds.size > 0) {
-      const { data: profiles } = await supabase.auth.admin
-        ? Promise.resolve({ data: null }) // admin not available client-side
-        : Promise.resolve({ data: null });
-
-      // Fallback: use user metadata from messages context
-      data.forEach(m => {
-        profileMap[m.sender_id] = profileMap[m.sender_id] || { full_name: 'User', email: '' };
-        profileMap[m.recipient_id] = profileMap[m.recipient_id] || { full_name: 'User', email: '' };
-      });
-    }
+    data.forEach(m => {
+      profileMap[m.sender_id] = profileMap[m.sender_id] || { full_name: 'User', email: '' };
+      profileMap[m.recipient_id] = profileMap[m.recipient_id] || { full_name: 'User', email: '' };
+    });
 
     // Build threads grouped by (other_user_id, listing_id)
     const threadMap: Record<string, Thread> = {};
