@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import ListingCard from '@/components/listings/ListingCard';
 import { supabase } from '@/lib/supabase';
@@ -38,9 +38,11 @@ const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   accessories:{ label: 'Accessories & Parts', showMakes: true, showCalibres: false, showLicence: false, description: 'Browse stocks, grips, suppressors, lights, rails & more' },
 };
 
-export default function BrowseCategoryPage() {
+function BrowseCategoryInner() {
   const params = useParams();
   const slug = params?.slug as string;
+  const searchParams = useSearchParams();
+  const subcat = searchParams?.get('sub') || null;
   const config = CATEGORY_CONFIG[slug];
 
   const [listings, setListings] = useState<any[]>([]);
@@ -60,6 +62,9 @@ export default function BrowseCategoryPage() {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [selectedSellerTypes, setSelectedSellerTypes] = useState<string[]>([]);
+  const [selectedBladeTypes, setSelectedBladeTypes] = useState<string[]>([]);
+  const [minBladeLength, setMinBladeLength] = useState('');
+  const [maxBladeLength, setMaxBladeLength] = useState('');
 
   const [activeMakeIds, setActiveMakeIds] = useState<string[]>([]);
   const [activeCalibreIds, setActiveCalibreIds] = useState<string[]>([]);
@@ -68,6 +73,9 @@ export default function BrowseCategoryPage() {
   const [activeMinPrice, setActiveMinPrice] = useState('');
   const [activeMaxPrice, setActiveMaxPrice] = useState('');
   const [activeSellerTypes, setActiveSellerTypes] = useState<string[]>([]);
+  const [activeBladeTypes, setActiveBladeTypes] = useState<string[]>([]);
+  const [activeMinBladeLength, setActiveMinBladeLength] = useState('');
+  const [activeMaxBladeLength, setActiveMaxBladeLength] = useState('');
 
   const [sortBy, setSortBy] = useState('newest');
 
@@ -79,7 +87,7 @@ export default function BrowseCategoryPage() {
   useEffect(() => {
     if (!slug || !config) return;
     fetchListings();
-  }, [slug, currentPage, activeMakeIds, activeCalibreIds, activeConditionIds, activeProvinces, activeMinPrice, activeMaxPrice, activeSellerTypes, sortBy]);
+  }, [slug, currentPage, activeMakeIds, activeCalibreIds, activeConditionIds, activeProvinces, activeMinPrice, activeMaxPrice, activeSellerTypes, activeBladeTypes, activeMinBladeLength, activeMaxBladeLength, sortBy]);
 
   useEffect(() => {
     if (filtersOpen) document.body.style.overflow = 'hidden';
@@ -113,6 +121,9 @@ export default function BrowseCategoryPage() {
     if (activeMinPrice) query = query.gte('price', parseFloat(activeMinPrice));
     if (activeMaxPrice) query = query.lte('price', parseFloat(activeMaxPrice));
     if (activeSellerTypes.length > 0) query = query.in('listing_type', activeSellerTypes);
+    if (activeBladeTypes.length > 0) query = query.in('blade_type', activeBladeTypes);
+    if (activeMinBladeLength) query = query.gte('blade_length_cm', parseFloat(activeMinBladeLength));
+    if (activeMaxBladeLength) query = query.lte('blade_length_cm', parseFloat(activeMaxBladeLength));
 
     query = query.order('is_featured', { ascending: false });
     switch (sortBy) {
@@ -138,6 +149,9 @@ export default function BrowseCategoryPage() {
     setActiveMinPrice(minPrice);
     setActiveMaxPrice(maxPrice);
     setActiveSellerTypes(selectedSellerTypes);
+    setActiveBladeTypes(selectedBladeTypes);
+    setActiveMinBladeLength(minBladeLength);
+    setActiveMaxBladeLength(maxBladeLength);
     setCurrentPage(1);
     setFiltersOpen(false);
   };
@@ -229,6 +243,29 @@ export default function BrowseCategoryPage() {
         </div>
       </div>
 
+      {slug === 'knives' && (
+        <>
+          <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Blade Type</span>
+            <div className="flex flex-col gap-2">
+              {['Folding Knife','Fixed Blade','OTF (Out The Front)','Axe / Hatchet','Machete','Multi-tool','Other'].map(bt => (
+                <CheckboxItem key={bt} label={bt} checked={selectedBladeTypes.includes(bt)} onChange={() => toggleItem(bt, selectedBladeTypes, setSelectedBladeTypes)} />
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Blade Length (cm)</span>
+            <div className="flex items-center gap-2">
+              <input type="number" placeholder="Min" value={minBladeLength} onChange={e => setMinBladeLength(e.target.value)}
+                className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
+              <span className="text-[#8A8E99] flex-shrink-0">—</span>
+              <input type="number" placeholder="Max" value={maxBladeLength} onChange={e => setMaxBladeLength(e.target.value)}
+                className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
         <div className="flex flex-col gap-2">
@@ -275,6 +312,14 @@ export default function BrowseCategoryPage() {
             Browse <span className="text-[#C9922A]">{config.label}</span>
           </h1>
           <p className="text-[#8A8E99] text-sm mt-1 uppercase tracking-widest font-bold">{config.description}</p>
+          {subcat && (
+            <div className="flex items-center gap-2 mt-3">
+              <span className="text-[11px] font-black uppercase tracking-widest bg-[#C9922A]/10 border border-[#C9922A]/30 text-[#C9922A] px-3 py-1 rounded-sm">
+                {subcat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </span>
+              <a href={`/browse/${slug}`} className="text-[11px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">Clear ×</a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -446,5 +491,17 @@ export default function BrowseCategoryPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function BrowseCategoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <BrowseCategoryInner />
+    </Suspense>
   );
 }

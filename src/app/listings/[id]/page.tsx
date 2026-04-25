@@ -18,8 +18,11 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
   const [selectedImage, setSelectedImage] = useState(0);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [contactMessage, setContactMessage] = useState('');
   const [reportReason, setReportReason] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
+  const [messageBody, setMessageBody] = useState('');
+  const [messageSent, setMessageSent] = useState(false);
+  const [messageSending, setMessageSending] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -62,7 +65,11 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           is_dealer: true,
         });
       } else if (listingData.seller_id) {
-        const { data: userData } = await supabase.from('users').select('*').eq('id', listingData.seller_id).single();
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', listingData.seller_id)
+          .single();
         setSeller(userData ? { ...userData, is_dealer: false } : null);
       }
 
@@ -91,26 +98,27 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     }
   };
 
-  const handleContactSeller = async () => {
+  const handleContactSeller = () => {
     if (!currentUser) { router.push('/login'); return; }
     setShowContactModal(true);
   };
 
-  const sendMessage = async () => {
-    if (!contactMessage.trim()) return;
-    alert(`Message sent to ${seller?.full_name}:\n\n${contactMessage}`);
-    setShowContactModal(false);
-    setContactMessage('');
-  };
-
   const handleShare = async () => {
     const url = window.location.href;
-    if (navigator.share) {
-      try { await navigator.share({ title: listing.title, text: `Check out this ${listing.title} for R${listing.price.toLocaleString()}`, url }); }
-      catch (e) { console.log('Share cancelled'); }
-    } else {
-      navigator.clipboard.writeText(url);
-      alert('Link copied to clipboard!');
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      // fallback for older browsers
+      const el = document.createElement('textarea');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
     }
   };
 
@@ -218,7 +226,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             )}
           </div>
 
-          {/* MOBILE: Price + CTA shown here on mobile */}
+          {/* MOBILE: Price + CTA */}
           <div className="lg:hidden bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl uppercase text-[#F0EDE8] leading-tight mb-1">{listing.title}</h1>
             <p className="text-[12px] text-[#8A8E99] mb-3">📍 {listing.city} • {new Date(listing.created_at).toLocaleDateString()}</p>
@@ -253,7 +261,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           </div>
         </div>
 
-        {/* RIGHT: Details & Actions — desktop */}
+        {/* RIGHT: Details & Actions */}
         <aside className="hidden lg:flex w-[320px] xl:w-[380px] flex-shrink-0 flex-col gap-4">
 
           {/* Main Card */}
@@ -275,7 +283,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             <div className="flex items-center justify-center gap-4 text-[11px] font-bold tracking-widest uppercase text-[#8A8E99] border-t border-white/5 pt-4">
               <button className="hover:text-[#F0EDE8] transition-colors">⭐ Save</button>
               <span>|</span>
-              <button onClick={handleShare} className="hover:text-[#F0EDE8] transition-colors">🔗 Share</button>
+              <button onClick={handleShare} className={`transition-colors ${shareCopied ? 'text-[#2A9C6E]' : 'hover:text-[#F0EDE8]'}`}>
+                {shareCopied ? '✓ Link Copied!' : '🔗 Share'}
+              </button>
               <span>|</span>
               <button onClick={() => { if (!currentUser) { router.push('/login'); return; } setShowReportModal(true); }}
                 className="hover:text-red-400 transition-colors text-red-500/70">🚩 Report</button>
@@ -293,17 +303,17 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                   <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-bold text-black">
-                    {seller?.full_name?.charAt(0) || 'S'}
+                    {seller?.full_name?.charAt(0) || seller?.business_name?.charAt(0) || 'S'}
                   </span>
                 )}
               </div>
               <div>
-                <div className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || 'Private Seller'}</div>
+                <div className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || seller?.business_name || 'Private Seller'}</div>
                 <div className="text-[11px] text-[#8A8E99]">{seller?.is_dealer ? 'Licensed Dealer' : 'Private Seller'}</div>
               </div>
             </div>
             {seller?.is_dealer && seller?.slug && (
-              <Link href={`/dealers/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 transition-all">
+              <Link href={`/dealers/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 transition-all block mb-4">
                 View Dealer Storefront →
               </Link>
             )}
@@ -336,7 +346,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </aside>
       </main>
 
-      {/* MOBILE: Specs section */}
+      {/* MOBILE: Specs */}
       <div className="lg:hidden max-w-[1280px] mx-auto w-full px-4 pb-6">
         <div className="bg-[#191C23] border border-white/5 rounded-sm p-5">
           <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[16px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
@@ -357,6 +367,16 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Mobile share */}
+        <div className="flex items-center justify-center gap-6 mt-4 text-[11px] font-bold tracking-widest uppercase text-[#8A8E99]">
+          <button onClick={handleShare} className={`transition-colors ${shareCopied ? 'text-[#2A9C6E]' : 'hover:text-[#F0EDE8]'}`}>
+            {shareCopied ? '✓ Link Copied!' : '🔗 Share'}
+          </button>
+          <span>|</span>
+          <button onClick={() => { if (!currentUser) { router.push('/login'); return; } setShowReportModal(true); }}
+            className="hover:text-red-400 transition-colors text-red-500/70">🚩 Report</button>
         </div>
       </div>
 
@@ -381,23 +401,120 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </section>
       )}
 
-      {/* Contact Modal */}
+      {/* ─── CONTACT MODAL ─── */}
       {showContactModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 max-w-md w-full">
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-4">Contact Seller</h3>
-            <textarea value={contactMessage} onChange={(e) => setContactMessage(e.target.value)}
-              placeholder="Hi, I'm interested in your listing..."
-              className="w-full bg-[#0D0F13] border border-white/10 rounded-sm p-4 text-[14px] text-[#F0EDE8] placeholder-[#8A8E99] focus:outline-none focus:border-[#C9922A] min-h-[130px] mb-4" />
-            <div className="flex gap-3">
-              <button onClick={sendMessage} className="flex-1 bg-[#C9922A] text-black font-bold py-3 rounded-sm hover:brightness-110">Send Message</button>
-              <button onClick={() => setShowContactModal(false)} className="px-5 bg-transparent border border-white/20 text-[#F0EDE8] font-bold py-3 rounded-sm hover:bg-white/5">Cancel</button>
+          <div className="bg-[#191C23] border border-white/10 rounded-sm p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-5">
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-2xl uppercase text-[#F0EDE8]">
+                Contact {seller?.is_dealer ? 'Dealer' : 'Seller'}
+              </h3>
+              <button onClick={() => setShowContactModal(false)} className="text-[#8A8E99] hover:text-white transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
+
+            {/* Seller name + avatar */}
+            <div className="flex items-center gap-3 mb-5 pb-5 border-b border-white/5">
+              <div className="w-12 h-12 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden flex-shrink-0">
+                {seller?.logo_url ? (
+                  <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-black font-black text-lg">
+                    {(seller?.full_name || seller?.business_name || 'S').charAt(0)}
+                  </span>
+                )}
+              </div>
+              <div>
+                <p className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || seller?.business_name || 'Private Seller'}</p>
+                <p className="text-[11px] text-[#8A8E99] uppercase tracking-wider">{seller?.is_dealer ? 'Licensed Dealer' : 'Private Seller'}</p>
+              </div>
+            </div>
+
+            {/* Contact details */}
+            <div className="flex flex-col gap-3">
+              {seller?.phone && (
+                <a href={`tel:${seller.phone}`}
+                  className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
+                  <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Phone</p>
+                    <p className="text-[14px] font-bold text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{seller.phone}</p>
+                  </div>
+                </a>
+              )}
+              {seller?.email && (
+                <a href={`mailto:${seller.email}?subject=Enquiry: ${encodeURIComponent(listing?.title || 'Listing')}`}
+                  className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
+                  <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Email</p>
+                    <p className="text-[14px] font-bold text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{seller.email}</p>
+                  </div>
+                </a>
+              )}
+            </div>
+
+            {/* In-app message */}
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Send a Message</p>
+              {messageSent ? (
+                <div className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 rounded-sm p-3 text-center">
+                  <p className="text-[#2A9C6E] font-bold text-sm">✓ Message sent! Check your inbox for a reply.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    value={messageBody}
+                    onChange={e => setMessageBody(e.target.value)}
+                    rows={3}
+                    placeholder={`Hi, I'm interested in your ${listing?.title}...`}
+                    className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#F0EDE8] resize-none focus:outline-none focus:border-[#C9922A]/60 transition-colors"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!messageBody.trim() || !currentUser || !listing) return;
+                      const recipientId = listing.seller_id || listing.dealer_id;
+                      if (!recipientId || recipientId === currentUser.id) return;
+                      setMessageSending(true);
+                      const { error } = await supabase.from('user_messages').insert({
+                        sender_id: currentUser.id,
+                        recipient_id: recipientId,
+                        listing_id: listing.id,
+                        body: messageBody.trim(),
+                        is_read: false,
+                      });
+                      setMessageSending(false);
+                      if (!error) { setMessageSent(true); setMessageBody(''); }
+                    }}
+                    disabled={messageSending || !messageBody.trim()}
+                    style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                    className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] py-2.5 rounded-sm hover:brightness-110 transition-all disabled:opacity-50"
+                  >
+                    {messageSending ? 'Sending...' : 'Send Message'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-[#8A8E99] mt-3 text-center">
+              Always arrange to meet at a licensed dealer for all transfers.
+            </p>
           </div>
         </div>
       )}
 
-      {/* Report Modal */}
+      {/* ─── REPORT MODAL ─── */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 max-w-md w-full">

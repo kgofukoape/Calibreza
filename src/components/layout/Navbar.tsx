@@ -22,6 +22,7 @@ export default function Navbar() {
   const [dealer, setDealer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +79,24 @@ export default function Navbar() {
       .eq('user_id', userId).eq('status', 'approved').single();
     setDealer(data || null);
     setLoading(false);
+    loadUnreadCount(userId);
+    subscribeUnread(userId);
+  };
+
+  const loadUnreadCount = async (userId: string) => {
+    const { count } = await supabase
+      .from('user_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_id', userId)
+      .eq('is_read', false);
+    setUnreadMessages(count || 0);
+  };
+
+  const subscribeUnread = (userId: string) => {
+    supabase.channel('unread_messages')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${userId}` },
+        () => loadUnreadCount(userId))
+      .subscribe();
   };
 
   const handleSearch = useCallback(async (query: string) => {
@@ -284,10 +303,10 @@ export default function Navbar() {
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Optics & Sights</h3>
                   <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Optics</Link>
-                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifle Scopes</Link>
-                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dots</Link>
-                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Night Vision</Link>
-                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal</Link>
+                  <Link href="/browse/optics?sub=rifle-scopes" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifle Scopes</Link>
+                  <Link href="/browse/optics?sub=red-dots" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dot Sights</Link>
+                  <Link href="/browse/optics?sub=night-vision" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Night Vision</Link>
+                  <Link href="/browse/optics?sub=thermal" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal Optics</Link>
                 </div>
 
                 {/* Col 4 — Accessories */}
@@ -302,11 +321,11 @@ export default function Navbar() {
                 {/* Col 5 — Firearms Accessories */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Parts & Gear</h3>
-                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
-                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
-                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Triggers & Actions</Link>
-                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
-                  <Link href="/browse/accessories" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Gun Safes & Vaults</Link>
+                  <Link href="/browse/accessories?sub=stocks" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
+                  <Link href="/browse/accessories?sub=barrels" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
+                  <Link href="/browse/accessories?sub=triggers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Triggers & Actions</Link>
+                  <Link href="/browse/accessories?sub=lights" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
+                  <Link href="/browse/accessories?sub=safes" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Gun Safes & Vaults</Link>
                 </div>
 
                 {/* Col 6 — Other */}
@@ -378,8 +397,13 @@ export default function Navbar() {
             ) : user ? (
               <div className="relative" ref={dropdownRef}>
                 <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center gap-2 group">
-                  <div className="w-9 h-9 rounded-full bg-[#C9922A] flex items-center justify-center text-black font-black text-sm flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#C9922A] flex items-center justify-center text-black font-black text-sm flex-shrink-0 relative">
                     {getInitial()}
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </span>
+                    )}
                   </div>
                   <div className="hidden md:flex flex-col items-start">
                     <span className="text-[11px] font-black text-[#F0EDE8] uppercase tracking-widest leading-none">{getDisplayName()}</span>
@@ -405,6 +429,10 @@ export default function Navbar() {
                     ) : (
                       <>
                         <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> My Dashboard</Link>
+              <Link href="/dashboard/messages" className="flex items-center justify-between px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all">
+                <div className="flex items-center gap-3"><span>✉️</span> Messages</div>
+                {unreadMessages > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadMessages}</span>}
+              </Link>
                         <Link href="/dashboard/listings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📋</span> My Listings</Link>
                         <Link href="/dashboard/wishlist" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>❤️</span> Wishlist</Link>
                         <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Settings</Link>
