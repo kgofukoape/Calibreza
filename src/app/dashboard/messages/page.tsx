@@ -116,7 +116,7 @@ export default function DashboardMessagesPage() {
 
   const subscribeToMessages = (userId: string) => {
     const channel = supabase
-      .channel('user_messages')
+      .channel(`inbox_${userId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',

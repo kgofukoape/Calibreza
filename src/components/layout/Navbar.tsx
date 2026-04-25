@@ -76,7 +76,7 @@ export default function Navbar() {
   const checkDealer = async (userId: string) => {
     const { data } = await supabase.from('dealers')
       .select('id, business_name, slug, subscription_tier, status')
-      .eq('user_id', userId).eq('status', 'approved').single();
+      .eq('user_id', userId).eq('status', 'approved').maybeSingle();
     setDealer(data || null);
     setLoading(false);
     loadUnreadCount(userId);
@@ -93,10 +93,11 @@ export default function Navbar() {
   };
 
   const subscribeUnread = (userId: string) => {
-    supabase.channel('unread_messages')
+    const channel = supabase.channel(`unread_messages_${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${userId}` },
         () => loadUnreadCount(userId))
       .subscribe();
+    return () => { supabase.removeChannel(channel); };
   };
 
   const handleSearch = useCallback(async (query: string) => {
