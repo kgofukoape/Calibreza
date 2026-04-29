@@ -312,7 +312,10 @@ export default function Navbar() {
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Firearms</h3>
                   <Link href="/browse/pistols" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pistols</Link>
-                  <Link href="/browse/rifles" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifles</Link>
+                  <Link href="/browse/bolt-action" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Bolt Action</Link>
+                  <Link href="/browse/semi-auto-rifles" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Semi-Auto</Link>
+                  <Link href="/browse/lever-action" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lever Action</Link>
+                  <Link href="/browse/pump-action-rifles" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pump Action</Link>
                   <Link href="/browse/shotguns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Shotguns</Link>
                   <Link href="/browse/revolvers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Revolvers</Link>
                 </div>

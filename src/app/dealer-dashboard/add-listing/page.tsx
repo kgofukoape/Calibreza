@@ -7,7 +7,10 @@ import { supabase } from '@/lib/supabase';
 
 const CATEGORIES = [
   { id: 'pistols', label: 'Pistols' },
-  { id: 'rifles', label: 'Rifles' },
+  { id: 'bolt-action', label: 'Bolt Action Rifles' },
+  { id: 'semi-auto-rifles', label: 'Semi-Auto Rifles' },
+  { id: 'lever-action', label: 'Lever Action Rifles' },
+  { id: 'pump-action-rifles', label: 'Pump Action Rifles' },
   { id: 'shotguns', label: 'Shotguns' },
   { id: 'revolvers', label: 'Revolvers' },
   { id: 'air-guns', label: 'Air Guns' },
@@ -126,12 +129,16 @@ function AddListingForm() {
     setProvinces(provincesRes.data || []);
   };
 
+  const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
+
   const loadMakesForCategory = async (categoryId: string) => {
-    const { data } = await supabase
-      .from('makes')
-      .select('id, name')
-      .contains('categories', [categoryId])
-      .order('name');
+    let query = supabase.from('makes').select('id, name');
+    if (RIFLE_TYPES.includes(categoryId)) {
+      query = query.contains('rifle_type', [categoryId]);
+    } else {
+      query = query.contains('categories', [categoryId]);
+    }
+    const { data } = await query.order('name');
     setMakes(data || []);
   };
 

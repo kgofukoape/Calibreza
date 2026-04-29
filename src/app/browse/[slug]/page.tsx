@@ -24,7 +24,11 @@ type CategoryConfig = {
 
 const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   pistols:    { label: 'Pistols',          showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse semi-automatic pistols and handguns' },
-  rifles:     { label: 'Rifles',           showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse bolt-action, semi-auto and lever-action rifles' },
+  rifles:             { label: 'Rifles',              showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse all rifles' },
+  'bolt-action':      { label: 'Bolt Action Rifles',  showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse bolt action rifles' },
+  'semi-auto-rifles': { label: 'Semi-Auto Rifles',    showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse semi-automatic rifles' },
+  'lever-action':     { label: 'Lever Action Rifles', showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse lever action rifles' },
+  'pump-action-rifles': { label: 'Pump Action Rifles', showMakes: true, showCalibres: true,  showLicence: true,  description: 'Browse pump action rifles' },
   shotguns:   { label: 'Shotguns',         showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse pump, semi-auto and over-under shotguns' },
   revolvers:  { label: 'Revolvers',        showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse single and double-action revolvers' },
   'air-guns': { label: 'Air Guns',         showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse air rifles and air pistols' },
@@ -95,9 +99,17 @@ function BrowseCategoryInner() {
     return () => { document.body.style.overflow = ''; };
   }, [filtersOpen]);
 
+  const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
+
   const loadLookups = async () => {
+    let makesQuery = supabase.from('makes').select('id, name');
+    if (RIFLE_TYPES.includes(slug)) {
+      makesQuery = makesQuery.contains('rifle_type', [slug]);
+    } else {
+      makesQuery = makesQuery.contains('categories', [slug]);
+    }
     const [makesRes, calibresRes, conditionsRes] = await Promise.all([
-      supabase.from('makes').select('id, name').contains('categories', [slug]).order('name'),
+      makesQuery.order('name'),
       supabase.from('calibres').select('id, name').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
     ]);

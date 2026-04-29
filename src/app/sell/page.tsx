@@ -83,8 +83,16 @@ export default function SellPage() {
     setListingCountLoading(false);
   };
 
+  const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
+
   const loadMakesForCategory = async (categoryId: string) => {
-    const { data } = await supabase.from('makes').select('*').contains('categories', [categoryId]).order('name');
+    let query = supabase.from('makes').select('*');
+    if (RIFLE_TYPES.includes(categoryId)) {
+      query = query.contains('rifle_type', [categoryId]);
+    } else {
+      query = query.contains('categories', [categoryId]);
+    }
+    const { data } = await query.order('name');
     setMakes(data || []);
   };
 
@@ -289,7 +297,10 @@ export default function SellPage() {
                 <select name="category_id" value={formData.category_id} onChange={handleInputChange} required className={inputClass}>
                   <option value="pistols">Pistols</option>
                   <option value="revolvers">Revolvers</option>
-                  <option value="rifles">Rifles</option>
+                  <option value="bolt-action">Bolt Action Rifles</option>
+                  <option value="semi-auto-rifles">Semi-Auto Rifles</option>
+                  <option value="lever-action">Lever Action Rifles</option>
+                  <option value="pump-action-rifles">Pump Action Rifles</option>
                   <option value="shotguns">Shotguns</option>
                   <option value="air-guns">Air Guns</option>
                   <option value="airsoft">Airsoft</option>
