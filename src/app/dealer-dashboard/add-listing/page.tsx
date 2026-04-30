@@ -580,14 +580,20 @@ function AddListingForm() {
 
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Action Type</label>
-                  <input
-                    type="text"
-                    name="action_type"
-                    value={formData.action_type}
-                    onChange={handleInputChange}
-                    placeholder="e.g. Semi-Auto, Bolt Action"
-                    className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-sm text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50"
-                  />
+                  {ACTION_TYPES[formData.category_id] ? (
+                    <select name="action_type" value={formData.action_type} onChange={handleInputChange}
+                      className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-sm text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50">
+                      <option value="">Select action type...</option>
+                      {ACTION_TYPES[formData.category_id].map((a: string) => (
+                        <option key={a} value={a}>{a}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" name="action_type" value={formData.action_type}
+                      onChange={handleInputChange} placeholder="e.g. Semi-Auto, Bolt Action"
+                      className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-sm text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50"
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -806,6 +812,18 @@ function AddListingForm() {
     </div>
   );
 }
+
+const ACTION_TYPES: Record<string, string[]> = {
+  pistols: ['Striker Fired', 'Single Action (SA)', 'Double Action (DA)', 'SA/DA'],
+  revolvers: ['Single Action', 'Double Action', 'DA/SA'],
+  'bolt-action': ['Bolt Action'],
+  'semi-auto-rifles': ['Semi-Auto (Direct Impingement)', 'Semi-Auto (Piston)'],
+  'lever-action': ['Lever Action'],
+  'pump-action-rifles': ['Pump Action'],
+  rifles: ['Bolt Action', 'Semi-Auto (Direct Impingement)', 'Semi-Auto (Piston)', 'Lever Action', 'Pump Action', 'Break Action', 'Straight Pull'],
+  shotguns: ['Pump Action', 'Semi-Auto', 'Break Action (Over/Under)', 'Break Action (Side-by-Side)', 'Single Shot'],
+  'air-guns': ['PCP', 'Break Barrel', 'CO2', 'Underlever'],
+};
 
 export default function AddListingPage() {
   return (

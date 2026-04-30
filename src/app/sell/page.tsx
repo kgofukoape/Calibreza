@@ -85,6 +85,18 @@ export default function SellPage() {
 
   const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
 
+const ACTION_TYPES: Record<string, string[]> = {
+  pistols: ['Striker Fired', 'Single Action (SA)', 'Double Action (DA)', 'SA/DA'],
+  revolvers: ['Single Action', 'Double Action', 'DA/SA'],
+  'bolt-action': ['Bolt Action'],
+  'semi-auto-rifles': ['Semi-Auto (Direct Impingement)', 'Semi-Auto (Piston)'],
+  'lever-action': ['Lever Action'],
+  'pump-action-rifles': ['Pump Action'],
+  rifles: ['Bolt Action', 'Semi-Auto (Direct Impingement)', 'Semi-Auto (Piston)', 'Lever Action', 'Pump Action', 'Break Action', 'Straight Pull'],
+  shotguns: ['Pump Action', 'Semi-Auto', 'Break Action (Over/Under)', 'Break Action (Side-by-Side)', 'Single Shot'],
+  'air-guns': ['PCP', 'Break Barrel', 'CO2', 'Underlever'],
+};
+
   const loadMakesForCategory = async (categoryId: string) => {
     let query = supabase.from('makes').select('*');
     if (RIFLE_TYPES.includes(categoryId)) {
@@ -367,7 +379,17 @@ export default function SellPage() {
                   </div>
                   <div>
                     <label className={labelClass}>Action Type</label>
-                    <input type="text" name="action_type" value={formData.action_type} onChange={handleInputChange} className={inputClass} placeholder="e.g., Semi-Auto, Bolt-Action" />
+                    {ACTION_TYPES[formData.category_id] ? (
+                      <select name="action_type" value={formData.action_type} onChange={handleInputChange} className={inputClass}>
+                        <option value="">Select action type...</option>
+                        {ACTION_TYPES[formData.category_id].map((a: string) => (
+                          <option key={a} value={a}>{a}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type="text" name="action_type" value={formData.action_type} onChange={handleInputChange}
+                        className={inputClass} placeholder="e.g., Semi-Auto, Bolt-Action" />
+                    )}
                   </div>
                   <div>
                     <label className={labelClass}>Barrel Length (inches)</label>
