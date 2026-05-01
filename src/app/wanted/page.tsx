@@ -33,7 +33,7 @@ export default function WantedPage() {
                 Buyers with cash in hand looking for specific firearms, parts, ammo, and reloading components.
               </p>
             </div>
-            <Link href="/sell?type=wanted"
+            <Link href="/wanted/post"
               className="flex-shrink-0 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
               + Post Wanted Ad
             </Link>
