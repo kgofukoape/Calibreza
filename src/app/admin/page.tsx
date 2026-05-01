@@ -106,6 +106,8 @@ export default function AdminOverviewPage() {
     { href: '/admin/listings', icon: '📋', label: 'Listings' },
     { href: '/admin/users', icon: '👥', label: 'Users' },
     { href: '/admin/analytics', icon: '📈', label: 'Analytics' },
+    { href: '/admin/crm', icon: '👤', label: 'CRM' },
+    { href: '/admin/ads', icon: '📢', label: 'Advertising' },
   ];
 
   const STATS = [
