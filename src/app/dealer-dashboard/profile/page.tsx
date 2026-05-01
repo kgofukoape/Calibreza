@@ -1,5 +1,5 @@
 'use client';
-
+ 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -60,6 +60,7 @@ export default function DealerProfilePage() {
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string>('');
+ const [bannerPosition, setBannerPosition] = useState<string>('50% 50%');
   const [uploadingImages, setUploadingImages] = useState(false);
 
   // Editable form state
@@ -388,11 +389,37 @@ export default function DealerProfilePage() {
               {/* Banner */}
               <div className="mb-6">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">
-                  Banner Image <span className="text-[#8A8E99] font-normal normal-case tracking-normal">(recommended 1400×320px)</span>
+                  Banner Image <span className="text-[#8A8E99] font-normal normal-case tracking-normal">(recommended 1400×320px) — drag to reposition</span>
                 </label>
-                <div className="relative w-full h-[160px] bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden mb-3">
+                <div className="relative w-full max-w-[860px] h-[200px] bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden mb-3 group">
                   {bannerPreview ? (
-                    <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover" />
+                    <>
+                      <img
+                        src={bannerPreview}
+                        alt="Banner"
+                        draggable={false}
+                        className="absolute w-full h-full object-cover cursor-grab active:cursor-grabbing select-none"
+                        style={{ objectPosition: bannerPosition }}
+                        onMouseDown={(e) => {
+                          const startY = e.clientY;
+                          const startPos = parseInt(bannerPosition.split(' ')[1] || '50');
+                          const onMove = (me: MouseEvent) => {
+                            const delta = ((me.clientY - startY) / 200) * 100;
+                            const newY = Math.max(0, Math.min(100, startPos - delta));
+                            setBannerPosition(`50% ${newY}%`);
+                          };
+                          const onUp = () => {
+                            window.removeEventListener('mousemove', onMove);
+                            window.removeEventListener('mouseup', onUp);
+                          };
+                          window.addEventListener('mousemove', onMove);
+                          window.addEventListener('mouseup', onUp);
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <span className="text-white text-[11px] font-bold uppercase tracking-widest bg-black/60 px-3 py-1.5 rounded-sm">↕ Drag to reposition</span>
+                      </div>
+                    </>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-[#8A8E99] text-sm font-bold">No banner uploaded</span>
@@ -408,10 +435,10 @@ export default function DealerProfilePage() {
               {/* Logo */}
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">
-                  Logo <span className="text-[#8A8E99] font-normal normal-case tracking-normal">(recommended 400×400px, square)</span>
+                  Logo <span className="text-[#8A8E99] font-normal normal-case tracking-normal">(recommended 600×600px, square)</span>
                 </label>
                 <div className="flex items-center gap-6">
-                  <div className="w-24 h-24 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <div className="w-36 h-36 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
                     {logoPreview ? (
                       <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
                     ) : (
@@ -495,7 +522,7 @@ export default function DealerProfilePage() {
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Website</label>
                   <input
-                    type="url"
+                    type="text"
                     name="website"
                     value={formData.website}
                     onChange={handleInputChange}
