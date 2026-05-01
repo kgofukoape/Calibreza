@@ -1,16 +1,48 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import ListingCard from '@/components/listings/ListingCard';
+import { supabase } from '@/lib/supabase';
 
-const DEMO_LISTINGS = [
-  { id:'70', title:'WTB: Somchem S365 Propellant (Any Qty)', make:'Somchem', price:1000, province:'Gauteng', condition:'Unopened', category:'wanted', listingType:'private' as const, sellerName:'Pretoria East', calibre:'Reloading', featured:true },
-  { id:'71', title:'Looking for: CZ Shadow 2 OR Optics Plate', make:'CZ', price:1500, province:'Western Cape', condition:'Any Condition', category:'wanted', listingType:'private' as const, sellerName:'Cape Town IPSC', calibre:'Accessories' },
-  { id:'72', title:'Wanted: Musgrave .308 Win (Sporter)', make:'Musgrave', price:15000, province:'Free State', condition:'Good / Excellent', category:'wanted', listingType:'private' as const, sellerName:'Bloem Hunters', calibre:'Rifles' },
-  { id:'73', title:'WTB: Large Rifle Primers (CCI/Federal)', make:'CCI / Federal', price:250, province:'KZN', condition:'Brand New', category:'wanted', listingType:'dealer' as const, sellerName:'DBN Reloaders', calibre:'Reloading' },
-];
+const PROVINCES = ['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Limpopo','Mpumalanga','North West','Free State','Northern Cape'];
+const ITEM_TYPES = ['Pistols & Revolvers','Rifles','Shotguns','Reloading Components','Ammunition','Optics','Magazines','Holsters','Knives','Air Guns','Other'];
 
 export default function WantedPage() {
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState('newest');
+
+  useEffect(() => {
+    fetchListings();
+  }, [sortBy]);
+
+  const fetchListings = async () => {
+    setLoading(true);
+    let query = supabase
+      .from('listings')
+      .select(`
+        *,
+        makes:make_id(name),
+        calibres:calibre_id(name),
+        conditions:condition_id(name),
+        provinces:province_id(name)
+      `)
+      .eq('category_id', 'wanted')
+      .eq('status', 'active');
+
+    if (sortBy === 'highest') query = query.order('price', { ascending: false });
+    else query = query.order('created_at', { ascending: false });
+
+    const { data } = await query;
+    setListings(data || []);
+    setLoading(false);
+  };
+
+  const formatCategory = (cat: string) =>
+    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full text-[#F0EDE8]">
       <Navbar />
@@ -26,7 +58,7 @@ export default function WantedPage() {
                 <span className="text-[#F0EDE8]">Wanted</span>
               </div>
               <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                className="text-4xl md:text-5xl font-black uppercase tracking-tight">
+                className="text-4xl md:text-6xl font-black uppercase tracking-tight">
                 Community <span className="text-[#C9922A]">Bounty Board</span>
               </h1>
               <p className="text-[#8A8E99] text-sm mt-2 max-w-[600px]">
@@ -68,29 +100,25 @@ export default function WantedPage() {
             <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 flex flex-col gap-5 sticky top-6">
               <div className="flex items-center justify-between border-b border-white/5 pb-3">
                 <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-lg uppercase tracking-widest">Filters</span>
-                <button className="text-[11px] text-[#C9922A] uppercase tracking-wider hover:brightness-125">Clear All</button>
               </div>
-
               <div className="flex flex-col gap-2.5">
                 <span className="text-[11px] font-black tracking-widest uppercase text-[#8A8E99]">Item Sought</span>
-                {['Pistols & Revolvers','Rifles','Shotguns','Reloading Components','Ammunition','Optics','Magazines','Holsters','Knives','Air Guns','Other'].map(type => (
+                {ITEM_TYPES.map(type => (
                   <label key={type} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 accent-[#C9922A]" />
                     <span className="text-[13px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{type}</span>
                   </label>
                 ))}
               </div>
-
               <div className="flex flex-col gap-2.5 border-t border-white/5 pt-4">
                 <span className="text-[11px] font-black tracking-widest uppercase text-[#8A8E99]">Province</span>
-                {['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Limpopo','Mpumalanga','North West','Free State','Northern Cape'].map(p => (
+                {PROVINCES.map(p => (
                   <label key={p} className="flex items-center gap-3 cursor-pointer group">
                     <input type="checkbox" className="w-4 h-4 accent-[#C9922A]" />
                     <span className="text-[13px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{p}</span>
                   </label>
                 ))}
               </div>
-
               <div className="flex flex-col gap-2.5 border-t border-white/5 pt-4">
                 <span className="text-[11px] font-black tracking-widest uppercase text-[#8A8E99]">Budget Range (R)</span>
                 <div className="flex items-center gap-2">
@@ -106,20 +134,50 @@ export default function WantedPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-4">
               <p className="text-[12px] text-[#8A8E99] uppercase tracking-widest font-bold">
-                <span className="text-[#F0EDE8] font-black">{DEMO_LISTINGS.length}</span> wanted ads
+                <span className="text-[#F0EDE8] font-black">{listings.length}</span> wanted ads
               </p>
-              <select className="bg-[#13151A] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none appearance-none cursor-pointer">
-                <option>Newest First</option>
-                <option>Highest Budget</option>
-                <option>Urgency: ASAP</option>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+                className="bg-[#13151A] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none appearance-none cursor-pointer">
+                <option value="newest">Newest First</option>
+                <option value="highest">Highest Budget</option>
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {DEMO_LISTINGS.map(listing => (
-                <ListingCard key={listing.id} {...listing} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : listings.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="text-5xl mb-4">🔍</div>
+                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No Wanted Ads Yet</h3>
+                <p className="text-[#8A8E99] mb-6">Be the first to post what you're looking for.</p>
+                <Link href="/wanted/post" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
+                  Post Wanted Ad
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {listings.map(listing => (
+                  <ListingCard
+                    key={listing.id}
+                    id={listing.id}
+                    title={listing.title}
+                    make={listing.makes?.name || 'N/A'}
+                    calibre={listing.calibres?.name || 'N/A'}
+                    price={listing.price}
+                    province={listing.provinces?.name || listing.city || 'N/A'}
+                    condition={listing.conditions?.name || 'N/A'}
+                    category={formatCategory(listing.category_id)}
+                    listingType={listing.listing_type}
+                    sellerName={listing.city || 'N/A'}
+                    images={listing.images}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
