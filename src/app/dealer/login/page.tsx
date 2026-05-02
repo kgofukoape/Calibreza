@@ -26,27 +26,67 @@ export default function DealerLoginPage() {
 
       if (signInError) throw signInError;
 
-      const { data: dealerData, error: dealerError } = await supabase
+      const userId = data.user.id;
+
+      // 1. Check dealers
+      const { data: dealerData } = await supabase
         .from('dealers')
-        .select('*')
-        .eq('user_id', data.user.id)
+        .select('status')
+        .eq('user_id', userId)
         .single();
 
-      if (dealerError || !dealerData) {
-        await supabase.auth.signOut();
-        setError('No dealer account found. Please apply for a dealer account first.');
-        setLoading(false);
+      if (dealerData) {
+        if (dealerData.status !== 'approved') {
+          await supabase.auth.signOut();
+          setError(`Your dealer application is ${dealerData.status}. Please wait for approval.`);
+          setLoading(false);
+          return;
+        }
+        router.push('/dealer-dashboard');
         return;
       }
 
-      if (dealerData.status !== 'approved') {
-        await supabase.auth.signOut();
-        setError(`Your dealer application is ${dealerData.status}. Please wait for approval.`);
-        setLoading(false);
+      // 2. Check clubs (includes ranges via facility_type)
+      const { data: clubData } = await supabase
+        .from('clubs')
+        .select('status, facility_type')
+        .eq('user_id', userId)
+        .single();
+
+      if (clubData) {
+        if (clubData.status !== 'approved') {
+          await supabase.auth.signOut();
+          setError(`Your ${clubData.facility_type} application is ${clubData.status}. Please wait for approval.`);
+          setLoading(false);
+          return;
+        }
+        router.push('/club-dashboard');
         return;
       }
 
-      router.push('/dealer-dashboard');
+      // 3. Check services
+      const { data: serviceData } = await supabase
+        .from('services')
+        .select('status')
+        .eq('user_id', userId)
+        .single();
+
+      if (serviceData) {
+        if (serviceData.status !== 'approved') {
+          await supabase.auth.signOut();
+          setError(`Your service application is ${serviceData.status}. Please wait for approval.`);
+          setLoading(false);
+          return;
+        }
+        router.push('/service-dashboard');
+        return;
+      }
+
+      // 4. Nothing found
+      await supabase.auth.signOut();
+      setError('No account found. Please apply first.');
+      setLoading(false);
+
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
       setLoading(false);
@@ -66,7 +106,7 @@ export default function DealerLoginPage() {
             Dealer <span className="text-[#C9922A]">Login</span>
           </h1>
           <p className="text-[#8A8E99] text-[14px] uppercase tracking-widest font-bold">
-            Access Your Dealer Dashboard
+            Access Your Dashboard
           </p>
         </div>
 
@@ -88,7 +128,7 @@ export default function DealerLoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors"
-                placeholder="dealer@example.com"
+                placeholder="your@email.com"
               />
             </div>
 
@@ -152,7 +192,7 @@ export default function DealerLoginPage() {
 
         <div className="mt-12 bg-[#13151A] border border-white/5 rounded-sm p-6">
           <h3 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-xl font-black uppercase mb-4 text-center">
-            Dealer Dashboard Features
+            Dashboard Features
           </h3>
           <ul className="space-y-3 text-sm text-[#8A8E99]">
             <li className="flex items-center gap-3">
