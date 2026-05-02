@@ -23,6 +23,13 @@ export default function Navbar() {
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [loginLabelIdx, setLoginLabelIdx] = useState(0);
+  const LOGIN_LABELS = [
+    { icon: '🏪', text: 'Dealer Login' },
+    { icon: '⊕', text: 'Club Login' },
+    { icon: '🔧', text: 'Service Login' },
+    { icon: '🎯', text: 'Range Login' },
+  ];
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,6 +110,12 @@ export default function Navbar() {
   }, [pathname]);
 
   useEffect(() => { if (inlineMode && inlineInputRef.current) inlineInputRef.current.focus(); }, [inlineMode]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLoginLabelIdx(i => (i + 1) % 4);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
   useEffect(() => { if (hoverMode && hoverInputRef.current) hoverInputRef.current.focus(); }, [hoverMode]);
 
   const checkDealer = async (userId: string) => {
@@ -479,8 +492,9 @@ export default function Navbar() {
               <>
                 <Link href="/login" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[12px] hover:text-white transition-colors flex-shrink-0">Sign In</Link>
                 <Link href="/signup" className="text-[#8A8E99] border border-white/10 px-4 py-2 rounded-[2px] font-bold uppercase tracking-widest text-[11px] hover:bg-white/5 transition-all flex-shrink-0">Register</Link>
-                <Link href="/dealer/login" className="flex items-center gap-2 text-[#C9922A] font-bold uppercase tracking-widest text-[12px] hover:brightness-110 transition-all flex-shrink-0">
-                  <span className="text-[16px]">🏪</span>Dealer Login
+                <Link href="/dealer/login" className="flex items-center gap-2 border border-[#C9922A]/40 bg-[#C9922A]/5 px-4 py-2 rounded-[2px] text-[#C9922A] font-bold uppercase tracking-widest text-[11px] hover:bg-[#C9922A]/10 hover:border-[#C9922A] transition-all flex-shrink-0">
+                  <span className="text-[14px] transition-all duration-300">{LOGIN_LABELS[loginLabelIdx].icon}</span>
+                  <span className="transition-all duration-300">{LOGIN_LABELS[loginLabelIdx].text}</span>
                 </Link>
               </>
             )}
