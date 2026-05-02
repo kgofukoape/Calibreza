@@ -27,9 +27,9 @@ const AD_SLOTS = [
 const PAGE_OPTIONS = ['all', 'home', 'browse', 'listings', 'dealers', 'clubs', 'services', 'jobs', 'wanted'];
 
 const AD_FORMATS = {
-  image: { label: 'Static Image', accept: 'image/jpeg,image/png,image/webp', tip: 'JPG/PNG/WebP — max 2MB. Best: 72dpi, sRGB colour space.' },
-  gif: { label: 'Animated GIF', accept: 'image/gif', tip: 'GIF — max 5MB. Keep under 15 seconds. No audio.' },
-  video: { label: 'Video', accept: 'video/mp4,video/webm', tip: 'MP4/WebM — max 20MB. H.264 codec. No audio for autoplay. Max 30 seconds.' },
+  image: { label: 'Static Image', accept: 'image/jpeg,image/png,image/webp', tip: 'JPG/PNG/WebP — max 50MB. Best: 72dpi, sRGB colour space.' },
+  gif: { label: 'Animated GIF', accept: 'image/gif', tip: 'GIF — max 30MB. Keep under 15 seconds. No audio.' },
+  video: { label: 'Video', accept: 'video/mp4,video/webm', tip: 'MP4/WebM — max 50MB. H.264 codec. No audio for autoplay. Max 30 seconds.' },
 };
 
 const EMPTY_FORM = {
