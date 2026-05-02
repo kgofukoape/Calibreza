@@ -14,8 +14,6 @@ const PROVINCES = [
 const TABS = [
   { id: 'member', label: '👤 Member', desc: 'Private buyer or seller' },
   { id: 'dealer', label: '🏪 Dealer', desc: 'Licensed firearms dealer or retailer' },
-  { id: 'club', label: '⊕ Club', desc: 'Shooting club or sport shooting organisation' },
-  { id: 'range', label: '🎯 Range', desc: 'Shooting range or training facility' },
   { id: 'service', label: '🔧 Service', desc: 'Gunsmith, instructor or service provider' },
 ];
 
@@ -232,7 +230,7 @@ export default function RegisterPage() {
             {step === 1 && (
               <>
                 {/* TAB SELECTOR */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
                   {TABS.map(t => (
                     <button key={t.id} type="button" onClick={() => { setTab(t.id); setError(''); }}
                       className={`p-3 rounded-sm border text-left transition-all ${
@@ -244,6 +242,15 @@ export default function RegisterPage() {
                       <div className="text-[10px] mt-0.5 leading-tight opacity-70">{t.desc}</div>
                     </button>
                   ))}
+                </div>
+
+                <div className="bg-[#13151A] border border-white/5 rounded-sm p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <p className="text-[13px] text-[#8A8E99]">Registering a club or shooting range?</p>
+                  <div className="flex gap-3">
+                    <a href="/clubs/apply" className="text-[#C9922A] font-black uppercase tracking-widest text-[11px] hover:brightness-125 transition-all">⊕ List a Club →</a>
+                    <span className="text-[#8A8E99]">·</span>
+                    <a href="/clubs/range-apply" className="text-[#C9922A] font-black uppercase tracking-widest text-[11px] hover:brightness-125 transition-all">🎯 List a Range →</a>
+                  </div>
                 </div>
 
                 <form onSubmit={handleStep1} className="bg-[#13151A] border border-white/5 rounded-sm p-6 space-y-4">
