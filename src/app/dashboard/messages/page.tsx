@@ -16,8 +16,6 @@ type Message = {
   is_read: boolean;
   created_at: string;
   listing?: { title: string; images: string[] } | null;
-  sender_profile?: { full_name: string; email: string } | null;
-  recipient_profile?: { full_name: string; email: string } | null;
 };
 
 type Thread = {
@@ -41,40 +39,71 @@ export default function DashboardMessagesPage() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<any>(null);
+  const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     getCurrentUser().then(u => {
+      if (!mounted) return;
       if (!u) { router.push('/login'); return; }
       setUser(u);
+      userIdRef.current = u.id;
       loadMessages(u.id);
-      subscribeToMessages(u.id);
+      setupSubscription(u.id);
     });
+
+    return () => {
+      mounted = false;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedThread?.messages]);
 
+  const setupSubscription = (userId: string) => {
+    // Clean up any existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    const channel = supabase
+      .channel(`inbox_${userId}_${Date.now()}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'user_messages',
+        filter: `recipient_id=eq.${userId}`,
+      }, () => {
+        if (userIdRef.current) loadMessages(userIdRef.current);
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+  };
+
   const loadMessages = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_messages')
-      .select(`
-        *,
-        listing:listing_id(title, images)
-      `)
+      .select('*, listing:listing_id(title, images)')
       .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
       .order('created_at', { ascending: true });
 
     if (error || !data) { setLoading(false); return; }
 
-    // Build a simple name map — use sender_name field if available, otherwise 'User'
     const profileMap: Record<string, { full_name: string; email: string }> = {};
     data.forEach(m => {
       profileMap[m.sender_id] = profileMap[m.sender_id] || { full_name: 'User', email: '' };
       profileMap[m.recipient_id] = profileMap[m.recipient_id] || { full_name: 'User', email: '' };
     });
 
-    // Build threads grouped by (other_user_id, listing_id)
     const threadMap: Record<string, Thread> = {};
     data.forEach(m => {
       const otherId = m.sender_id === userId ? m.recipient_id : m.sender_id;
@@ -107,27 +136,18 @@ export default function DashboardMessagesPage() {
     );
 
     setThreads(threadList);
-    if (threadList.length > 0 && !selectedThread) {
-      setSelectedThread(threadList[0]);
-      markThreadRead(threadList[0], userId);
-    }
+    setSelectedThread(prev => {
+      if (prev) {
+        const key = `${prev.other_user_id}::${prev.listing_id || 'null'}`;
+        return threadMap[key] || prev;
+      }
+      if (threadList.length > 0) {
+        markThreadRead(threadList[0], userId);
+        return threadList[0];
+      }
+      return null;
+    });
     setLoading(false);
-  };
-
-  const subscribeToMessages = (userId: string) => {
-    const channel = supabase
-      .channel(`inbox_${userId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'user_messages',
-        filter: `recipient_id=eq.${userId}`,
-      }, () => {
-        loadMessages(userId);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   };
 
   const markThreadRead = async (thread: Thread, userId: string) => {
@@ -224,7 +244,6 @@ export default function DashboardMessagesPage() {
                       ? 'bg-white/5 border-l-2 border-l-[#C9922A]'
                       : ''
                   }`}>
-                  {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-[#C9922A] flex items-center justify-center flex-shrink-0 text-black font-black text-sm">
                     {thread.other_user_name.charAt(0).toUpperCase()}
                   </div>
@@ -254,8 +273,6 @@ export default function DashboardMessagesPage() {
             {/* Message pane */}
             {selectedThread && (
               <div className="flex-1 bg-[#13151A] border border-white/5 rounded-sm flex flex-col">
-
-                {/* Header */}
                 <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#C9922A] flex items-center justify-center text-black font-black text-sm flex-shrink-0">
                     {selectedThread.other_user_name.charAt(0).toUpperCase()}
@@ -271,16 +288,13 @@ export default function DashboardMessagesPage() {
                   </div>
                 </div>
 
-                {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
                   {selectedThread.messages.map((msg, idx) => {
                     const isMine = msg.sender_id === user?.id;
                     return (
                       <div key={idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[75%] rounded-sm px-4 py-2.5 ${
-                          isMine
-                            ? 'bg-[#C9922A] text-black'
-                            : 'bg-[#0D0F13] border border-white/10 text-[#F0EDE8]'
+                          isMine ? 'bg-[#C9922A] text-black' : 'bg-[#0D0F13] border border-white/10 text-[#F0EDE8]'
                         }`}>
                           <p className="text-[13px] leading-relaxed">{msg.body}</p>
                           <p className={`text-[10px] mt-1 ${isMine ? 'text-black/60' : 'text-[#8A8E99]'}`}>
@@ -293,7 +307,6 @@ export default function DashboardMessagesPage() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input */}
                 <form onSubmit={handleSend} className="px-5 py-4 border-t border-white/5 flex gap-3">
                   <input
                     type="text"

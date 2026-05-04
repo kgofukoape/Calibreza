@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
-import { signIn } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,9 +17,52 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      await signIn(email, password);
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw signInError;
+
+      const userId = data.user.id;
+
+      // 1. Check dealers
+      const { data: dealerData } = await supabase
+        .from('dealers')
+        .select('status')
+        .eq('user_id', userId)
+        .single();
+
+      if (dealerData?.status === 'approved') {
+        router.push('/dealer-dashboard');
+        return;
+      }
+
+      // 2. Check clubs / ranges
+      const { data: clubData } = await supabase
+        .from('clubs')
+        .select('status, facility_type')
+        .eq('user_id', userId)
+        .single();
+
+      if (clubData?.status === 'approved') {
+        router.push('/club-dashboard');
+        return;
+      }
+
+      // 3. Check services
+      const { data: serviceData } = await supabase
+        .from('services')
+        .select('status')
+        .eq('user_id', userId)
+        .single();
+
+      if (serviceData?.status === 'approved') {
+        router.push('/service-dashboard');
+        return;
+      }
+
+      // 4. Regular user
       router.push('/dashboard');
+
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your email and password.');
     } finally {
