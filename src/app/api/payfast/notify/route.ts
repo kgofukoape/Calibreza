@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       const pfToken = data['token'] || null;
       const promoId = data['m_payment_id'] || '';
 
-      // CASE A: DEALER SUBSCRIPTION
+      // ── CASE A: DEALER SUBSCRIPTION ──
       if (customStr1 === 'dealer_subscription') {
         const plan = customStr2; // 'pro' or 'premium'
         const dealerId = customStr3;
@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
         console.log(`Dealer subscription activated: ${dealerId} -> ${plan}`);
       }
 
-      // CASE B: LISTING BOOST
-      else {
+      // ── CASE B: LISTING BOOST ──
+      else if (customStr1 === 'listing_boost') {
         const listingId = customStr2;
 
         const { data: promo } = await supabase
@@ -78,9 +78,79 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ── CASE C: RANGE / CLUB SUBSCRIPTION ──
+      else if (customStr1 === 'range_subscription') {
+        const clubId = customStr2;
+
+        // PayFast sends token for recurring subscriptions
+        // amount_gross will be 0.00 on first ITN (trial start)
+        // then 399.00 on each subsequent monthly charge
+
+        const amountGross = parseFloat(data['amount_gross'] || '0');
+        const isFirstCharge = amountGross === 0;
+
+        if (isFirstCharge) {
+          // Trial started — subscription set up successfully
+          // Status already set to 'trial' by subscribe route
+          // Just store the PayFast token for future cancellations
+          await supabase
+            .from('clubs')
+            .update({
+              payfast_token: pfToken,
+              subscription_status: 'trial',
+              subscription_tier: 'active',
+            })
+            .eq('id', clubId);
+
+          console.log(`Range subscription trial started: ${clubId} — first charge in 60 days`);
+        } else {
+          // Recurring payment received — subscription is now fully active & paid
+          await supabase
+            .from('clubs')
+            .update({
+              payfast_token: pfToken,
+              subscription_status: 'active',
+              subscription_tier: 'active',
+              subscribed_at: new Date().toISOString(),
+            })
+            .eq('id', clubId);
+
+          console.log(`Range subscription payment received: ${clubId} — R${amountGross}`);
+        }
+      }
+
+      // ── CASE D: RANGE SUBSCRIPTION CANCELLED (via PayFast dashboard) ──
+      else if (customStr1 === 'range_subscription_cancel') {
+        const clubId = customStr2;
+
+        await supabase
+          .from('clubs')
+          .update({
+            subscription_status: 'cancelled',
+            subscription_tier: 'listed',
+            payfast_token: null,
+          })
+          .eq('id', clubId);
+
+        console.log(`Range subscription cancelled: ${clubId}`);
+      }
+
     } else if (data['payment_status'] === 'FAILED' || data['payment_status'] === 'CANCELLED') {
       const customStr1 = data['custom_str1'] || '';
-      if (customStr1 !== 'dealer_subscription') {
+
+      if (customStr1 === 'range_subscription') {
+        const clubId = data['custom_str2'] || '';
+        if (clubId) {
+          await supabase
+            .from('clubs')
+            .update({
+              subscription_status: 'free',
+              subscription_tier: 'listed',
+            })
+            .eq('id', clubId);
+          console.log(`Range subscription failed/cancelled: ${clubId}`);
+        }
+      } else if (customStr1 !== 'dealer_subscription') {
         await supabase.from('promoted_listings')
           .update({ status: 'failed' })
           .eq('id', data['m_payment_id']);
