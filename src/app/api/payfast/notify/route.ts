@@ -135,8 +135,22 @@ export async function POST(req: NextRequest) {
         console.log(`Range subscription cancelled: ${clubId}`);
       }
 
+      // ── CASE E: INDUSTRY JOBS ──
+      else if (promoId.startsWith('JOB_')) {
+        const jobId = promoId.replace('JOB_', '');
+
+        // Update the job status from 'pending_payment' to 'active'
+        await supabase
+          .from('job_listings')
+          .update({ status: 'active' })
+          .eq('id', jobId);
+
+        console.log(`Job Listing payment received and activated: ${jobId}`);
+      }
+
     } else if (data['payment_status'] === 'FAILED' || data['payment_status'] === 'CANCELLED') {
       const customStr1 = data['custom_str1'] || '';
+      const promoId = data['m_payment_id'] || '';
 
       if (customStr1 === 'range_subscription') {
         const clubId = data['custom_str2'] || '';
@@ -150,10 +164,14 @@ export async function POST(req: NextRequest) {
             .eq('id', clubId);
           console.log(`Range subscription failed/cancelled: ${clubId}`);
         }
+      } else if (promoId.startsWith('JOB_')) {
+        // Handle cancelled job payments safely
+        const jobId = promoId.replace('JOB_', '');
+        console.log(`Job payment failed/cancelled, remaining pending: ${jobId}`);
       } else if (customStr1 !== 'dealer_subscription') {
         await supabase.from('promoted_listings')
           .update({ status: 'failed' })
-          .eq('id', data['m_payment_id']);
+          .eq('id', promoId);
       }
     }
 

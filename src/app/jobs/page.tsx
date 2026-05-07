@@ -1,176 +1,76 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/layout/Navbar';
 
-const JOB_TYPES = [
-  { id: '', label: 'All Jobs' },
-  { id: 'retail', label: '🏪 Retail / Sales' },
-  { id: 'gunsmith', label: '🔧 Gunsmithing' },
-  { id: 'instructor', label: '🎯 Instruction / Training' },
-  { id: 'security', label: '🛡️ Security' },
-  { id: 'admin', label: '📋 Admin / Management' },
-  { id: 'other', label: '📦 Other' },
-];
-
-const PROVINCES = [
-  'All Provinces', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
-  'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
-];
-
-const JOB_TYPE_COLORS: Record<string, string> = {
-  retail: 'text-[#C9922A] bg-[#C9922A]/10 border-[#C9922A]/20',
-  gunsmith: 'text-[#4CC9F0] bg-[#4CC9F0]/10 border-[#4CC9F0]/20',
-  instructor: 'text-[#10B981] bg-[#10B981]/10 border-[#10B981]/20',
-  security: 'text-[#E63946] bg-[#E63946]/10 border-[#E63946]/20',
-  admin: 'text-[#8B5CF6] bg-[#8B5CF6]/10 border-[#8B5CF6]/20',
-  other: 'text-[#8A8E99] bg-white/5 border-white/10',
-};
-
-// Demo jobs — replace with Supabase when table is created
-const DEMO_JOBS = [
-  {
-    id: '1',
-    title: 'Firearms Sales Consultant',
-    company: 'Tactical Arms Cape Town',
-    type: 'retail',
-    location: 'Cape Town, Western Cape',
-    salary: 'R18,000 – R25,000/month',
-    description: 'We are looking for a passionate and knowledgeable firearms sales consultant to join our Cape Town showroom. Must hold a valid competency certificate and have at least 2 years retail experience.',
-    requirements: ['Valid competency certificate', '2+ years retail experience', 'Knowledge of SA firearms legislation', 'Excellent communication skills'],
-    posted: '2026-04-10',
-    type_label: 'Full-time',
-  },
-  {
-    id: '2',
-    title: 'Qualified Gunsmith',
-    company: 'Precision Arms Workshop',
-    type: 'gunsmith',
-    location: 'Johannesburg, Gauteng',
-    salary: 'R22,000 – R35,000/month',
-    description: 'Established gunsmith workshop seeks a qualified gunsmith with experience in trigger work, barrel fitting and general repairs. SAPS-registered workshop.',
-    requirements: ['Qualified gunsmith certification', 'SAPS registered', '3+ years experience', 'Trigger work specialisation preferred'],
-    posted: '2026-04-08',
-    type_label: 'Full-time',
-  },
-  {
-    id: '3',
-    title: 'SAPS-Accredited Firearms Instructor',
-    company: 'Gauteng Firearms Training Academy',
-    type: 'instructor',
-    location: 'Pretoria, Gauteng',
-    salary: 'R15,000 – R20,000/month + commission',
-    description: 'Training academy seeks an accredited instructor to deliver Section 13, 15, and 16 competency courses. Flexible schedule with commission on course completions.',
-    requirements: ['SASSETA accredited', 'SAPS instructor registration', 'Section 13/15/16 qualified', 'Own transport'],
-    posted: '2026-04-07',
-    type_label: 'Part-time / Contract',
-  },
-  {
-    id: '4',
-    title: 'Firearms Store Manager',
-    company: 'Safari Outdoors KZN',
-    type: 'admin',
-    location: 'Durban, KwaZulu-Natal',
-    salary: 'R28,000 – R40,000/month',
-    description: 'Safari Outdoors is looking for an experienced store manager to oversee our Durban firearms and outdoor retail store. Must have strong knowledge of FCA compliance and retail management.',
-    requirements: ['FCA compliance knowledge', '5+ years retail management', 'Firearms competency certificate', 'Stock management experience'],
-    posted: '2026-04-05',
-    type_label: 'Full-time',
-  },
-  {
-    id: '5',
-    title: 'Range Safety Officer',
-    company: 'Cape Town Practical Shooting Club',
-    type: 'security',
-    location: 'Cape Town, Western Cape',
-    salary: 'R12,000 – R16,000/month',
-    description: 'Weekend and weekday RSO positions available at our busy practical shooting range. SAIRO-accredited applicants preferred.',
-    requirements: ['RSO qualification or SAIRO accreditation', 'Firearms competency', 'Practical shooting experience', 'Weekend availability'],
-    posted: '2026-04-03',
-    type_label: 'Part-time',
-  },
-  {
-    id: '6',
-    title: 'Online Firearms Parts Sales Rep',
-    company: 'SA Tactical Online',
-    type: 'retail',
-    location: 'Remote (South Africa)',
-    salary: 'R10,000 base + commission',
-    description: 'Growing online firearms accessories retailer seeks a remote sales rep with strong product knowledge. Handle inbound enquiries, advise customers on parts compatibility and process orders.',
-    requirements: ['Firearms accessories knowledge', 'Customer service experience', 'Reliable internet connection', 'Own laptop'],
-    posted: '2026-04-01',
-    type_label: 'Remote',
-  },
-];
+const JOB_TYPES = [{ id: '', label: 'All Jobs' }, { id: 'Retail / Sales', label: '🏪 Retail / Sales' }, { id: 'Gunsmithing', label: '🔧 Gunsmithing' }, { id: 'Instruction / Training', label: '🎯 Instruction' }, { id: 'Security / PSIRA', label: '🛡️ Security / PSIRA' }, { id: 'Compliance / Admin', label: '📋 Compliance' }, { id: 'Other', label: '📦 Other' }];
+const PROVINCES = ['All Provinces', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'National / Remote'];
+const INDUSTRY_CERTIFICATIONS = ['Handgun', 'Rifle', 'Shotgun', 'SLR', 'Competency to Trade', 'Gunsmith Certificate', 'PSIRA Grade A', 'PSIRA Grade B/C', 'SASSETA Assessor', 'Range Officer (SAIRO)'];
 
 export default function JobsPage() {
+  const [user, setUser] = useState<any>(null);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('');
   const [selectedProvince, setSelectedProvince] = useState('All Provinces');
+  const [selectedComps, setSelectedComps] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [activeJob, setActiveJob] = useState<any>(DEMO_JOBS[0]);
 
-  const filtered = DEMO_JOBS.filter(j => {
-    if (selectedType && j.type !== selectedType) return false;
+  useEffect(() => {
+    async function loadData() {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+
+      const { data: liveJobs, error } = await supabase
+        .from('job_listings')
+        .select('*')
+        .eq('status', 'active')
+        .order('is_boosted', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (!error && liveJobs) setJobs(liveJobs);
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+
+  const toggleComp = (comp: string) => setSelectedComps(prev => prev.includes(comp) ? prev.filter(c => c !== comp) : [...prev, comp]);
+
+  const filtered = jobs.filter(j => {
+    if (selectedType && j.category !== selectedType) return false;
     if (selectedProvince !== 'All Provinces' && !j.location.includes(selectedProvince)) return false;
-    if (search && !j.title.toLowerCase().includes(search.toLowerCase()) &&
-      !j.company.toLowerCase().includes(search.toLowerCase())) return false;
+    const jobComps = j.fca_competencies_required || [];
+    if (selectedComps.length > 0 && !selectedComps.every(c => jobComps.includes(c))) return false;
+    if (search && !j.title.toLowerCase().includes(search.toLowerCase()) && !j.company.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col font-sans">
       <Navbar />
 
-      {/* PAGE HEADER */}
-      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-6 md:py-10">
-        <div className="max-w-[1400px] mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
-                <Link href="/" className="hover:text-[#C9922A]">Home</Link>
-                <span>/</span>
-                <Link href="/browse" className="hover:text-[#C9922A]">Browse</Link>
-                <span>/</span>
-                <span className="text-[#F0EDE8]">Jobs</span>
-              </div>
-              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                className="text-4xl md:text-6xl font-black uppercase tracking-tight">
-                Industry <span className="text-[#C9922A]">Jobs</span>
-              </h1>
-              <p className="text-[#8A8E99] text-sm mt-2 uppercase tracking-widest font-bold">
-                Careers in the South African firearms industry
-              </p>
-            </div>
-            <Link href="/jobs/post"
-              className="flex-shrink-0 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
-              + Post a Job
-            </Link>
+      {/* HEADER */}
+      <div className="bg-[#12141A] border-b border-white/5 px-4 md:px-6 py-8 md:py-12">
+        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-6xl font-black uppercase tracking-tight">Industry <span className="text-[#C9922A]">Jobs</span></h1>
+            <p className="text-[#8A8E99] text-sm mt-2 uppercase tracking-widest font-bold">Exclusive careers in the South African firearms ecosystem</p>
           </div>
+          <Link href="/jobs/post" className="flex-shrink-0 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3.5 rounded-full hover:brightness-110 transition-all shadow-lg shadow-[#C9922A]/20">+ Post a Job</Link>
         </div>
       </div>
 
-      {/* LEADERBOARD AD */}
-      <div className="w-full flex justify-center py-3 px-4 md:px-6">
-        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
-      </div>
-
-      {/* JOB TYPE TABS */}
-      <div className="border-b border-white/5 bg-[#0D0F13] sticky top-[68px] md:top-[80px] z-40">
+      {/* TABS (PILL DESIGN) */}
+      <div className="border-b border-white/5 bg-[#0D0F13] sticky top-[80px] z-30 shadow-md">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6">
-          <div className="flex gap-1.5 overflow-x-auto py-3" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-2 overflow-x-auto py-4 no-scrollbar">
             {JOB_TYPES.map(type => (
-              <button key={type.id} onClick={() => setSelectedType(type.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-sm text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                  selectedType === type.id
-                    ? 'bg-[#C9922A] text-black'
-                    : 'bg-[#13151A] border border-white/10 text-[#8A8E99] hover:border-[#C9922A]/30 hover:text-[#F0EDE8]'
-                }`}>
+              <button key={type.id || 'all'} onClick={() => setSelectedType(type.id)}
+                className={`flex-shrink-0 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedType === type.id ? 'bg-[#C9922A] text-black shadow-md shadow-[#C9922A]/20' : 'bg-[#161920] border border-white/5 text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8]'}`}>
                 {type.label}
               </button>
             ))}
@@ -178,170 +78,95 @@ export default function JobsPage() {
         </div>
       </div>
 
-      {/* MAIN */}
-      <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-6">
-
-        {/* LEFT AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-[148px] p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 × 600</div>
-          </div>
-        </aside>
-
-        {/* JOB SPLIT PANEL */}
-        <div className="flex-1 min-w-0 flex flex-col lg:flex-row gap-4">
-
-          {/* LEFT — Job List */}
-          <div className="w-full lg:w-[340px] flex-shrink-0 flex flex-col gap-3">
-
-            {/* Search + Province */}
-            <div className="flex flex-col sm:flex-row lg:flex-col gap-2">
-              <input type="text" placeholder="Search jobs or company..."
-                value={search} onChange={e => setSearch(e.target.value)}
-                className="flex-1 bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50" />
-              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)}
-                className="bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none appearance-none cursor-pointer">
-                {PROVINCES.map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-
-            <p className="text-[12px] text-[#8A8E99] uppercase tracking-widest font-bold">
-              <span className="text-[#F0EDE8] font-black">{filtered.length}</span> job{filtered.length !== 1 ? 's' : ''} found
-            </p>
-
-            {/* Job Cards */}
-            <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
-              {filtered.length === 0 ? (
-                <div className="bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
-                  <div className="text-4xl mb-3">💼</div>
-                  <p className="text-[#8A8E99] text-sm">No jobs match your search</p>
-                </div>
-              ) : filtered.map(job => (
-                <div key={job.id} onClick={() => setActiveJob(job)}
-                  className={`bg-[#13151A] border rounded-sm p-4 cursor-pointer transition-all hover:border-[#C9922A]/40 ${
-                    activeJob?.id === job.id ? 'border-[#C9922A]/60 bg-[#C9922A]/5' : 'border-white/5'
-                  }`}>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-[17px] font-black uppercase tracking-tight text-[#F0EDE8] leading-tight">
-                      {job.title}
-                    </h3>
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-sm border flex-shrink-0 ${JOB_TYPE_COLORS[job.type] || JOB_TYPE_COLORS.other}`}>
-                      {job.type}
-                    </span>
-                  </div>
-                  <p className="text-[12px] font-bold text-[#C9922A] mb-1">{job.company}</p>
-                  <p className="text-[11px] text-[#8A8E99] mb-2">📍 {job.location}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-wider">{job.type_label}</span>
-                    <span className="text-[10px] text-white/30">{fmt(job.posted)}</span>
-                  </div>
-                </div>
+      <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-8 flex flex-col lg:flex-row gap-8">
+        
+        {/* LEFT FILTERS */}
+        <div className="w-full lg:w-[320px] flex-shrink-0 flex flex-col gap-4">
+          <input type="text" placeholder="Search keywords..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-[#161920] border border-white/5 rounded-full px-5 py-3 text-[13px] focus:outline-none focus:border-[#C9922A]/50 transition-colors" />
+          <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} className="w-full bg-[#161920] border border-white/5 rounded-full px-5 py-3 text-[13px] focus:outline-none appearance-none">
+            {PROVINCES.map(p => <option key={p}>{p}</option>)}
+          </select>
+          <div className="bg-[#161920] border border-white/5 rounded-2xl p-5 mt-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">Filter by Certification</p>
+            <div className="flex flex-wrap gap-2">
+              {INDUSTRY_CERTIFICATIONS.map(comp => (
+                <button key={comp} onClick={() => toggleComp(comp)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-all ${selectedComps.includes(comp) ? 'bg-[#C9922A] text-black' : 'bg-[#0D0F13] border border-white/5 text-[#8A8E99] hover:border-white/20'}`}>{comp}</button>
               ))}
             </div>
           </div>
-
-          {/* RIGHT — Job Detail */}
-          <div className="flex-1 min-w-0">
-            {!activeJob ? (
-              <div className="bg-[#13151A] border border-white/5 rounded-sm h-full flex items-center justify-center flex-col gap-4 text-white/20 p-20">
-                <span className="text-6xl">💼</span>
-                <p className="text-sm uppercase tracking-widest font-bold">Select a job to view details</p>
-              </div>
-            ) : (
-              <div className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden">
-
-                {/* Job Header */}
-                <div className="p-6 md:p-8 border-b border-white/5">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div>
-                      <span className={`inline-block text-[9px] font-black uppercase px-2 py-1 rounded-sm border mb-3 ${JOB_TYPE_COLORS[activeJob.type] || JOB_TYPE_COLORS.other}`}>
-                        {activeJob.type}
-                      </span>
-                      <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                        className="text-3xl md:text-4xl font-black uppercase tracking-tight text-[#F0EDE8] mb-1">
-                        {activeJob.title}
-                      </h2>
-                      <p className="text-lg font-bold text-[#C9922A]">{activeJob.company}</p>
-                    </div>
-                    <span className="flex-shrink-0 bg-[#13151A] border border-white/10 text-[#8A8E99] text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-sm">
-                      {activeJob.type_label}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Location</p>
-                      <p className="text-[13px] font-bold">📍 {activeJob.location}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Salary</p>
-                      <p className="text-[13px] font-bold text-[#C9922A]">{activeJob.salary}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Posted</p>
-                      <p className="text-[13px] font-bold">{fmt(activeJob.posted)}</p>
-                    </div>
-                  </div>
-
-                  <button
-                    style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                    className="w-full md:w-auto bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] px-10 py-3 rounded-sm hover:brightness-110 transition-all">
-                    Apply for This Position
-                  </button>
-                </div>
-
-                {/* Job Body */}
-                <div className="p-6 md:p-8 space-y-6">
-                  <div>
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-xl font-black uppercase mb-3 text-[#C9922A]">About the Role</h3>
-                    <p className="text-[14px] text-[#8A8E99] leading-relaxed">{activeJob.description}</p>
-                  </div>
-
-                  <div>
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-xl font-black uppercase mb-3">Requirements</h3>
-                    <ul className="flex flex-col gap-2">
-                      {activeJob.requirements.map((req: string) => (
-                        <li key={req} className="flex items-center gap-3 text-[13px] text-[#8A8E99]">
-                          <span className="text-[#C9922A] font-black flex-shrink-0">✓</span>
-                          {req}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Mid-content ad */}
-                  <div className="w-full h-[90px] bg-[#0D0F13] border border-white/5 flex items-center justify-center relative">
-                    <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">728 × 90 Ad Space</span>
-                    <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-                  </div>
-
-                  <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-5">
-                    <p className="text-[12px] text-[#8A8E99] mb-4">
-                      To apply, send your CV and a copy of your competency certificate to the employer. Gun X connects job seekers with employers — we do not process applications directly.
-                    </p>
-                    <button
-                      style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-3 rounded-sm hover:brightness-110 transition-all">
-                      Apply for This Position
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* RIGHT AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-[148px] p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 × 600</div>
+        {/* RIGHT GRID - THE NEW DESIGN */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
+            <p className="text-[#8A8E99] font-bold text-sm uppercase tracking-widest">{filtered.length} <span className="text-[#F0EDE8]">Jobs Found</span></p>
           </div>
-        </aside>
+
+          {loading ? (
+             <div className="py-20 text-center text-[#8A8E99] animate-pulse font-bold uppercase tracking-widest text-sm">Loading jobs...</div>
+          ) : filtered.length === 0 ? (
+             <div className="py-20 text-center">
+               <div className="text-6xl mb-4">💼</div>
+               <h3 className="text-2xl font-black uppercase text-white mb-2">No Matches Found</h3>
+               <p className="text-[#8A8E99] text-sm">Try adjusting your filters or search terms.</p>
+             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 pb-20">
+              {filtered.map(job => (
+                <div key={job.id} className="relative group">
+                  
+                  {/* BASE CARD (Visible Normally) */}
+                  <div className={`h-full bg-[#161920] border rounded-2xl p-6 flex flex-col transition-all ${job.is_boosted ? 'border-red-500/30 bg-red-500/5' : 'border-white/5'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <span className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8A8E99]">{job.category}</span>
+                      {job.is_boosted && <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[8px] font-black uppercase tracking-widest animate-pulse">Urgent</span>}
+                    </div>
+                    
+                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[22px] font-black uppercase tracking-tight leading-tight mb-2 text-[#F0EDE8]">{job.title}</h3>
+                    
+                    <div className="flex items-center gap-1.5 mb-4">
+                      {user ? (
+                        <><p className="text-[13px] font-bold text-[#C9922A]">{job.company}</p><svg className="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg></>
+                      ) : <p className="text-[13px] font-bold text-[#C9922A]">🔒 Confidential Employer</p>}
+                    </div>
+
+                    <div className="mt-auto space-y-2 pt-4 border-t border-white/5">
+                       <p className="text-[12px] text-[#8A8E99] flex items-center gap-2"><span className="opacity-50">📍</span> {job.location}</p>
+                       <p className="text-[12px] text-[#8A8E99] flex items-center gap-2"><span className="opacity-50">💰</span> {job.salary_range}</p>
+                       <p className="text-[10px] text-white/30 uppercase tracking-widest pt-2">Posted {fmt(job.created_at)}</p>
+                    </div>
+                  </div>
+
+                  {/* HOVER POP-OUT CARD (Expands on Desktop Hover) */}
+                  <div className="hidden lg:flex absolute -inset-4 bg-[#1a1d24] border border-[#C9922A]/50 rounded-3xl p-8 flex-col opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-50 pointer-events-none group-hover:pointer-events-auto transform scale-95 group-hover:scale-100">
+                    <div className="flex justify-between items-start mb-3">
+                      <span className="px-3 py-1 rounded-full bg-[#C9922A]/10 text-[#C9922A] text-[9px] font-black uppercase tracking-widest">{job.category}</span>
+                    </div>
+                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[24px] font-black uppercase tracking-tight leading-tight mb-2 text-[#F0EDE8]">{job.title}</h3>
+                    
+                    <div className="flex-1 mt-4">
+                      <p className="text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] mb-2">Key Requirements:</p>
+                      <ul className="space-y-1 mb-4">
+                        {(job.requirements || []).slice(0, 3).map((req: string, i: number) => (
+                          <li key={i} className="text-[12px] text-[#8A8E99] flex gap-2"><span className="text-[#C9922A]">✓</span><span className="truncate">{req}</span></li>
+                        ))}
+                      </ul>
+                      <p className="text-[12px] text-[#8A8E99] line-clamp-3 italic">"{job.description}"</p>
+                    </div>
+
+                    <Link href={`/jobs/${job.id}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="w-full mt-6 bg-[#C9922A] text-black text-center py-3 rounded-full font-black uppercase tracking-widest text-[14px] hover:brightness-110 transition-all shadow-lg">
+                      View Full Details →
+                    </Link>
+                  </div>
+
+                  {/* Mobile Click Target (Hidden on Desktop) */}
+                  <Link href={`/jobs/${job.id}`} className="absolute inset-0 z-20 lg:hidden"></Link>
+
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
