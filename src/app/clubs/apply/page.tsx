@@ -171,6 +171,25 @@ function ClubApplyInner() {
       });
 
       if (error) throw error;
+
+      // ── Notify admin ─────────────────────────────────────────────────────
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type:     'club_applied',
+            name:     form.name,
+            city:     form.city,
+            province: form.province,
+            email:    form.email,
+          }),
+        });
+      } catch (notifyErr) {
+        console.error('Notify failed (non-blocking):', notifyErr);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       setSubmitted(true);
     } catch (err: any) {
       alert(err.message || 'Failed to submit. Please try again.');
@@ -215,7 +234,6 @@ function ClubApplyInner() {
 
       <main className="flex-1 max-w-[900px] mx-auto w-full px-4 md:px-6 py-6 md:py-10">
 
-        {/* Header */}
         <div className="mb-6">
           <div className="text-[11px] text-[#8A8E99] uppercase tracking-widest mb-2 flex items-center gap-2">
             <Link href="/" className="hover:text-[#C9922A]">Home</Link>
@@ -298,7 +316,6 @@ function ClubApplyInner() {
               Photos & Branding
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Logo */}
               <div>
                 <label className={labelClass}>Club Logo</label>
                 <label className="block cursor-pointer">
@@ -316,8 +333,6 @@ function ClubApplyInner() {
                   <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
                 </label>
               </div>
-
-              {/* Cover Photo */}
               <div>
                 <label className={labelClass}>Cover Photo <span className="text-[#8A8E99] normal-case font-normal">(Facebook/X style banner)</span></label>
                 <label className="block cursor-pointer">
@@ -336,8 +351,6 @@ function ClubApplyInner() {
                 </label>
               </div>
             </div>
-
-            {/* Gallery */}
             <div>
               <label className={labelClass}>Gallery Photos <span className="text-[#8A8E99] normal-case font-normal">(max 10)</span></label>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
@@ -345,9 +358,7 @@ function ClubApplyInner() {
                   <div key={idx} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden">
                     <img src={url} alt="" className="w-full h-full object-cover" />
                     <button type="button" onClick={() => removeGallery(idx)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] hover:bg-red-600">
-                      ×
-                    </button>
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] hover:bg-red-600">×</button>
                   </div>
                 ))}
                 {galleryFiles.length < 10 && (
@@ -380,7 +391,7 @@ function ClubApplyInner() {
             </div>
           </div>
 
-          {/* Associations — UPDATED */}
+          {/* Associations */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-1">
               Affiliated Associations
@@ -405,11 +416,8 @@ function ClubApplyInner() {
           {/* Shoot Days */}
           <div className={sectionClass}>
             <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
-              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest">
-                Shoot Days
-              </h2>
-              <button type="button" onClick={addShootDay}
-                className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] hover:brightness-125">
+              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest">Shoot Days</h2>
+              <button type="button" onClick={addShootDay} className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] hover:brightness-125">
                 + Add Day
               </button>
             </div>
@@ -426,28 +434,23 @@ function ClubApplyInner() {
                     </div>
                     <div>
                       <label className={labelClass}>Discipline</label>
-                      <input value={sd.discipline} onChange={e => updateShootDay(idx, 'discipline', e.target.value)}
-                        className={inputClass} placeholder="e.g., IPSC" />
+                      <input value={sd.discipline} onChange={e => updateShootDay(idx, 'discipline', e.target.value)} className={inputClass} placeholder="e.g., IPSC" />
                     </div>
                     <div>
                       <label className={labelClass}>Time</label>
-                      <input value={sd.time} onChange={e => updateShootDay(idx, 'time', e.target.value)}
-                        className={inputClass} placeholder="e.g., 08:00 – 13:00" />
+                      <input value={sd.time} onChange={e => updateShootDay(idx, 'time', e.target.value)} className={inputClass} placeholder="e.g., 08:00 – 13:00" />
                     </div>
                     <div>
                       <label className={labelClass}>Range Fee (R)</label>
-                      <input type="number" value={sd.fee} onChange={e => updateShootDay(idx, 'fee', e.target.value)}
-                        className={inputClass} placeholder="150" />
+                      <input type="number" value={sd.fee} onChange={e => updateShootDay(idx, 'fee', e.target.value)} className={inputClass} placeholder="150" />
                     </div>
                     <div className="md:col-span-2">
                       <label className={labelClass}>Notes</label>
-                      <input value={sd.notes} onChange={e => updateShootDay(idx, 'notes', e.target.value)}
-                        className={inputClass} placeholder="e.g., Members only, pre-registration required" />
+                      <input value={sd.notes} onChange={e => updateShootDay(idx, 'notes', e.target.value)} className={inputClass} placeholder="e.g., Members only, pre-registration required" />
                     </div>
                   </div>
                   {shootDays.length > 1 && (
-                    <button type="button" onClick={() => removeShootDay(idx)}
-                      className="text-[11px] text-red-400 font-bold uppercase tracking-widest hover:text-red-300">
+                    <button type="button" onClick={() => removeShootDay(idx)} className="text-[11px] text-red-400 font-bold uppercase tracking-widest hover:text-red-300">
                       Remove this day
                     </button>
                   )}
@@ -464,13 +467,11 @@ function ClubApplyInner() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Annual Membership Fee (R)</label>
-                <input type="number" name="membership_fee" value={form.membership_fee} onChange={handleChange}
-                  className={inputClass} placeholder="e.g., 1500" />
+                <input type="number" name="membership_fee" value={form.membership_fee} onChange={handleChange} className={inputClass} placeholder="e.g., 1500" />
               </div>
               <div>
                 <label className={labelClass}>Standard Range Fee per Session (R)</label>
-                <input type="number" name="range_fee" value={form.range_fee} onChange={handleChange}
-                  className={inputClass} placeholder="e.g., 150" />
+                <input type="number" name="range_fee" value={form.range_fee} onChange={handleChange} className={inputClass} placeholder="e.g., 150" />
               </div>
             </div>
           </div>
@@ -482,8 +483,7 @@ function ClubApplyInner() {
               className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? 'Submitting...' : 'List My Club — Free'}
             </button>
-            <Link href="/clubs"
-              className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
+            <Link href="/clubs" className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
               Cancel
             </Link>
           </div>
@@ -498,13 +498,13 @@ function ClubApplyInner() {
 }
 
 export default function ClubApplyPage() {
- return (
-   <Suspense fallback={
-     <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-       <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
-     </div>
-   }>
-     <ClubApplyInner />
-   </Suspense>
- );
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <ClubApplyInner />
+    </Suspense>
+  );
 }

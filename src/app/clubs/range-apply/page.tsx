@@ -51,7 +51,6 @@ function RangeApplyInner() {
     city: '',
     province: 'Gauteng',
     postal_code: '',
-    // Range-specific
     facility_type: 'outdoor' as 'indoor' | 'outdoor' | 'both',
     lane_count: '',
     max_distance_m: '',
@@ -89,10 +88,7 @@ function RangeApplyInner() {
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      setLogoPreview(URL.createObjectURL(file));
-    }
+    if (file) { setLogoFile(file); setLogoPreview(URL.createObjectURL(file)); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,6 +140,25 @@ function RangeApplyInner() {
       });
 
       if (error) throw error;
+
+      // ── Notify admin ─────────────────────────────────────────────────────
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type:     'club_applied',
+            name:     form.name,
+            city:     form.city,
+            province: form.province,
+            email:    form.email,
+          }),
+        });
+      } catch (notifyErr) {
+        console.error('Notify failed (non-blocking):', notifyErr);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       setSubmitted(true);
     } catch (err: any) {
       alert(err.message || 'Submission failed. Please try again.');
@@ -186,7 +201,6 @@ function RangeApplyInner() {
       <Navbar />
       <div className="max-w-[860px] mx-auto w-full px-4 py-10 md:py-16 flex flex-col gap-6">
 
-        {/* Header */}
         <div>
           <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-3 flex items-center gap-2">
             <Link href="/" className="hover:text-[#C9922A]">Home</Link>
@@ -208,8 +222,6 @@ function RangeApplyInner() {
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase pb-3 border-b border-white/5">
               Range <span className="text-[#C9922A]">Identity</span>
             </h2>
-
-            {/* Logo */}
             <div>
               <label className={labelClass}>Range Logo</label>
               <div className="flex items-center gap-4">
@@ -224,7 +236,6 @@ function RangeApplyInner() {
                 </label>
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className={labelClass}>Range Name <span className="text-red-400">*</span></label>
@@ -270,8 +281,6 @@ function RangeApplyInner() {
                   className={inputClass} placeholder="e.g. 150" />
               </div>
             </div>
-
-            {/* Toggle options */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               {[
                 ['covered_lanes', 'Covered Shooting Lanes'],
@@ -281,17 +290,11 @@ function RangeApplyInner() {
                 ['is_members_only', 'Members Only'],
               ].map(([field, label]) => (
                 <label key={field} className="flex items-center gap-3 cursor-pointer group bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 hover:border-[#C9922A]/30 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={(form as any)[field]}
-                    onChange={e => set(field, e.target.checked)}
-                    className="w-4 h-4 accent-[#C9922A]"
-                  />
+                  <input type="checkbox" checked={(form as any)[field]} onChange={e => set(field, e.target.checked)} className="w-4 h-4 accent-[#C9922A]" />
                   <span className="text-[13px] text-[#F0EDE8]">{label}</span>
                 </label>
               ))}
             </div>
-
             {form.is_members_only && (
               <div>
                 <label className={labelClass}>Annual Membership Fee (R)</label>
@@ -309,9 +312,7 @@ function RangeApplyInner() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {ALL_DISCIPLINES.map(d => (
                 <label key={d} className={`flex items-center gap-3 cursor-pointer px-3 py-2.5 rounded-sm border transition-all ${
-                  form.disciplines.includes(d)
-                    ? 'border-[#C9922A]/50 bg-[#C9922A]/10'
-                    : 'border-white/10 hover:border-white/20'
+                  form.disciplines.includes(d) ? 'border-[#C9922A]/50 bg-[#C9922A]/10' : 'border-white/10 hover:border-white/20'
                 }`}>
                   <input type="checkbox" checked={form.disciplines.includes(d)} onChange={() => toggleDiscipline(d)} className="accent-[#C9922A]" />
                   <span className="text-[12px] text-[#F0EDE8]">{d}</span>
@@ -337,29 +338,24 @@ function RangeApplyInner() {
                       <option value="">Discipline...</option>
                       {ALL_DISCIPLINES.map(d => <option key={d}>{d}</option>)}
                     </select>
-                    <input type="text" placeholder="Time (e.g. 08:00)" value={sd.time}
-                      onChange={e => updateShootDay(i, 'time', e.target.value)} className={inputClass} />
-                    <input type="text" placeholder="Fee (R)" value={sd.fee}
-                      onChange={e => updateShootDay(i, 'fee', e.target.value)} className={inputClass} />
+                    <input type="text" placeholder="Time (e.g. 08:00)" value={sd.time} onChange={e => updateShootDay(i, 'time', e.target.value)} className={inputClass} />
+                    <input type="text" placeholder="Fee (R)" value={sd.fee} onChange={e => updateShootDay(i, 'fee', e.target.value)} className={inputClass} />
                     <div className="flex gap-2">
-                      <input type="text" placeholder="Notes" value={sd.notes}
-                        onChange={e => updateShootDay(i, 'notes', e.target.value)} className={`${inputClass} flex-1`} />
+                      <input type="text" placeholder="Notes" value={sd.notes} onChange={e => updateShootDay(i, 'notes', e.target.value)} className={`${inputClass} flex-1`} />
                       {shootDays.length > 1 && (
-                        <button type="button" onClick={() => removeShootDay(i)}
-                          className="text-red-400 hover:text-red-300 px-2 font-bold">✕</button>
+                        <button type="button" onClick={() => removeShootDay(i)} className="text-red-400 hover:text-red-300 px-2 font-bold">✕</button>
                       )}
                     </div>
                   </div>
                 ))}
-                <button type="button" onClick={addShootDay}
-                  className="text-[#C9922A] text-[12px] font-black uppercase tracking-widest hover:brightness-125 text-left">
+                <button type="button" onClick={addShootDay} className="text-[#C9922A] text-[12px] font-black uppercase tracking-widest hover:brightness-125 text-left">
                   + Add Shoot Day
                 </button>
               </div>
             </div>
           )}
 
-          {/* Associations — Optional */}
+          {/* Associations */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase pb-3 border-b border-white/5">
               Affiliated Associations <span className="text-[#8A8E99] text-base font-normal normal-case tracking-normal">(optional)</span>
@@ -367,9 +363,7 @@ function RangeApplyInner() {
             <div className="flex flex-col gap-2">
               {ALL_ASSOCIATIONS.map(a => (
                 <label key={a.code} className={`flex items-start gap-3 cursor-pointer px-4 py-3 rounded-sm border transition-all ${
-                  form.associations.includes(a.code)
-                    ? 'border-[#C9922A]/50 bg-[#C9922A]/10'
-                    : 'border-white/10 hover:border-white/20'
+                  form.associations.includes(a.code) ? 'border-[#C9922A]/50 bg-[#C9922A]/10' : 'border-white/10 hover:border-white/20'
                 }`}>
                   <input type="checkbox" checked={form.associations.includes(a.code)} onChange={() => toggleAssociation(a.code)} className="accent-[#C9922A] mt-0.5" />
                   <div>

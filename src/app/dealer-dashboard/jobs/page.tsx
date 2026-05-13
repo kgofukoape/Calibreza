@@ -2,178 +2,260 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import Navbar from '@/components/layout/Navbar';
 
-const SIDEBAR_LINKS = [
-  { href: '/dealer-dashboard', icon: '📊', label: 'Overview' },
-  { href: '/dealer-dashboard/inventory', icon: '📦', label: 'Inventory' },
-  { href: '/dealer-dashboard/add-listing', icon: '➕', label: 'Add Listing' },
-  { href: '/dealer-dashboard/jobs', icon: '💼', label: 'Job Listings', active: true },
-  { href: '/dealer-dashboard/analytics', icon: '📈', label: 'Analytics' },
-  { href: '/dealer-dashboard/profile', icon: '⚙️', label: 'Profile' },
-];
+const JOB_CATEGORIES = ['Retail / Sales', 'Gunsmithing', 'Instruction / Training', 'Security / PSIRA', 'Compliance / Admin', 'Other'];
+const PROVINCES = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'National / Remote'];
+const INDUSTRY_CERTIFICATIONS = ['Handgun', 'Rifle', 'Shotgun', 'SLR', 'Competency to Trade', 'Gunsmith Certificate', 'PSIRA Grade A', 'PSIRA Grade B/C', 'SASSETA Assessor', 'Range Officer (SAIRO)'];
 
-export default function DealerJobsDashboard() {
-  const router = useRouter();
-  const [dealer, setDealer] = useState<any>(null);
-  const [myJobs, setMyJobs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function PostJobPage() {
+  const [accessStatus, setAccessStatus] = useState<'loading' | 'granted' | 'denied'>('loading');
+  const [formData, setFormData] = useState({
+    title: '',
+    company: '',
+    employer_email: '',
+    category: 'Retail / Sales',
+    location: 'Gauteng',
+    salary_range: '',
+    job_type: 'Full-time',
+    description: '',
+    requirements: '',
+  });
+  const [selectedComps, setSelectedComps] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    async function fetchEmployerJobs() {
+    async function verifyEmployerStatus() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/dealer/login'); return; }
+      if (!session) { setAccessStatus('denied'); return; }
 
-      const { data: dealerData } = await supabase.from('dealers').select('*').eq('user_id', session.user.id).single();
-      if (!dealerData || dealerData.status !== 'approved') { router.push('/dealer/login'); return; }
-      setDealer(dealerData);
+      const { data: dealer } = await supabase
+        .from('dealers').select('id, business_name, email')
+        .eq('user_id', session.user.id).eq('status', 'approved').maybeSingle();
+      if (dealer) {
+        setFormData(p => ({ ...p, company: dealer.business_name, employer_email: dealer.email }));
+        setAccessStatus('granted'); return;
+      }
 
-      // Fetch jobs AND count the clicks/leads
-      const { data, error } = await supabase
-        .from('job_listings')
-        .select(`*, job_clicks ( count )`)
-        .eq('employer_id', session.user.id)
-        .order('created_at', { ascending: false });
+      const { data: club } = await supabase
+        .from('clubs').select('id, name, email')
+        .eq('user_id', session.user.id).eq('status', 'approved').maybeSingle();
+      if (club) {
+        setFormData(p => ({ ...p, company: club.name, employer_email: club.email }));
+        setAccessStatus('granted'); return;
+      }
 
-      if (data) setMyJobs(data);
-      setLoading(false);
+      setAccessStatus('denied');
     }
-    fetchEmployerJobs();
-  }, [router]);
+    verifyEmployerStatus();
+  }, []);
 
-  const handleBoost = async (jobId: string) => {
+  const toggleComp = (comp: string) =>
+    setSelectedComps(prev => prev.includes(comp) ? prev.filter(c => c !== comp) : [...prev, comp]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/jobs/boost', {
+      const response = await fetch('/api/jobs/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ jobId })
+        body: JSON.stringify({ ...formData, fca_competencies_required: selectedComps }),
       });
-      const data = await res.json();
-      if (data.redirectUrl) window.location.href = data.redirectUrl;
-      else alert(data.error || "Failed to initiate boost.");
-    } catch (e) { alert("Network error."); }
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+
+      // ── Notify admin ──────────────────────────────────────────────────────
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type:           'job_posted',
+            title:          formData.title,
+            company:        formData.company,
+            location:       formData.location,
+            employer_email: formData.employer_email,
+          }),
+        });
+      } catch (notifyErr) {
+        console.error('Notify failed (non-blocking):', notifyErr);
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
+      if (result.action === 'published') {
+        alert('Success! ' + result.message);
+        window.location.href = '/jobs';
+      } else if (result.action === 'payfast') {
+        window.location.href = result.redirectUrl;
+      }
+    } catch (error: any) {
+      alert('Error posting job: ' + error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const calculateDaysLeft = (expiresAt: string) => {
-    const diff = new Date(expiresAt).getTime() - new Date().getTime();
-    const days = Math.ceil(diff / (1000 * 3600 * 24));
-    return days > 0 ? days : 0;
-  };
+  if (accessStatus === 'loading') return (
+    <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center text-[#8A8E99] font-black uppercase tracking-widest text-sm animate-pulse">
+      Verifying Credentials...
+    </div>
+  );
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-      <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+  if (accessStatus === 'denied') return (
+    <div className="min-h-screen bg-[#0D0F13] flex flex-col font-sans">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="bg-[#161920] border border-red-500/30 rounded-3xl p-10 max-w-lg text-center shadow-[0_0_50px_rgba(239,68,68,0.05)]">
+          <div className="text-5xl mb-6">🛡️</div>
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase text-white mb-3">
+            Restricted Area
+          </h2>
+          <p className="text-[#8A8E99] text-[14px] leading-relaxed mb-8">
+            To protect the community from job scams, only <strong className="text-white">Verified Dealers, Clubs, and Service Providers</strong> are permitted to post recruitment listings on Gun X.
+          </p>
+          <div className="flex flex-col gap-3">
+            <Link href="/dealer/apply" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] py-4 rounded-full hover:brightness-110 transition-all">
+              Apply for a Dealer Account
+            </Link>
+            <Link href="/jobs" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[11px] py-2 hover:text-white transition-all">
+              ← Return to Jobs Board
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex">
-      {/* YOUR EXACT SIDEBAR */}
-      <aside className="w-[240px] bg-[#13151A] border-r border-white/5 flex flex-col fixed h-full z-50">
-        <div className="p-5 border-b border-white/5">
-          <Link href="/">
-            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-tighter text-[#F0EDE8]">GUN <span className="text-[#C9922A]">X</span></span>
-          </Link>
-          <p className="text-[9px] font-bold text-[#8A8E99] uppercase tracking-[0.3em] mt-0.5">Dealer Dashboard</p>
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col font-sans">
+      <Navbar />
+      <div className="bg-[#12141A] border-b border-white/5 px-4 md:px-6 py-8 md:py-12">
+        <div className="max-w-[800px] mx-auto text-center">
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase tracking-tight">
+            Post an <span className="text-[#C9922A]">Industry Job</span>
+          </h1>
         </div>
-        <div className="px-5 py-3 border-b border-white/5">
-          <p className="text-[11px] font-black text-[#F0EDE8] uppercase tracking-widest truncate">{dealer?.business_name}</p>
-          <p className="text-[9px] text-[#C9922A] font-bold uppercase tracking-widest">{dealer?.subscription_tier} plan</p>
-        </div>
-        <nav className="flex-1 p-3 overflow-y-auto">
-          <ul className="space-y-1">
-            {SIDEBAR_LINKS.map(item => (
-              <li key={item.href}>
-                <Link href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${
-                  item.active ? 'bg-[#C9922A]/10 border border-[#C9922A]/20 text-[#C9922A]' : 'text-[#8A8E99] hover:bg-white/5 hover:text-white'
-                }`}>
-                  <span>{item.icon}</span><span>{item.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="p-3 border-t border-white/5">
-          <Link href={`/dealers/${dealer?.slug}`} target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[#8A8E99] hover:bg-white/5 font-black text-[11px] uppercase tracking-widest transition-all">
-            <span>🌐</span><span>My Storefront</span>
-          </Link>
-        </div>
-      </aside>
+      </div>
+      <div className="flex-1 max-w-[800px] mx-auto w-full px-4 md:px-6 py-10">
+        <form onSubmit={handleSubmit} className="bg-[#161920] border border-white/5 rounded-3xl p-6 md:p-10 shadow-2xl space-y-8">
 
-      {/* NEW ANALYTICS MAIN CONTENT */}
-      <main className="flex-1 ml-[240px] overflow-y-auto">
-        <header className="bg-[#13151A] border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
+          {/* 1. The Basics */}
           <div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight">Recruitment <span className="text-[#C9922A]">Dashboard</span></h1>
-            <p className="text-[#8A8E99] text-xs mt-0.5 uppercase tracking-widest font-bold">Manage listings & track leads</p>
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-[#C9922A] mb-4 border-b border-white/5 pb-2">
+              1. The Basics
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Job Title</label>
+                <input type="text" required placeholder="e.g. Senior Master Gunsmith"
+                  className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-[#C9922A]/50 transition-colors"
+                  value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Company Name</label>
+                <input type="text" required
+                  className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-[#C9922A]/50 transition-colors"
+                  value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Receiving Email (For CVs)</label>
+                <input type="email" required
+                  className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-[#C9922A]/50 transition-colors"
+                  value={formData.employer_email} onChange={e => setFormData({...formData, employer_email: e.target.value})} />
+              </div>
+            </div>
           </div>
-          <Link href="/jobs/post" style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-2.5 rounded-sm hover:brightness-110 transition-all">
-            + Post Job
-          </Link>
-        </header>
 
-        <div className="p-8 max-w-[1000px]">
-          {myJobs.length === 0 ? (
-            <div className="bg-[#13151A] border border-white/5 rounded-sm p-20 text-center">
-              <div className="text-5xl mb-4">💼</div>
-              <h3 className="text-xl font-black uppercase text-white mb-2">No Active Listings</h3>
-              <p className="text-[#8A8E99] text-sm mb-6">You haven't posted any jobs to the Gun X network yet.</p>
+          {/* 2. Position Details */}
+          <div>
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-[#C9922A] mb-4 border-b border-white/5 pb-2">
+              2. Position Details
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Category</label>
+                <select className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none appearance-none cursor-pointer"
+                  value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                  {JOB_CATEGORIES.map(cat => <option key={cat}>{cat}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province / Location</label>
+                <select className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none appearance-none cursor-pointer"
+                  value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})}>
+                  {PROVINCES.map(prov => <option key={prov}>{prov}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Salary Range</label>
+                <input type="text" placeholder="e.g. R15k - R20k or Negotiable"
+                  className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-[#C9922A]/50 transition-colors"
+                  value={formData.salary_range} onChange={e => setFormData({...formData, salary_range: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Job Type</label>
+                <select className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none appearance-none cursor-pointer"
+                  value={formData.job_type} onChange={e => setFormData({...formData, job_type: e.target.value})}>
+                  <option>Full-time</option>
+                  <option>Part-time</option>
+                  <option>Contract</option>
+                  <option>Freelance</option>
+                </select>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {myJobs.map(job => {
-                const daysLeft = calculateDaysLeft(job.expires_at);
-                const applicantClicks = job.job_clicks[0]?.count || 0; 
-                
-                return (
-                  <div key={job.id} className={`bg-[#13151A] border p-6 flex flex-col md:flex-row items-center justify-between gap-6 ${job.is_boosted ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)] rounded-md' : 'border-white/5 rounded-sm'}`}>
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase tracking-tight text-white">{job.title}</h3>
-                        <span className={`px-2 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest ${job.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : job.status === 'pending_payment' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                          {job.status.replace('_', ' ')}
-                        </span>
-                        {job.is_boosted && <span className="px-2 py-1 rounded-sm bg-red-500 text-white text-[9px] font-black uppercase tracking-widest">Urgent Hire Active</span>}
-                      </div>
-                      <p className="text-[12px] text-[#8A8E99]"><span className="text-[#C9922A] font-bold">{job.category}</span> • {job.location}</p>
-                    </div>
+          </div>
 
-                    <div className="flex gap-4 w-full md:w-auto">
-                      <div className="bg-[#0D0F13] border border-white/5 p-4 rounded-sm text-center min-w-[100px]">
-                        <p className="text-[10px] text-[#8A8E99] font-black uppercase tracking-widest mb-1">Time Left</p>
-                        <p className={`text-2xl font-black ${daysLeft < 5 ? 'text-red-400' : 'text-white'}`}>{daysLeft} <span className="text-xs font-normal">days</span></p>
-                      </div>
-                      <div className="bg-[#C9922A]/10 border border-[#C9922A]/20 p-4 rounded-sm text-center min-w-[120px]">
-                        <p className="text-[10px] text-[#C9922A] font-black uppercase tracking-widest mb-1">CV Leads Sent</p>
-                        <p className="text-2xl font-black text-[#C9922A]">{applicantClicks}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 w-full md:w-auto">
-                      {job.status === 'pending_payment' && (
-                         <button className="bg-[#C9922A] text-black px-4 py-2 rounded-sm text-[11px] font-black uppercase tracking-widest hover:brightness-110">Complete Payment</button>
-                      )}
-                      {job.status === 'active' && (
-                        <>
-                          {!job.is_boosted && (
-                            <button onClick={() => handleBoost(job.id)} className="bg-red-500 text-white px-4 py-2 rounded-sm text-[11px] font-black uppercase tracking-widest hover:brightness-110 flex items-center justify-center gap-1">
-                              <span>🔥</span> Boost (R150)
-                            </button>
-                          )}
-                          <Link href={`/jobs`} className="border border-white/20 text-[#8A8E99] text-center px-4 py-2 rounded-sm text-[11px] font-black uppercase tracking-widest hover:bg-white/5 hover:text-white">View Listing</Link>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          {/* 3. The Work */}
+          <div>
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-[#C9922A] mb-4 border-b border-white/5 pb-2">
+              3. The Work
+            </h3>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Job Description</label>
+                <textarea required rows={5} placeholder="Describe the day-to-day responsibilities..."
+                  className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-[#C9922A]/50 transition-colors resize-none"
+                  value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Requirements (Separate with commas)</label>
+                <input type="text" required placeholder="e.g. 3 years experience, Bilingual, Own transport"
+                  className="w-full bg-[#0D0F13] border border-white/5 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-[#C9922A]/50 transition-colors"
+                  value={formData.requirements} onChange={e => setFormData({...formData, requirements: e.target.value})} />
+              </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Required Certifications</label>
+                <div className="flex flex-wrap gap-2 p-5 bg-[#0D0F13] rounded-2xl border border-white/5">
+                  {INDUSTRY_CERTIFICATIONS.map(comp => (
+                    <button type="button" key={comp} onClick={() => toggleComp(comp)}
+                      className={`px-4 py-2 rounded-full text-[11px] font-bold uppercase transition-all ${
+                        selectedComps.includes(comp)
+                          ? 'bg-[#C9922A] text-black'
+                          : 'bg-[#161920] border border-white/5 text-[#8A8E99] hover:border-white/20'
+                      }`}>
+                      {comp}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </main>
+          </div>
+
+          {/* Submit */}
+          <div className="pt-6 border-t border-white/5">
+            <button type="submit" disabled={isSubmitting}
+              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className={`w-full text-black px-6 py-4 rounded-full font-black uppercase tracking-widest text-[16px] transition-all shadow-lg ${
+                isSubmitting ? 'bg-[#C9922A]/50' : 'bg-[#C9922A] hover:brightness-110 shadow-[#C9922A]/20'
+              }`}>
+              {isSubmitting ? 'Processing...' : 'Continue to Publish Listing →'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
