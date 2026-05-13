@@ -16,52 +16,47 @@ const POPULAR_SEARCHES = [
 ];
 
 export default function Navbar() {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<any>(null);
-  const [dealer, setDealer] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [unreadMessages, setUnreadMessages] = useState(0);
-  const [loginLabelIdx, setLoginLabelIdx] = useState(0);
+
+  const [user, setUser]                       = useState<any>(null);
+  const [dealer, setDealer]                   = useState<any>(null);
+  const [serviceProvider, setServiceProvider] = useState<any>(null);
+  const [loading, setLoading]                 = useState(true);
+  const [dropdownOpen, setDropdownOpen]       = useState(false);
+  const [unreadMessages, setUnreadMessages]   = useState(0);
+  const [loginLabelIdx, setLoginLabelIdx]     = useState(0);
+
   const LOGIN_LABELS = [
-    { icon: '🏪', text: 'Dealer Login' },
-    { icon: '⊕', text: 'Club Login' },
+    { icon: '🏪', text: 'Dealer Login'  },
+    { icon: '⊕',  text: 'Club Login'   },
     { icon: '🔧', text: 'Service Login' },
-    { icon: '🎯', text: 'Range Login' },
+    { icon: '🎯', text: 'Range Login'  },
   ];
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult>({ listings: [], dealers: [] });
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [inlineMode, setInlineMode] = useState(false);
-  const [hoverMode, setHoverMode] = useState(false);
-
-  const searchIconRef = useRef<HTMLDivElement>(null);
-  const inlineInputRef = useRef<HTMLInputElement>(null);
-  const hoverInputRef = useRef<HTMLInputElement>(null);
-  const hoverBarRef = useRef<HTMLDivElement>(null);
+  const dropdownRef      = useRef<HTMLDivElement>(null);
+  const searchIconRef    = useRef<HTMLDivElement>(null);
+  const inlineInputRef   = useRef<HTMLInputElement>(null);
+  const hoverInputRef    = useRef<HTMLInputElement>(null);
+  const hoverBarRef      = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
-  const hoverTimeoutRef = useRef<NodeJS.Timeout>();
+  const hoverTimeoutRef  = useRef<NodeJS.Timeout>();
   const unreadChannelRef = useRef<any>(null);
 
-  useEffect(() => {
-    let userId: string | null = null;
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult>({ listings: [], dealers: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [inlineMode, setInlineMode]       = useState(false);
+  const [hoverMode, setHoverMode]         = useState(false);
 
+  // ── Auth effect ──────────────────────────────────────────────────────────
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        userId = session.user.id;
         setUser(session.user);
         checkDealer(session.user.id);
         loadUnreadCount(session.user.id);
-        if (!unreadChannelRef.current) {
-          const ch = supabase.channel(`unread_${session.user.id}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${session.user.id}` },
-              () => loadUnreadCount(session.user.id))
-            .subscribe();
-          unreadChannelRef.current = ch;
-        }
+        setupRealtimeChannel(session.user.id);
       } else {
         setLoading(false);
       }
@@ -72,32 +67,61 @@ export default function Navbar() {
         setUser(session.user);
         checkDealer(session.user.id);
       } else {
-        setUser(null); setDealer(null); setLoading(false);
-        if (unreadChannelRef.current) {
-          supabase.removeChannel(unreadChannelRef.current);
-          unreadChannelRef.current = null;
-        }
+        setUser(null);
+        setDealer(null);
+        setServiceProvider(null);
+        setLoading(false);
+        teardownRealtimeChannel();
       }
     });
 
     return () => {
       subscription.unsubscribe();
-      if (unreadChannelRef.current) {
-        supabase.removeChannel(unreadChannelRef.current);
-        unreadChannelRef.current = null;
-      }
+      teardownRealtimeChannel();
     };
   }, []);
 
+  const setupRealtimeChannel = (userId: string) => {
+    if (unreadChannelRef.current) return; // already set up — do not add again
+
+    // Remove any stale channels for this user (handles React StrictMode double-invoke)
+    supabase.getChannels()
+      .filter(ch => ch.topic.includes(userId))
+      .forEach(ch => supabase.removeChannel(ch));
+
+    const ch = supabase
+      .channel(`unread_${userId}_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_messages', filter: `recipient_id=eq.${userId}` },
+        () => loadUnreadCount(userId)
+      )
+      .subscribe();
+
+    unreadChannelRef.current = ch;
+  };
+
+  const teardownRealtimeChannel = () => {
+    if (unreadChannelRef.current) {
+      supabase.removeChannel(unreadChannelRef.current);
+      unreadChannelRef.current = null;
+    }
+  };
+
+  // ── Click-outside + route cleanup ────────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
       if (
         searchIconRef.current && !searchIconRef.current.contains(e.target as Node) &&
-        hoverBarRef.current && !hoverBarRef.current.contains(e.target as Node)
+        hoverBarRef.current   && !hoverBarRef.current.contains(e.target as Node)
       ) {
-        setInlineMode(false); setHoverMode(false);
-        setSearchQuery(''); setSearchResults({ listings: [], dealers: [] });
+        setInlineMode(false);
+        setHoverMode(false);
+        setSearchQuery('');
+        setSearchResults({ listings: [], dealers: [] });
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -105,24 +129,32 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    setDropdownOpen(false); setInlineMode(false); setHoverMode(false);
-    setSearchQuery(''); setSearchResults({ listings: [], dealers: [] });
+    setDropdownOpen(false);
+    setInlineMode(false);
+    setHoverMode(false);
+    setSearchQuery('');
+    setSearchResults({ listings: [], dealers: [] });
   }, [pathname]);
 
   useEffect(() => { if (inlineMode && inlineInputRef.current) inlineInputRef.current.focus(); }, [inlineMode]);
+  useEffect(() => { if (hoverMode  && hoverInputRef.current)  hoverInputRef.current.focus();  }, [hoverMode]);
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLoginLabelIdx(i => (i + 1) % 4);
-    }, 2000);
+    const interval = setInterval(() => setLoginLabelIdx(i => (i + 1) % 4), 2000);
     return () => clearInterval(interval);
   }, []);
-  useEffect(() => { if (hoverMode && hoverInputRef.current) hoverInputRef.current.focus(); }, [hoverMode]);
 
+  // ── Data ─────────────────────────────────────────────────────────────────
   const checkDealer = async (userId: string) => {
-    const { data } = await supabase.from('dealers')
-      .select('id, business_name, slug, subscription_tier, status')
-      .eq('user_id', userId).eq('status', 'approved').maybeSingle();
-    setDealer(data || null);
+    const [dealerRes, serviceRes] = await Promise.all([
+      supabase.from('dealers')
+        .select('id, business_name, slug, subscription_tier, status')
+        .eq('user_id', userId).eq('status', 'approved').maybeSingle(),
+      supabase.from('services')
+        .select('id, name, slug, type, status')
+        .eq('user_id', userId).maybeSingle(),
+    ]);
+    setDealer(dealerRes.data || null);
+    setServiceProvider(serviceRes.data || null);
     setLoading(false);
     loadUnreadCount(userId);
   };
@@ -136,15 +168,16 @@ export default function Navbar() {
     setUnreadMessages(count || 0);
   };
 
-
-
+  // ── Search ───────────────────────────────────────────────────────────────
   const handleSearch = useCallback(async (query: string) => {
     if (query.length < 2) { setSearchResults({ listings: [], dealers: [] }); return; }
     setSearchLoading(true);
     const [listingsRes, dealersRes] = await Promise.all([
-      supabase.from('listings').select('id, title, price, category_id, images, city, is_negotiable')
+      supabase.from('listings')
+        .select('id, title, price, category_id, images, city, is_negotiable')
         .eq('status', 'active').ilike('title', `%${query}%`).limit(6),
-      supabase.from('dealers').select('id, business_name, slug, city, province, logo_url, subscription_tier')
+      supabase.from('dealers')
+        .select('id, business_name, slug, city, province, logo_url, subscription_tier')
         .eq('status', 'approved').ilike('business_name', `%${query}%`).limit(3),
     ]);
     setSearchResults({ listings: listingsRes.data || [], dealers: dealersRes.data || [] });
@@ -177,7 +210,7 @@ export default function Navbar() {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => { if (!inlineMode) setHoverMode(true); }, 150);
   };
-  const handleIconMouseLeave = () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); };
+  const handleIconMouseLeave    = () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); };
   const handleHoverBarMouseLeave = () => {
     if (inlineMode) return;
     hoverTimeoutRef.current = setTimeout(() => {
@@ -186,33 +219,37 @@ export default function Navbar() {
   };
   const handleHoverBarMouseEnter = () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); };
   const handleIconClick = () => { setHoverMode(false); setInlineMode(true); };
-  const clearSearch = () => { setSearchQuery(''); setSearchResults({ listings: [], dealers: [] }); };
-  const handleLogout = async () => { await supabase.auth.signOut(); setDropdownOpen(false); router.push('/'); };
+  const clearSearch     = () => { setSearchQuery(''); setSearchResults({ listings: [], dealers: [] }); };
+  const handleLogout    = async () => { await supabase.auth.signOut(); setDropdownOpen(false); router.push('/'); };
 
+  // ── Display helpers ──────────────────────────────────────────────────────
   const getInitial = () => {
-    if (dealer) return dealer.business_name?.charAt(0) || 'D';
+    if (dealer)          return dealer.business_name?.charAt(0) || 'D';
+    if (serviceProvider) return serviceProvider.name?.charAt(0)  || 'S';
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name.charAt(0);
     return user?.email?.charAt(0).toUpperCase() || 'U';
   };
 
   const getDisplayName = () => {
-    if (dealer) return dealer.business_name;
+    if (dealer)          return dealer.business_name;
+    if (serviceProvider) return serviceProvider.name;
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name.split(' ')[0];
     return user?.email?.split('@')[0] || 'Account';
   };
 
   const formatCategory = (cat: string) =>
-    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
+    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
   const totalResults = searchResults.listings.length + searchResults.dealers.length;
 
+  // ── Search dropdown ──────────────────────────────────────────────────────
   const ResultsDropdown = ({ inputQuery }: { inputQuery: string }) => (
     <div className="absolute top-full mt-2 left-0 right-0 bg-[#13151A] border border-white/10 rounded-sm shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-[300] overflow-hidden">
       {!inputQuery || inputQuery.length < 2 ? (
         <div className="p-4">
           <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#8A8E99] mb-3">Popular Searches</p>
           <div className="flex flex-wrap gap-2">
-            {POPULAR_SEARCHES.map((term) => (
+            {POPULAR_SEARCHES.map(term => (
               <button key={term} onClick={() => handleQueryChange(term)}
                 className="flex items-center gap-1.5 bg-[#0D0F13] border border-white/10 px-3 py-1.5 rounded-sm text-[11px] font-bold text-[#8A8E99] hover:border-[#C9922A]/40 hover:text-[#C9922A] transition-all">
                 <svg className="w-3 h-3 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,12 +282,14 @@ export default function Navbar() {
               <div className="px-4 py-2 bg-[#0D0F13] border-b border-white/5">
                 <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#8A8E99]">Listings ({searchResults.listings.length})</span>
               </div>
-              {searchResults.listings.map((listing) => (
+              {searchResults.listings.map(listing => (
                 <Link key={listing.id} href={`/listings/${listing.id}`}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0"
                   onClick={() => { setInlineMode(false); setHoverMode(false); clearSearch(); }}>
                   <div className="w-10 h-10 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
-                    {listing.images?.length > 0 ? <img src={listing.images[0]} alt="" className="w-full h-full object-cover" /> : <span className="text-sm">🔫</span>}
+                    {listing.images?.length > 0
+                      ? <img src={listing.images[0]} alt="" className="w-full h-full object-cover" />
+                      : <span className="text-sm">🔫</span>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-[#F0EDE8] truncate">{listing.title}</p>
@@ -269,12 +308,14 @@ export default function Navbar() {
               <div className="px-4 py-2 bg-[#0D0F13] border-b border-white/5 border-t border-t-white/5">
                 <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#8A8E99]">Dealers ({searchResults.dealers.length})</span>
               </div>
-              {searchResults.dealers.map((d) => (
+              {searchResults.dealers.map(d => (
                 <Link key={d.id} href={`/dealers/${d.slug}`}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0"
                   onClick={() => { setInlineMode(false); setHoverMode(false); clearSearch(); }}>
                   <div className="w-10 h-10 bg-[#C9922A] rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
-                    {d.logo_url ? <img src={d.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-black font-black text-sm">{d.business_name?.charAt(0)}</span>}
+                    {d.logo_url
+                      ? <img src={d.logo_url} alt="" className="w-full h-full object-cover" />
+                      : <span className="text-black font-black text-sm">{d.business_name?.charAt(0)}</span>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-[#F0EDE8] truncate">{d.business_name}</p>
@@ -297,6 +338,7 @@ export default function Navbar() {
     </div>
   );
 
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
       <nav className="w-full bg-[#0D0F13] border-b border-white/5 z-[100] relative">
@@ -304,7 +346,8 @@ export default function Navbar() {
 
           {/* LOGO */}
           <Link href="/" className="flex flex-col items-start group flex-shrink-0">
-            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black text-[#F0EDE8] leading-none tracking-tighter uppercase group-hover:text-[#C9922A] transition-colors">
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="text-2xl font-black text-[#F0EDE8] leading-none tracking-tighter uppercase group-hover:text-[#C9922A] transition-colors">
               GUN <span className="text-[#C9922A] group-hover:text-[#F0EDE8]">X</span>
             </span>
             <span className="text-[9px] font-bold text-[#8A8E99] tracking-[0.3em] uppercase mt-1">Classifieds</span>
@@ -318,67 +361,53 @@ export default function Navbar() {
                 Browse <span className="text-[10px] opacity-40 group-hover:rotate-180 transition-transform duration-300">▼</span>
               </Link>
 
-              {/* MEGA MENU — 6 columns */}
               <div className="absolute top-[80px] left-[-20px] w-[1100px] bg-[#191C23] border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[110] p-10 grid grid-cols-6 gap-8">
-
-                {/* Col 1 — Firearms */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Firearms</h3>
-                  <Link href="/browse/pistols" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pistols</Link>
-                  <Link href="/browse/bolt-action" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Bolt Action</Link>
-                  <Link href="/browse/semi-auto-rifles" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Semi-Auto</Link>
-                  <Link href="/browse/lever-action" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lever Action</Link>
+                  <Link href="/browse/pistols"            className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pistols</Link>
+                  <Link href="/browse/bolt-action"        className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Bolt Action</Link>
+                  <Link href="/browse/semi-auto-rifles"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Semi-Auto</Link>
+                  <Link href="/browse/lever-action"       className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lever Action</Link>
                   <Link href="/browse/pump-action-rifles" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Pump Action</Link>
-                  <Link href="/browse/shotguns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Shotguns</Link>
-                  <Link href="/browse/revolvers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Revolvers</Link>
+                  <Link href="/browse/shotguns"           className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Shotguns</Link>
+                  <Link href="/browse/revolvers"          className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Revolvers</Link>
                 </div>
-
-                {/* Col 2 — Blades & Air */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Blades & Air</h3>
-                  <Link href="/browse/knives" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Knives & Blades</Link>
+                  <Link href="/browse/knives"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Knives & Blades</Link>
                   <Link href="/browse/air-guns" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Air Guns</Link>
-                  <Link href="/browse/airsoft" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Airsoft</Link>
+                  <Link href="/browse/airsoft"  className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Airsoft</Link>
                 </div>
-
-                {/* Col 3 — Optics & Sights */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Optics & Sights</h3>
-                  <Link href="/browse/optics" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Optics</Link>
+                  <Link href="/browse/optics"                  className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">All Optics</Link>
                   <Link href="/browse/optics?sub=rifle-scopes" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Rifle Scopes</Link>
-                  <Link href="/browse/optics?sub=red-dots" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dot Sights</Link>
+                  <Link href="/browse/optics?sub=red-dots"     className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Red Dot Sights</Link>
                   <Link href="/browse/optics?sub=night-vision" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Night Vision</Link>
-                  <Link href="/browse/optics?sub=thermal" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal Optics</Link>
+                  <Link href="/browse/optics?sub=thermal"      className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Thermal Optics</Link>
                 </div>
-
-                {/* Col 4 — Accessories */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Accessories</h3>
-                  <Link href="/browse/holsters" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Holsters & Carry</Link>
-                  <Link href="/browse/magazines" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Magazines</Link>
+                  <Link href="/browse/holsters"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Holsters & Carry</Link>
+                  <Link href="/browse/magazines"  className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Magazines</Link>
                   <Link href="/browse/ammunition" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Ammunition</Link>
-                  <Link href="/browse/reloading" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Reloading</Link>
+                  <Link href="/browse/reloading"  className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Reloading</Link>
                 </div>
-
-                {/* Col 5 — Firearms Accessories */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Parts & Gear</h3>
-                  <Link href="/browse/accessories?sub=stocks" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
-                  <Link href="/browse/accessories?sub=barrels" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
+                  <Link href="/browse/accessories?sub=stocks"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Stocks & Grips</Link>
+                  <Link href="/browse/accessories?sub=barrels"  className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Barrels & Suppressors</Link>
                   <Link href="/browse/accessories?sub=triggers" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Triggers & Actions</Link>
-                  <Link href="/browse/accessories?sub=lights" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
-                  <Link href="/browse/accessories?sub=safes" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Gun Safes & Vaults</Link>
+                  <Link href="/browse/accessories?sub=lights"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Lights & Lasers</Link>
+                  <Link href="/browse/accessories?sub=safes"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Gun Safes & Vaults</Link>
                 </div>
-
-                {/* Col 6 — Other */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Other</h3>
                   <Link href="/services" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Services</Link>
-                  <Link href="/clubs" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs & Ranges</Link>
-                  <Link href="/wanted" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
-                  <Link href="/jobs" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
+                  <Link href="/clubs"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs & Ranges</Link>
+                  <Link href="/wanted"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
+                  <Link href="/jobs"     className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
                 </div>
-
                 <div className="col-span-6 mt-4 pt-6 border-t border-white/5 text-center">
                   <Link href="/browse" className="text-[11px] text-[#C9922A] font-bold uppercase tracking-[0.3em] hover:brightness-150 transition-all">
                     View Full Category Directory →
@@ -387,16 +416,18 @@ export default function Navbar() {
               </div>
             </div>
 
-            <Link href="/dealers" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Dealers</Link>
-            <Link href="/wanted" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Wanted</Link>
-            <Link href="/clubs" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
-            <Link href="/services" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
-            <Link href="/jobs" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
+            <Link href="/dealers"           className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Dealers</Link>
+            <Link href="/wanted"            className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Wanted</Link>
+            <Link href="/clubs"             className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
+            <Link href="/services"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
+            <Link href="/jobs"              className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
             <Link href="/firearm-ownership" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">FA Ownership</Link>
           </div>
 
           {/* RIGHT — Search + Auth */}
           <div className="flex items-center gap-4 flex-shrink-0">
+
+            {/* Search */}
             <div ref={searchIconRef} className="relative flex items-center">
               {inlineMode ? (
                 <form onSubmit={handleSubmit} className="relative">
@@ -404,7 +435,8 @@ export default function Navbar() {
                     <svg className="w-3.5 h-3.5 text-[#C9922A] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    <input ref={inlineInputRef} type="text" value={searchQuery} onChange={(e) => handleQueryChange(e.target.value)}
+                    <input ref={inlineInputRef} type="text" value={searchQuery}
+                      onChange={e => handleQueryChange(e.target.value)}
                       onKeyDown={handleKeyDown} placeholder="Search..."
                       className="bg-transparent text-[12px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none w-full" />
                     <button type="button" onClick={() => { setInlineMode(false); clearSearch(); }}
@@ -429,11 +461,13 @@ export default function Navbar() {
               )}
             </div>
 
+            {/* Post Ad */}
             <Link href="/sell" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               className="bg-[#C9922A] text-black px-6 py-3 rounded-[2px] font-black uppercase tracking-widest text-[14px] hover:brightness-110 transition-all shadow-[0_0_20px_rgba(201,146,42,0.2)] flex-shrink-0">
               + Post Ad
             </Link>
 
+            {/* Auth */}
             {loading ? (
               <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />
             ) : user ? (
@@ -450,38 +484,57 @@ export default function Navbar() {
                   <div className="hidden md:flex flex-col items-start">
                     <span className="text-[11px] font-black text-[#F0EDE8] uppercase tracking-widest leading-none">{getDisplayName()}</span>
                     {dealer && <span className="text-[9px] text-[#C9922A] font-bold uppercase tracking-widest">{dealer.subscription_tier} dealer</span>}
+                    {!dealer && serviceProvider && <span className="text-[9px] text-[#C9922A] font-bold uppercase tracking-widest">Service Provider</span>}
                   </div>
                   <span className={`text-[10px] text-[#8A8E99] transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}>▼</span>
                 </button>
+
                 {dropdownOpen && (
                   <div className="absolute right-0 top-[calc(100%+12px)] w-[220px] bg-[#191C23] border border-white/10 rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[200] overflow-hidden">
                     <div className="px-4 py-3 border-b border-white/5">
                       <p className="text-[11px] font-black uppercase tracking-widest text-[#F0EDE8] truncate">{getDisplayName()}</p>
                       <p className="text-[10px] text-[#8A8E99] truncate">{user.email}</p>
                     </div>
+
+                    {/* Dealer */}
                     {dealer ? (
                       <>
-                        <Link href="/dealer-dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> Dashboard</Link>
-                        <Link href="/dealer-dashboard/inventory" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📦</span> Inventory</Link>
+                        <Link href="/dealer-dashboard"             className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> Dashboard</Link>
+                        <Link href="/dealer-dashboard/inventory"   className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📦</span> Inventory</Link>
                         <Link href="/dealer-dashboard/add-listing" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>➕</span> Add Listing</Link>
-                        <Link href="/dealer-dashboard/jobs" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>💼</span> Job Listings</Link>
-                        <Link href={`/dealers/${dealer.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>🏪</span> My Storefront</Link>
-                        <Link href="/dealer-dashboard/profile" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Profile</Link>
+                        <Link href="/dealer-dashboard/jobs"        className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>💼</span> Job Listings</Link>
+                        <Link href={`/dealers/${dealer.slug}`}     className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>🏪</span> My Storefront</Link>
+                        <Link href="/dealer-dashboard/profile"     className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Profile</Link>
                       </>
+
+                    /* Service provider */
+                    ) : serviceProvider ? (
+                      <>
+                        <Link href="/service-dashboard"              className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> My Dashboard</Link>
+                        <Link href="/service-dashboard?tab=packages" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>💼</span> My Packages</Link>
+                        <Link href="/service-dashboard?tab=portfolio"className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📸</span> My Portfolio</Link>
+                        {serviceProvider.slug && (
+                          <Link href={`/services/${serviceProvider.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>🔧</span> Public Profile</Link>
+                        )}
+                      </>
+
+                    /* Generic user */
                     ) : (
                       <>
-                        <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> My Dashboard</Link>
-              <Link href="/dashboard/messages" className="flex items-center justify-between px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all">
-                <div className="flex items-center gap-3"><span>✉️</span> Messages</div>
-                {unreadMessages > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadMessages}</span>}
-              </Link>
+                        <Link href="/dashboard"          className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> My Dashboard</Link>
+                        <Link href="/dashboard/messages" className="flex items-center justify-between px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all">
+                          <div className="flex items-center gap-3"><span>✉️</span> Messages</div>
+                          {unreadMessages > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadMessages}</span>}
+                        </Link>
                         <Link href="/dashboard/listings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📋</span> My Listings</Link>
                         <Link href="/dashboard/wishlist" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>❤️</span> Wishlist</Link>
-                        <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Settings</Link>
+                        <Link href="/settings"           className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>⚙️</span> Settings</Link>
                       </>
                     )}
+
                     <div className="border-t border-white/5">
-                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-all">
+                      <button onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-all">
                         <span>🚪</span> Logout
                       </button>
                     </div>
@@ -490,9 +543,10 @@ export default function Navbar() {
               </div>
             ) : (
               <>
-                <Link href="/login" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[12px] hover:text-white transition-colors flex-shrink-0">Sign In</Link>
+                <Link href="/login"  className="text-[#8A8E99] font-bold uppercase tracking-widest text-[12px] hover:text-white transition-colors flex-shrink-0">Sign In</Link>
                 <Link href="/signup" className="text-[#8A8E99] border border-white/10 px-4 py-2 rounded-[2px] font-bold uppercase tracking-widest text-[11px] hover:bg-white/5 transition-all flex-shrink-0">Register</Link>
-                <Link href="/dealer/login" className="flex items-center gap-2 border border-[#C9922A]/40 bg-[#C9922A]/5 px-4 py-2 rounded-[2px] text-[#C9922A] font-bold uppercase tracking-widest text-[11px] hover:bg-[#C9922A]/10 hover:border-[#C9922A] transition-all flex-shrink-0">
+                <Link href="/dealer/login"
+                  className="flex items-center gap-2 border border-[#C9922A]/40 bg-[#C9922A]/5 px-4 py-2 rounded-[2px] text-[#C9922A] font-bold uppercase tracking-widest text-[11px] hover:bg-[#C9922A]/10 hover:border-[#C9922A] transition-all flex-shrink-0">
                   <span className="text-[14px] transition-all duration-300">{LOGIN_LABELS[loginLabelIdx].icon}</span>
                   <span className="transition-all duration-300">{LOGIN_LABELS[loginLabelIdx].text}</span>
                 </Link>
@@ -512,8 +566,10 @@ export default function Navbar() {
                 <svg className="w-4 h-4 text-[#C9922A] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <input ref={hoverInputRef} type="text" value={searchQuery} onChange={(e) => handleQueryChange(e.target.value)}
-                  onKeyDown={handleKeyDown} placeholder="Search listings, dealers, makes, calibres..."
+                <input ref={hoverInputRef} type="text" value={searchQuery}
+                  onChange={e => handleQueryChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Search listings, dealers, makes, calibres..."
                   className="flex-1 bg-transparent text-sm text-[#F0EDE8] placeholder-[#8A8E99]/40 focus:outline-none" />
                 {searchQuery && (
                   <button type="button" onClick={clearSearch} className="text-[#8A8E99] hover:text-white transition-colors">

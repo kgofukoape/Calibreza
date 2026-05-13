@@ -9,50 +9,20 @@ import { supabase } from '@/lib/supabase';
 
 const ITEMS_PER_PAGE = 12;
 
+const MAIN_CATEGORIES = [
+  'Pistols', 'Revolvers', 'Bolt Action Rifles', 'Semi-Auto Rifles', 
+  'Lever Action', 'Pump Action', 'Shotguns', 'Air Guns', 
+  'Optics', 'Accessories', 'Ammunition', 'Parts', 'Blades'
+];
+
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
   'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
 ];
 
-const ACCESSORY_SUBCATEGORIES = [
-  'Optics & Sights',
-  'Holsters & Carry',
-  'Magazines & Speed Loaders',
-  'Stocks, Grips & Furniture',
-  'Barrels & Suppressors',
-  'Triggers & Actions',
-  'Rails, Mounts & Rings',
-  'Lights & Lasers',
-  'Slings & Cases',
-  'Cleaning & Maintenance',
-  'Reloading Equipment',
-  'Gun Safes & Vaults',
-  'Safety & Storage',
-  'Clothing & PPE',
-  'Training Equipment',
-  'Other',
-];
-
-const ACCESSORY_BRANDS = [
-  'Adaptive Tactical', 'Aero Precision', 'Aimpoint', 'Altamont', 'Archangel',
-  'ATI', 'BCM', 'Boyds Hardwood Gunstocks', 'Burris', 'Bushnell', 'Caldwell',
-  'Choate', 'Crimson Trace', 'Daniel Defense', 'EOTech', 'Ergo', 'FAB Defense',
-  'Foundation Stocks', 'G-Code', 'Geissele', 'GRS Gunstocks', 'Hawke',
-  'HF Stocks', 'Hogue', "Hoppe's", 'Holosun', 'HS Precision', 'Kick-EEZ',
-  'Knights Armament', 'LaRue Tactical', 'Leupold', 'Limbsaver', 'Lucid Optics',
-  'Magnum Arms', 'Magpul', 'Manners Composite Stocks', 'MDT', 'Meopta',
-  'Midwest Industries', 'Musgrave', 'Nightforce', 'Noveske', 'Olight',
-  'Oryx / MDT', 'Pachmayr', 'Pearce Grip', 'Pelican', 'Plano', 'Primary Arms',
-  'ProMag', 'Pulsar', 'RCBS', 'Real Avid', 'SABI Rifles', 'Safariland',
-  'Samson Manufacturing', 'Schmidt & Bender', 'Sig Sauer Optics', 'SilencerCo',
-  'Sims Vibration Lab', 'Spuhr', 'Stark Equipment', 'Streamlight', 'Strike Industries',
-  'SureFire', 'Swarovski', 'Talon Grips', 'Trijicon', 'Troy Industries',
-  'US Optics', 'UTG', 'Vortex', 'VZ Grips', 'Weaver', 'Yankee Hill Machine', 'Zeiss',
-];
-
-function AccessoriesBrowseInner() {
+function MainBrowseInner() {
   const searchParams = useSearchParams();
-  const typeParam = searchParams.get('type');
+  const initialCategory = searchParams.get('category') || '';
 
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,18 +30,22 @@ function AccessoriesBrowseInner() {
   const [currentPage, setCurrentPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Filter Options from DB
   const [conditions, setConditions] = useState<any[]>([]);
+  const [makes, setMakes] = useState<any[]>([]);
 
-  const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  // Selected (Pending) Filters
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialCategory ? [initialCategory] : []);
+  const [selectedMakes, setSelectedMakes] = useState<string[]>([]);
   const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [selectedSellerTypes, setSelectedSellerTypes] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
 
-  const [activeSubcats, setActiveSubcats] = useState<string[]>([]);
-  const [activeBrands, setActiveBrands] = useState<string[]>([]);
+  // Active (Applied) Filters
+  const [activeCategories, setActiveCategories] = useState<string[]>(initialCategory ? [initialCategory] : []);
+  const [activeMakes, setActiveMakes] = useState<string[]>([]);
   const [activeProvinces, setActiveProvinces] = useState<string[]>([]);
   const [activeConditions, setActiveConditions] = useState<string[]>([]);
   const [activeSellerTypes, setActiveSellerTypes] = useState<string[]>([]);
@@ -79,16 +53,14 @@ function AccessoriesBrowseInner() {
   const [activeMaxPrice, setActiveMaxPrice] = useState('');
 
   const [sortBy, setSortBy] = useState('newest');
-  const [makes, setMakes] = useState<any[]>([]);
 
   useEffect(() => {
-    loadConditions();
-    loadMakes();
+    loadFilterOptions();
   }, []);
 
   useEffect(() => {
     fetchListings();
-  }, [currentPage, activeSubcats, activeBrands, activeProvinces, activeConditions, activeSellerTypes, activeMinPrice, activeMaxPrice, sortBy]);
+  }, [currentPage, activeCategories, activeMakes, activeProvinces, activeConditions, activeSellerTypes, activeMinPrice, activeMaxPrice, sortBy]);
 
   useEffect(() => {
     if (filtersOpen) document.body.style.overflow = 'hidden';
@@ -96,34 +68,32 @@ function AccessoriesBrowseInner() {
     return () => { document.body.style.overflow = ''; };
   }, [filtersOpen]);
 
-  const loadConditions = async () => {
-    const { data } = await supabase.from('conditions').select('id, name').order('name');
-    setConditions(data || []);
-  };
+  const loadFilterOptions = async () => {
+    const { data: condData } = await supabase.from('conditions').select('id, name').order('name');
+    setConditions(condData || []);
 
-  const loadMakes = async () => {
-    const { data } = await supabase
-      .from('makes').select('id, name')
-      .contains('categories', ['accessories'])
-      .order('name');
-    setMakes(data || []);
+    const { data: makesData } = await supabase.from('makes').select('id, name').order('name');
+    setMakes(makesData || []);
   };
 
   const fetchListings = async () => {
     setLoading(true);
+    
     let query = supabase
       .from('listings')
       .select(`*, makes:make_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
-      .eq('status', 'active')
-      .eq('category_id', 'accessories');
+      .eq('status', 'active');
 
+    if (activeCategories.length > 0) query = query.in('category_id', activeCategories);
+    if (activeMakes.length > 0) query = query.in('make_id', activeMakes);
     if (activeConditions.length > 0) query = query.in('condition_id', activeConditions);
-    if (activeProvinces.length > 0) query = query.in('city', activeProvinces);
+    if (activeProvinces.length > 0) query = query.in('province', activeProvinces); 
     if (activeMinPrice) query = query.gte('price', parseFloat(activeMinPrice));
     if (activeMaxPrice) query = query.lte('price', parseFloat(activeMaxPrice));
     if (activeSellerTypes.length > 0) query = query.in('listing_type', activeSellerTypes);
 
-    query = query.order('is_featured', { ascending: false });
+    query = query.order('is_featured', { ascending: false, nullsFirst: false });
+    
     switch (sortBy) {
       case 'price_asc':  query = query.order('price', { ascending: true }); break;
       case 'price_desc': query = query.order('price', { ascending: false }); break;
@@ -133,15 +103,18 @@ function AccessoriesBrowseInner() {
     const from = (currentPage - 1) * ITEMS_PER_PAGE;
     query = query.range(from, from + ITEMS_PER_PAGE - 1);
 
-    const { data, count } = await query;
+    const { data, count, error } = await query;
+    
+    if (error) console.error("Fetch Error:", error);
+
     setListings(data || []);
     setTotalCount(count || 0);
     setLoading(false);
   };
 
   const applyFilters = () => {
-    setActiveSubcats(selectedSubcats);
-    setActiveBrands(selectedBrands);
+    setActiveCategories(selectedCategories);
+    setActiveMakes(selectedMakes);
     setActiveProvinces(selectedProvinces);
     setActiveConditions(selectedConditions);
     setActiveSellerTypes(selectedSellerTypes);
@@ -152,9 +125,9 @@ function AccessoriesBrowseInner() {
   };
 
   const clearAllFilters = () => {
-    setSelectedSubcats([]); setSelectedBrands([]); setSelectedProvinces([]);
+    setSelectedCategories([]); setSelectedMakes([]); setSelectedProvinces([]);
     setSelectedConditions([]); setSelectedSellerTypes([]); setMinPrice(''); setMaxPrice('');
-    setActiveSubcats([]); setActiveBrands([]); setActiveProvinces([]);
+    setActiveCategories([]); setActiveMakes([]); setActiveProvinces([]);
     setActiveConditions([]); setActiveSellerTypes([]); setActiveMinPrice(''); setActiveMaxPrice('');
     setCurrentPage(1);
   };
@@ -164,7 +137,7 @@ function AccessoriesBrowseInner() {
   };
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
-  const activeFilterCount = activeSubcats.length + activeBrands.length + activeProvinces.length + activeConditions.length + activeSellerTypes.length + (activeMinPrice ? 1 : 0) + (activeMaxPrice ? 1 : 0);
+  const activeFilterCount = activeCategories.length + activeMakes.length + activeProvinces.length + activeConditions.length + activeSellerTypes.length + (activeMinPrice ? 1 : 0) + (activeMaxPrice ? 1 : 0);
 
   const CheckboxItem = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
     <label className="flex items-center gap-3 cursor-pointer group">
@@ -187,27 +160,24 @@ function AccessoriesBrowseInner() {
         )}
       </div>
 
-      {/* Accessory Sub-Category */}
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Category</span>
         <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-          {ACCESSORY_SUBCATEGORIES.map(sub => (
-            <CheckboxItem key={sub} label={sub} checked={selectedSubcats.includes(sub)} onChange={() => toggle(sub, selectedSubcats, setSelectedSubcats)} />
+          {MAIN_CATEGORIES.map(cat => (
+            <CheckboxItem key={cat} label={cat} checked={selectedCategories.includes(cat)} onChange={() => toggle(cat, selectedCategories, setSelectedCategories)} />
           ))}
         </div>
       </div>
 
-      {/* Brand */}
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Brand</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Make</span>
         <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
-          {(makes.length > 0 ? makes.map(m => m.name) : ACCESSORY_BRANDS).map(brand => (
-            <CheckboxItem key={brand} label={brand} checked={selectedBrands.includes(brand)} onChange={() => toggle(brand, selectedBrands, setSelectedBrands)} />
+          {makes.map(m => (
+            <CheckboxItem key={m.id} label={m.name} checked={selectedMakes.includes(m.id)} onChange={() => toggle(m.id, selectedMakes, setSelectedMakes)} />
           ))}
         </div>
       </div>
 
-      {/* Condition */}
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Condition</span>
         <div className="flex flex-col gap-2">
@@ -217,7 +187,6 @@ function AccessoriesBrowseInner() {
         </div>
       </div>
 
-      {/* Province */}
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province</span>
         <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
@@ -227,7 +196,6 @@ function AccessoriesBrowseInner() {
         </div>
       </div>
 
-      {/* Price */}
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Price Range (R)</span>
         <div className="flex items-center gap-2">
@@ -239,7 +207,6 @@ function AccessoriesBrowseInner() {
         </div>
       </div>
 
-      {/* Seller Type */}
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
         <div className="flex flex-col gap-2">
@@ -249,7 +216,7 @@ function AccessoriesBrowseInner() {
       </div>
 
       <button onClick={applyFilters} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-        className="w-full bg-[#C9922A] text-black font-black py-3 rounded-sm uppercase tracking-widest text-[14px] hover:brightness-110 transition-all">
+        className="w-full bg-[#C9922A] text-black font-black py-3 rounded-sm uppercase tracking-widest text-[14px] hover:brightness-110 transition-all mt-2">
         Apply Filters
       </button>
     </div>
@@ -265,30 +232,18 @@ function AccessoriesBrowseInner() {
           <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
             <Link href="/" className="hover:text-[#C9922A] transition-colors">Home</Link>
             <span>/</span>
-            <Link href="/browse" className="hover:text-[#C9922A] transition-colors">Browse</Link>
-            <span>/</span>
-            <span className="text-[#F0EDE8]">Accessories & Parts</span>
+            <span className="text-[#F0EDE8]">Browse Marketplace</span>
           </div>
           <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight">
-            Browse <span className="text-[#C9922A]">Accessories & Parts</span>
+            Browse <span className="text-[#C9922A]">Marketplace</span>
           </h1>
           <p className="text-[#8A8E99] text-sm mt-1 uppercase tracking-widest font-bold">
-            Optics, stocks, grips, suppressors, lights, slings, cleaning & more
+            The definitive network for firearms, optics, gear, and accessories.
           </p>
-
-          {/* Sub-category quick links */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {['Optics & Sights', 'Stocks, Grips & Furniture', 'Barrels & Suppressors', 'Lights & Lasers', 'Triggers & Actions', 'Rails, Mounts & Rings', 'Cleaning & Maintenance'].map(sub => (
-              <Link key={sub} href={`/browse/accessories?type=${sub.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-')}`}
-                className="text-[11px] font-black uppercase tracking-widest border border-white/10 px-3 py-1.5 rounded-sm text-[#8A8E99] hover:border-[#C9922A]/50 hover:text-[#C9922A] transition-all">
-                {sub}
-              </Link>
-            ))}
-          </div>
         </div>
       </div>
 
-      {/* AD */}
+      {/* AD LEADERBOARD */}
       <div className="w-full flex justify-center py-3 px-4 md:px-6 bg-[#0D0F13]">
         <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
           <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
@@ -334,20 +289,25 @@ function AccessoriesBrowseInner() {
         </div>
       )}
 
-      {/* MAIN */}
+      {/* MAIN CONTENT AREA */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
 
+        {/* DESKTOP SIDEBAR */}
         <aside className="hidden lg:block w-[260px] flex-shrink-0">
           <div className="sticky top-6"><FilterPanel /></div>
         </aside>
 
+        {/* LISTINGS GRID */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-
+          
+          {/* UPDATED TOP BAR WITH PAGE INDICATOR */}
           <div className="hidden lg:flex items-center justify-between bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
             <span className="text-[13px] text-[#8A8E99]">
               {loading ? 'Loading...' : (
-                <><strong className="text-[#F0EDE8]">{totalCount}</strong> listings in <span className="text-[#C9922A] font-bold">Accessories & Parts</span>
-                  {activeFilterCount > 0 && <span> · {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} active</span>}
+                <>
+                  <strong className="text-[#F0EDE8]">{totalCount}</strong> active listings found 
+                  {totalPages > 0 && <span className="mx-2 text-[#C9922A] font-bold">| Page {currentPage} of {totalPages}</span>}
+                  {activeFilterCount > 0 && <span> · {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied</span>}
                 </>
               )}
             </span>
@@ -366,14 +326,14 @@ function AccessoriesBrowseInner() {
             <div className="flex items-center justify-center py-20">
               <div className="flex flex-col items-center gap-4">
                 <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
-                <span className="text-[#8A8E99] text-xs uppercase tracking-widest font-bold">Loading listings...</span>
+                <span className="text-[#8A8E99] text-xs uppercase tracking-widest font-bold">Scanning armoury...</span>
               </div>
             </div>
           ) : listings.length === 0 ? (
             <div className="bg-[#13151A] border border-white/5 rounded-sm p-12 text-center">
-              <div className="text-5xl mb-4">🔧</div>
+              <div className="text-5xl mb-4">🔭</div>
               <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No listings found</h3>
-              <p className="text-[#8A8E99] text-sm mb-6">{activeFilterCount > 0 ? 'Try adjusting your filters' : 'No Accessories listings yet'}</p>
+              <p className="text-[#8A8E99] text-sm mb-6">Try adjusting your filters or expanding your search.</p>
               {activeFilterCount > 0 && (
                 <button onClick={clearAllFilters} className="text-[#C9922A] font-bold text-sm uppercase tracking-widest hover:brightness-125">Clear All Filters</button>
               )}
@@ -388,7 +348,7 @@ function AccessoriesBrowseInner() {
                   make={listing.makes?.name || ''}
                   calibre={listing.calibre_id || ''}
                   price={listing.price}
-                  province={listing.city || ''}
+                  province={listing.province || ''}
                   condition={listing.conditions?.name || ''}
                   category={listing.category_id}
                   listingType={listing.listing_type}
@@ -400,35 +360,49 @@ function AccessoriesBrowseInner() {
             </div>
           )}
 
+          {/* UPGRADED DYNAMIC PAGINATION */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">‹</button>
-              {[...Array(Math.min(totalPages, 7))].map((_, i) => (
-                <button key={i + 1} onClick={() => setCurrentPage(i + 1)}
-                  className={`w-9 h-9 flex items-center justify-center border rounded-sm font-bold text-sm transition-all ${
-                    currentPage === i + 1 ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]' : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
-                  }`}>{i + 1}</button>
-              ))}
-              {totalPages > 7 && <span className="text-[#8A8E99]">...</span>}
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">›</button>
+            <div className="flex flex-col items-center mt-8 pt-6 border-t border-white/5">
+              <span className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-4">
+                Page <span className="text-[#C9922A]">{currentPage}</span> of {totalPages}
+              </span>
+              
+              <div className="flex items-center justify-center gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                  className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">‹</button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(currentPage - page) <= 2)
+                  .map((page, index, array) => (
+                    <React.Fragment key={page}>
+                      {index > 0 && array[index - 1] !== page - 1 && <span className="text-[#8A8E99] px-1">...</span>}
+                      <button onClick={() => setCurrentPage(page)}
+                        className={`w-9 h-9 flex items-center justify-center border rounded-sm font-bold text-sm transition-all ${
+                          currentPage === page ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]' : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
+                        }`}>{page}</button>
+                    </React.Fragment>
+                  ))}
+
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                  className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">›</button>
+              </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
   );
 }
 
-export default function AccessoriesBrowsePage() {
+export default function BrowsePage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
       </div>
     }>
-      <AccessoriesBrowseInner />
+      <MainBrowseInner />
     </Suspense>
   );
 }

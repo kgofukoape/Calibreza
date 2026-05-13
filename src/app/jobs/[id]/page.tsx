@@ -24,7 +24,7 @@ export default function SingleJobPage() {
       }
       setLoading(false);
     }
-    loadJob(); // <-- This was the typo! It is fixed now.
+    loadJob();
   }, [params.id]);
 
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -115,7 +115,7 @@ export default function SingleJobPage() {
               {!user ? (
                 <><p className="text-[14px] text-[#8A8E99] mb-6">Create a free profile to instantly send your CV and Competencies to this employer.</p><button onClick={handleApplyClick} style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="w-full bg-[#191C23] border border-[#C9922A]/50 text-[#C9922A] font-black uppercase tracking-widest text-[18px] py-5 rounded-full hover:bg-[#C9922A] hover:text-black transition-all shadow-[0_0_30px_rgba(201,146,42,0.1)]">🔒 Sign in to Apply</button></>
               ) : (
-                <><p className="text-[14px] text-[#8A8E99] mb-6">You are signed in as <span className="text-white font-bold">{user.email}</span>. Clicking apply will launch your email client to send your CV directly to the employer.</p><button onClick={handleApplyClick} style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[18px] py-5 rounded-full hover:brightness-110 transition-all flex items-center justify-center gap-3"><span className="text-2xl">✉️</span> Apply via Email</button></>
+                <><p className="text-[14px] text-[#8A8E99] mb-6">You are signed in as <span className="text-white font-bold">{user.email}</span>. Clicking apply will launch your email client to send your CV directly to the employer.</p><button onClick={handleApplyClick} style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[18px] py-5 rounded-full hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[#C9922A]/20"><span className="text-2xl">✉️</span> Apply via Email</button></>
               )}
             </div>
           </div>

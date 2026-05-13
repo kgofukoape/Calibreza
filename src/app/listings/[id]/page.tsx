@@ -29,16 +29,11 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
   useEffect(() => {
     loadData();
     incrementViews();
-    const saved = JSON.parse(localStorage.getItem('gx_wishlist') || '[]');
-    setIsSaved(saved.includes(params.id));
 
-    // Simulated live viewer count — creates urgency
-    const initial = Math.floor(Math.random() * 10) + 3;
-    setViewersNow(initial);
     const interval = setInterval(() => {
       setViewersNow(prev => {
         const delta = Math.floor(Math.random() * 3) - 1;
-        return Math.max(2, Math.min(18, prev + delta));
+        return Math.max(1, Math.min(18, prev + delta));
       });
     }, 28000 + Math.random() * 12000);
     return () => clearInterval(interval);
@@ -69,6 +64,22 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
 
       if (error || !listingData) throw error;
       setListing(listingData);
+
+      // FOMO logic relative to actual views
+      const realViews = listingData.view_count || 1;
+      const initialFOMO = realViews > 15 ? (Math.floor(Math.random() * 8) + 4) : (Math.floor(Math.random() * 2) + 1);
+      setViewersNow(initialFOMO);
+
+      // Check Database for Saved Status
+      if (user) {
+        const { data: savedData } = await supabase
+          .from('saved_listings')
+          .select('id')
+          .eq('listing_id', params.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setIsSaved(!!savedData);
+      }
 
       if (listingData.listing_type === 'dealer' && listingData.dealers) {
         setSeller({
@@ -106,12 +117,15 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     try { await supabase.rpc('increment_listing_views', { listing_id: params.id }); } catch {}
   };
 
-  const handleSave = () => {
-    const saved: string[] = JSON.parse(localStorage.getItem('gx_wishlist') || '[]');
-    const already = saved.includes(params.id);
-    const updated = already ? saved.filter(id => id !== params.id) : [...saved, params.id];
-    localStorage.setItem('gx_wishlist', JSON.stringify(updated));
-    setIsSaved(!already);
+  const handleSave = async () => {
+    if (!currentUser) { router.push('/login'); return; }
+    
+    if (isSaved) {
+      await supabase.from('saved_listings').delete().eq('listing_id', params.id).eq('user_id', currentUser.id);
+    } else {
+      await supabase.from('saved_listings').insert({ listing_id: params.id, user_id: currentUser.id });
+    }
+    setIsSaved(!isSaved);
   };
 
   const handleContactSeller = () => {
@@ -210,7 +224,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </div>
       </div>
 
-      {/* MAIN CONTENT — 2 column layout */}
       <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 md:px-6 py-5 md:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
 
         {/* LEFT: Images + Description */}
@@ -245,7 +258,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             )}
           </div>
 
-          {/* MOBILE: Price + CTA */}
           <div className="lg:hidden bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl uppercase text-[#F0EDE8] leading-tight mb-2">{listing.title}</h1>
             <div className="flex flex-wrap items-center gap-3 mb-3 text-[12px] text-[#8A8E99]">
@@ -269,16 +281,13 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             )}
           </div>
 
-          {/* DESCRIPTION */}
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-5 md:p-6">
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-xl tracking-wide uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">Description</h2>
             <div className="text-[14px] text-[#8A8E99] leading-relaxed whitespace-pre-wrap">{listing.description || 'No description provided.'}</div>
           </div>
 
-          {/* MID-CONTENT AD */}
           <Leaderboard />
 
-          {/* MOBILE SPECS */}
           <div className="lg:hidden bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[16px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">Specifications</h3>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -291,7 +300,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </div>
           </div>
 
-          {/* LEGAL */}
           <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5">
             <h3 className="font-bold text-[13px] text-[#C9922A] mb-2">⚠️ Legal Compliance Notice</h3>
             <p className="text-[13px] text-[#8A8E99] leading-relaxed mb-2">
@@ -302,7 +310,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </Link>
           </div>
 
-          {/* MOBILE ACTIONS */}
           <div className="lg:hidden flex items-center justify-center gap-6 text-[11px] font-bold tracking-widest uppercase text-[#8A8E99]">
             <button onClick={handleSave} className={`transition-colors ${isSaved ? 'text-[#C9922A]' : 'hover:text-[#F0EDE8]'}`}>{isSaved ? '⭐ Saved' : '☆ Save'}</button>
             <span>|</span>
@@ -315,10 +322,8 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         {/* RIGHT SIDEBAR */}
         <aside className="hidden lg:flex w-[340px] xl:w-[380px] flex-shrink-0 flex-col gap-4">
 
-          {/* PRICE + URGENCY + CTA */}
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 flex flex-col gap-4">
 
-            {/* Live viewers badge */}
             <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-sm px-3 py-2">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
               <span className="text-red-400 font-black text-[12px] uppercase tracking-widest">
@@ -369,7 +374,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </div>
           </div>
 
-          {/* SELLER */}
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[15px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
               {seller?.is_dealer ? 'Dealer' : 'Seller'}
@@ -394,7 +398,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             )}
           </div>
 
-          {/* SPECIFICATIONS */}
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[15px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-3">
               Specifications
@@ -409,13 +412,11 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </div>
           </div>
 
-          {/* SIDEBAR AD 300x250 */}
           <div className="w-full bg-[#12141a] border border-white/5 rounded-sm flex flex-col items-center justify-center" style={{ height: '250px' }}>
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest font-bold mb-1">Advertisement</span>
             <span className="text-[9px] text-[#3A3E49] font-bold">300 × 250</span>
           </div>
 
-          {/* SIDEBAR AD 300x600 */}
           <div className="w-full bg-[#12141a] border border-white/5 rounded-sm flex flex-col items-center justify-center" style={{ height: '300px' }}>
             <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest font-bold mb-1">Advertisement</span>
             <span className="text-[9px] text-[#3A3E49] font-bold">300 × 300</span>
@@ -423,7 +424,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </aside>
       </main>
 
-      {/* SIMILAR LISTINGS */}
       {similarListings.length > 0 && (
         <section className="max-w-[1280px] mx-auto w-full px-4 md:px-6 pb-12">
           <Leaderboard />
@@ -445,7 +445,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </section>
       )}
 
-      {/* STICKY MOBILE CTA — fixed bar at bottom of screen on phones */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0D0F13]/95 backdrop-blur-sm border-t border-white/10 px-4 py-3 flex gap-3">
         <button onClick={handleContactSeller} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
           className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-3.5 rounded-sm hover:brightness-110 transition-all">
@@ -459,7 +458,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         )}
       </div>
 
-      {/* CONTACT MODAL */}
       {showContactModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#191C23] border border-white/10 rounded-sm p-6 max-w-md w-full">
@@ -492,7 +490,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               {seller?.phone && (
                 <a href={`tel:${seller.phone}`} className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
                   <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" fill="currentColor" /></svg>
                   </div>
                   <div>
                     <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Phone</p>
@@ -504,7 +502,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                 <a href={`mailto:${seller.email}?subject=Enquiry: ${encodeURIComponent(listing?.title || '')}`}
                   className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
                   <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    <svg className="w-4 h-4 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" fill="currentColor" /></svg>
                   </div>
                   <div>
                     <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Email</p>
@@ -550,7 +548,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </div>
       )}
 
-      {/* REPORT MODAL */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 max-w-md w-full">

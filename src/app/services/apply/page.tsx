@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
@@ -99,35 +99,49 @@ const SERVICE_CATEGORIES = [
 
 export default function ServiceApplyPage() {
   const router = useRouter();
-  const [step, setStep] = useState(1); // 1 = category, 2 = form
+
+  // ── Auth gate ────────────────────────────────────────────────────────────
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.push('/login');
+      } else {
+        setAuthChecked(true);
+      }
+    });
+  }, []);
+
+  // ── Form state ────────────────────────────────────────────────────────────
+  const [step, setStep]             = useState(1);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [submitted, setSubmitted]   = useState(false);
+  const [logoFile, setLogoFile]     = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState('');
 
   const [form, setForm] = useState({
-    name: '',
-    type: '',
-    subcategory: '',
-    description: '',
-    contact_name: '',
-    email: '',
-    phone: '',
-    whatsapp: '',
-    website: '',
-    address: '',
-    city: '',
-    province: 'Gauteng',
-    postal_code: '',
-    specializations: [] as string[],
-    service_area_note: '',
-    years_experience: '',
-    saps_accredited: false,
-    accreditation_number: '',
+    name:                '',
+    type:                '',
+    subcategory:         '',
+    description:         '',
+    contact_name:        '',
+    email:               '',
+    phone:               '',
+    whatsapp:            '',
+    website:             '',
+    address:             '',
+    city:                '',
+    province:            'Gauteng',
+    postal_code:         '',
+    specializations:     [] as string[],
+    service_area_note:   '',
+    years_experience:    '',
+    saps_accredited:     false,
+    accreditation_number:'',
   });
 
   const set = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));
-
   const selectedCat = SERVICE_CATEGORIES.find(c => c.id === form.type);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,42 +162,72 @@ export default function ServiceApplyPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      // Upload logo
       let logo_url = '';
       if (logoFile) {
-        const ext = logoFile.name.split('.').pop();
+        const ext      = logoFile.name.split('.').pop();
         const fileName = `services/${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('club-images').upload(fileName, logoFile, { upsert: true });
+        const { error: upErr } = await supabase.storage
+          .from('club-images')
+          .upload(fileName, logoFile, { upsert: true });
         if (!upErr) {
           logo_url = supabase.storage.from('club-images').getPublicUrl(fileName).data.publicUrl;
         }
       }
 
+      // Generate slug
+      const slug = form.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        + '-' + Date.now().toString(36);
+
+      // Get user
+      const { data: { user } } = await supabase.auth.getUser();
+
       const { error } = await supabase.from('services').insert({
-        name: form.name,
-        type: form.type,
-        subcategory: form.subcategory,
-        description: form.description,
-        email: form.email,
-        phone: form.phone,
-        whatsapp: form.whatsapp,
-        website: form.website,
-        address: form.address,
-        city: form.city,
-        province: form.province,
-        postal_code: form.postal_code,
-        specializations: form.specializations,
-        service_area_note: form.service_area_note,
-        years_experience: form.years_experience ? parseInt(form.years_experience) : null,
-        saps_accredited: form.saps_accredited,
+        name:                 form.name,
+        type:                 form.type,
+        subcategory:          form.subcategory,
+        description:          form.description,
+        email:                form.email,
+        phone:                form.phone,
+        whatsapp:             form.whatsapp,
+        website:              form.website,
+        address:              form.address,
+        city:                 form.city,
+        province:             form.province,
+        postal_code:          form.postal_code,
+        specializations:      form.specializations,
+        service_area_note:    form.service_area_note,
+        years_experience:     form.years_experience ? parseInt(form.years_experience) : null,
+        saps_accredited:      form.saps_accredited,
         accreditation_number: form.accreditation_number,
-        contact_name: form.contact_name,
+        contact_name:         form.contact_name,
         logo_url,
-        status: 'pending',
-        is_verified: false,
-        is_featured: false,
+        slug,
+        user_id:              user?.id || null,
+        status:               'pending',
+        is_verified:          false,
+        is_featured:          false,
       });
 
       if (error) throw error;
+
+      // Email admin
+      await fetch('/api/notify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type:     'service_applied',
+          name:     form.name,
+          city:     form.city,
+          province: form.province,
+          email:    form.email,
+        }),
+      });
+
       setSubmitted(true);
     } catch (err: any) {
       alert(err.message || 'Submission failed. Please try again.');
@@ -196,77 +240,78 @@ export default function ServiceApplyPage() {
   const lbl = "block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2";
   const sec = "bg-[#13151A] border border-white/5 rounded-sm p-6 md:p-8 flex flex-col gap-5";
 
-  // SUCCESS STATE
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="max-w-md text-center">
-            <div className="text-6xl mb-6">✅</div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-3">
-              Listing <span className="text-[#C9922A]">Submitted!</span>
-            </h1>
-            <p className="text-[#8A8E99] mb-8">
-              Your service listing has been received. Our team will review and activate it within 1–2 business days.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/services" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:brightness-110 transition-all">
-                Browse Services
-              </Link>
-              <Link href="/" className="border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:bg-white/5 transition-all">
-                Back to Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // ── Spinner while checking auth ──────────────────────────────────────────
+  if (!authChecked) return (
+    <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
-  // STEP 1 — CATEGORY PICKER
-  if (step === 1) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="max-w-[860px] mx-auto w-full px-4 py-10 md:py-16">
-          <div className="mb-2 text-[11px] text-[#8A8E99] tracking-widest uppercase flex items-center gap-2">
-            <Link href="/" className="hover:text-[#C9922A]">Home</Link>
-            <span>/</span>
-            <Link href="/services" className="hover:text-[#C9922A]">Services</Link>
-            <span>/</span>
-            <span className="text-[#F0EDE8]">List Your Service</span>
-          </div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-6xl font-black uppercase tracking-tight mb-2">
-            List Your <span className="text-[#C9922A]">Service</span>
+  // ── Success ──────────────────────────────────────────────────────────────
+  if (submitted) return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="max-w-md text-center">
+          <div className="text-6xl mb-6">✅</div>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-3">
+            Listing <span className="text-[#C9922A]">Submitted!</span>
           </h1>
-          <p className="text-[#8A8E99] mb-8">First, select the category that best describes your service.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {SERVICE_CATEGORIES.map(cat => (
-              <button key={cat.id} onClick={() => { set('type', cat.id); setStep(2); }}
-                className={`text-left p-5 rounded-sm border transition-all group ${
-                  form.type === cat.id
-                    ? 'border-[#C9922A] bg-[#C9922A]/10'
-                    : 'border-white/10 bg-[#13151A] hover:border-[#C9922A]/40 hover:bg-[#C9922A]/5'
-                }`}>
-                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-[17px] uppercase mb-1">{cat.label}</p>
-                <p className="text-[12px] text-[#8A8E99]">{cat.desc}</p>
-              </button>
-            ))}
+          <p className="text-[#8A8E99] mb-8">
+            Your service listing has been received. Our team will review and activate it within 1–2 business days.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/services" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:brightness-110 transition-all">
+              Browse Services
+            </Link>
+            <Link href="/service-dashboard" className="border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:bg-white/5 transition-all">
+              My Dashboard
+            </Link>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // STEP 2 — FULL FORM
+  // ── Step 1 — Category picker ─────────────────────────────────────────────
+  if (step === 1) return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+      <div className="max-w-[860px] mx-auto w-full px-4 py-10 md:py-16">
+        <div className="mb-2 text-[11px] text-[#8A8E99] tracking-widest uppercase flex items-center gap-2">
+          <Link href="/" className="hover:text-[#C9922A]">Home</Link>
+          <span>/</span>
+          <Link href="/services" className="hover:text-[#C9922A]">Services</Link>
+          <span>/</span>
+          <span className="text-[#F0EDE8]">List Your Service</span>
+        </div>
+        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-6xl font-black uppercase tracking-tight mb-2">
+          List Your <span className="text-[#C9922A]">Service</span>
+        </h1>
+        <p className="text-[#8A8E99] mb-8">First, select the category that best describes your service.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {SERVICE_CATEGORIES.map(cat => (
+            <button key={cat.id} onClick={() => { set('type', cat.id); setStep(2); }}
+              className={`text-left p-5 rounded-sm border transition-all ${
+                form.type === cat.id
+                  ? 'border-[#C9922A] bg-[#C9922A]/10'
+                  : 'border-white/10 bg-[#13151A] hover:border-[#C9922A]/40 hover:bg-[#C9922A]/5'
+              }`}>
+              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-[17px] uppercase mb-1">{cat.label}</p>
+              <p className="text-[12px] text-[#8A8E99]">{cat.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Step 2 — Full form ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
       <div className="max-w-[860px] mx-auto w-full px-4 py-10 md:py-16 flex flex-col gap-6">
 
-        {/* Header */}
         <div>
           <div className="mb-2 text-[11px] text-[#8A8E99] tracking-widest uppercase flex items-center gap-2">
             <Link href="/" className="hover:text-[#C9922A]">Home</Link>
@@ -292,15 +337,11 @@ export default function ServiceApplyPage() {
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase pb-3 border-b border-white/5">
               Service <span className="text-[#C9922A]">Identity</span>
             </h2>
-
-            {/* Logo */}
             <div>
               <label className={lbl}>Logo / Profile Photo</label>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {logoPreview
-                    ? <img src={logoPreview} alt="" className="w-full h-full object-cover" />
-                    : <span className="text-3xl opacity-20">📷</span>}
+                  {logoPreview ? <img src={logoPreview} alt="" className="w-full h-full object-cover" /> : <span className="text-3xl opacity-20">📷</span>}
                 </div>
                 <label className="cursor-pointer bg-white/5 border border-white/10 px-4 py-2 rounded-sm text-sm font-bold hover:bg-white/10 transition-all">
                   📷 Upload Logo
@@ -308,13 +349,11 @@ export default function ServiceApplyPage() {
                 </label>
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className={lbl}>Business / Service Name <span className="text-red-400">*</span></label>
                 <input required value={form.name} onChange={e => set('name', e.target.value)} className={inp} placeholder="e.g. Cape Town Firearms Legal" />
               </div>
-
               {selectedCat && selectedCat.subcategories.length > 0 && (
                 <div className="md:col-span-2">
                   <label className={lbl}>Specialization / Sub-Type</label>
@@ -332,19 +371,15 @@ export default function ServiceApplyPage() {
                   </div>
                 </div>
               )}
-
               <div className="md:col-span-2">
                 <label className={lbl}>Description <span className="text-red-400">*</span></label>
                 <textarea required rows={4} value={form.description} onChange={e => set('description', e.target.value)}
-                  className={`${inp} resize-none`}
-                  placeholder="Describe your service — what you offer, your experience, what sets you apart..." />
+                  className={`${inp} resize-none`} placeholder="Describe your service..." />
               </div>
-
               <div>
                 <label className={lbl}>Years in Business</label>
                 <input type="number" min="0" value={form.years_experience} onChange={e => set('years_experience', e.target.value)} className={inp} placeholder="e.g. 8" />
               </div>
-
               <div>
                 <label className={lbl}>Service Area</label>
                 <input value={form.service_area_note} onChange={e => set('service_area_note', e.target.value)} className={inp} placeholder="e.g. Nationwide · Cape Town & surrounds" />
@@ -395,8 +430,8 @@ export default function ServiceApplyPage() {
                 <input type="tel" value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} className={inp} placeholder="082 123 4567" />
               </div>
               <div className="md:col-span-2">
-                <label className={lbl}>Website</label>
-                <input type="url" value={form.website} onChange={e => set('website', e.target.value)} className={inp} placeholder="https://www.yoursite.co.za" />
+                <label className={lbl}>Website <span className="text-[#8A8E99] normal-case font-normal">(optional)</span></label>
+                <input type="text" value={form.website} onChange={e => set('website', e.target.value)} className={inp} placeholder="www.yoursite.co.za" />
               </div>
             </div>
           </div>
