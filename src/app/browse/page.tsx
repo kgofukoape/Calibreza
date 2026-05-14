@@ -9,10 +9,32 @@ import { supabase } from '@/lib/supabase';
 
 const ITEMS_PER_PAGE = 12;
 
-const MAIN_CATEGORIES = [
-  'Pistols', 'Revolvers', 'Bolt Action Rifles', 'Semi-Auto Rifles', 
-  'Lever Action', 'Pump Action', 'Shotguns', 'Air Guns', 
-  'Optics', 'Accessories', 'Ammunition', 'Parts', 'Blades'
+// ── Exact slugs from categories table ─────────────────────────────────────────
+const CATEGORY_OPTIONS = [
+  { label: 'Pistols',               slug: 'pistols' },
+  { label: 'Revolvers',             slug: 'revolvers' },
+  { label: 'Bolt Action Rifles',    slug: 'bolt-action' },
+  { label: 'Semi-Auto Rifles',      slug: 'semi-auto-rifles' },
+  { label: 'Lever Action Rifles',   slug: 'lever-action' },
+  { label: 'Pump Action Rifles',    slug: 'pump-action-rifles' },
+  { label: 'Shotguns',              slug: 'shotguns' },
+  { label: 'Air Guns',              slug: 'air-guns' },
+  { label: 'Airsoft',               slug: 'airsoft' },
+  { label: 'Break Action Rifles',   slug: 'break-action-rifles' },
+  { label: 'Falling Block Rifles',  slug: 'falling-block-rifles' },
+  { label: 'Martini Action Rifles', slug: 'martini-action-rifles' },
+  { label: 'Rolling Block Rifles',  slug: 'rolling-block-rifles' },
+  { label: 'Single Shot Rifles',    slug: 'single-shot-rifles' },
+  { label: 'Straight Pull Rifles',  slug: 'straight-pull-rifles' },
+  { label: 'Rifles (General)',      slug: 'rifles' },
+  { label: 'Optics & Sights',       slug: 'optics' },
+  { label: 'Holsters & Carry',      slug: 'holsters' },
+  { label: 'Magazines & Loaders',   slug: 'magazines' },
+  { label: 'Ammunition',            slug: 'ammunition' },
+  { label: 'Reloading',             slug: 'reloading' },
+  { label: 'Knives & Blades',       slug: 'knives' },
+  { label: 'Accessories',           slug: 'accessories' },
+  { label: 'Wanted',                slug: 'wanted' },
 ];
 
 const PROVINCES = [
@@ -24,43 +46,39 @@ function MainBrowseInner() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get('category') || '';
 
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
+  const [listings, setListings]       = useState<any[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [totalCount, setTotalCount]   = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Filter Options from DB
   const [conditions, setConditions] = useState<any[]>([]);
-  const [makes, setMakes] = useState<any[]>([]);
+  const [makes, setMakes]           = useState<any[]>([]);
 
-  // Selected (Pending) Filters
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialCategory ? [initialCategory] : []);
-  const [selectedMakes, setSelectedMakes] = useState<string[]>([]);
-  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
-  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [selectedCategories,  setSelectedCategories]  = useState<string[]>(initialCategory ? [initialCategory] : []);
+  const [selectedMakes,       setSelectedMakes]       = useState<string[]>([]);
+  const [selectedProvinces,   setSelectedProvinces]   = useState<string[]>([]);
+  const [selectedConditions,  setSelectedConditions]  = useState<string[]>([]);
   const [selectedSellerTypes, setSelectedSellerTypes] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
 
-  // Active (Applied) Filters
-  const [activeCategories, setActiveCategories] = useState<string[]>(initialCategory ? [initialCategory] : []);
-  const [activeMakes, setActiveMakes] = useState<string[]>([]);
-  const [activeProvinces, setActiveProvinces] = useState<string[]>([]);
-  const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [activeCategories,  setActiveCategories]  = useState<string[]>(initialCategory ? [initialCategory] : []);
+  const [activeMakes,       setActiveMakes]       = useState<string[]>([]);
+  const [activeProvinces,   setActiveProvinces]   = useState<string[]>([]);
+  const [activeConditions,  setActiveConditions]  = useState<string[]>([]);
   const [activeSellerTypes, setActiveSellerTypes] = useState<string[]>([]);
-  const [activeMinPrice, setActiveMinPrice] = useState('');
-  const [activeMaxPrice, setActiveMaxPrice] = useState('');
+  const [activeMinPrice,    setActiveMinPrice]    = useState('');
+  const [activeMaxPrice,    setActiveMaxPrice]    = useState('');
 
   const [sortBy, setSortBy] = useState('newest');
 
-  useEffect(() => {
-    loadFilterOptions();
-  }, []);
+  useEffect(() => { loadFilterOptions(); }, []);
 
-  useEffect(() => {
-    fetchListings();
-  }, [currentPage, activeCategories, activeMakes, activeProvinces, activeConditions, activeSellerTypes, activeMinPrice, activeMaxPrice, sortBy]);
+  useEffect(() => { fetchListings(); }, [
+    currentPage, activeCategories, activeMakes, activeProvinces,
+    activeConditions, activeSellerTypes, activeMinPrice, activeMaxPrice, sortBy,
+  ]);
 
   useEffect(() => {
     if (filtersOpen) document.body.style.overflow = 'hidden';
@@ -69,33 +87,31 @@ function MainBrowseInner() {
   }, [filtersOpen]);
 
   const loadFilterOptions = async () => {
-    const { data: condData } = await supabase.from('conditions').select('id, name').order('name');
-    setConditions(condData || []);
-
+    const { data: condData }  = await supabase.from('conditions').select('id, name').order('name');
     const { data: makesData } = await supabase.from('makes').select('id, name').order('name');
+    setConditions(condData  || []);
     setMakes(makesData || []);
   };
 
   const fetchListings = async () => {
     setLoading(true);
-    
+
     let query = supabase
       .from('listings')
       .select(`*, makes:make_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
       .eq('status', 'active');
 
-    if (activeCategories.length > 0) query = query.in('category_id', activeCategories);
-    if (activeMakes.length > 0) query = query.in('make_id', activeMakes);
-    if (activeConditions.length > 0) query = query.in('condition_id', activeConditions);
-    if (activeProvinces.length > 0) query = query.in('province', activeProvinces); 
-    if (activeMinPrice) query = query.gte('price', parseFloat(activeMinPrice));
-    if (activeMaxPrice) query = query.lte('price', parseFloat(activeMaxPrice));
-    if (activeSellerTypes.length > 0) query = query.in('listing_type', activeSellerTypes);
+    if (activeCategories.length > 0)  query = query.in('category_id', activeCategories);
+    if (activeMakes.length > 0)        query = query.in('make_id', activeMakes);
+    if (activeConditions.length > 0)   query = query.in('condition_id', activeConditions);
+    if (activeProvinces.length > 0)    query = query.in('province', activeProvinces);
+    if (activeMinPrice)                query = query.gte('price', parseFloat(activeMinPrice));
+    if (activeMaxPrice)                query = query.lte('price', parseFloat(activeMaxPrice));
+    if (activeSellerTypes.length > 0)  query = query.in('listing_type', activeSellerTypes);
 
     query = query.order('is_featured', { ascending: false, nullsFirst: false });
-    
     switch (sortBy) {
-      case 'price_asc':  query = query.order('price', { ascending: true }); break;
+      case 'price_asc':  query = query.order('price', { ascending: true });  break;
       case 'price_desc': query = query.order('price', { ascending: false }); break;
       default:           query = query.order('created_at', { ascending: false });
     }
@@ -104,9 +120,7 @@ function MainBrowseInner() {
     query = query.range(from, from + ITEMS_PER_PAGE - 1);
 
     const { data, count, error } = await query;
-    
-    if (error) console.error("Fetch Error:", error);
-
+    if (error) console.error('Fetch Error:', error);
     setListings(data || []);
     setTotalCount(count || 0);
     setLoading(false);
@@ -125,19 +139,21 @@ function MainBrowseInner() {
   };
 
   const clearAllFilters = () => {
-    setSelectedCategories([]); setSelectedMakes([]); setSelectedProvinces([]);
+    setSelectedCategories([]); setSelectedMakes([]);    setSelectedProvinces([]);
     setSelectedConditions([]); setSelectedSellerTypes([]); setMinPrice(''); setMaxPrice('');
-    setActiveCategories([]); setActiveMakes([]); setActiveProvinces([]);
-    setActiveConditions([]); setActiveSellerTypes([]); setActiveMinPrice(''); setActiveMaxPrice('');
+    setActiveCategories([]);   setActiveMakes([]);      setActiveProvinces([]);
+    setActiveConditions([]);   setActiveSellerTypes([]); setActiveMinPrice(''); setActiveMaxPrice('');
     setCurrentPage(1);
   };
 
-  const toggle = (id: string, list: string[], setter: (v: string[]) => void) => {
+  const toggle = (id: string, list: string[], setter: (v: string[]) => void) =>
     setter(list.includes(id) ? list.filter(i => i !== id) : [...list, id]);
-  };
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
-  const activeFilterCount = activeCategories.length + activeMakes.length + activeProvinces.length + activeConditions.length + activeSellerTypes.length + (activeMinPrice ? 1 : 0) + (activeMaxPrice ? 1 : 0);
+  const activeFilterCount =
+    activeCategories.length + activeMakes.length + activeProvinces.length +
+    activeConditions.length + activeSellerTypes.length +
+    (activeMinPrice ? 1 : 0) + (activeMaxPrice ? 1 : 0);
 
   const CheckboxItem = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
     <label className="flex items-center gap-3 cursor-pointer group">
@@ -162,9 +178,11 @@ function MainBrowseInner() {
 
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Category</span>
-        <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-          {MAIN_CATEGORIES.map(cat => (
-            <CheckboxItem key={cat} label={cat} checked={selectedCategories.includes(cat)} onChange={() => toggle(cat, selectedCategories, setSelectedCategories)} />
+        <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1">
+          {CATEGORY_OPTIONS.map(cat => (
+            <CheckboxItem key={cat.slug} label={cat.label}
+              checked={selectedCategories.includes(cat.slug)}
+              onChange={() => toggle(cat.slug, selectedCategories, setSelectedCategories)} />
           ))}
         </div>
       </div>
@@ -173,7 +191,9 @@ function MainBrowseInner() {
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Make</span>
         <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
           {makes.map(m => (
-            <CheckboxItem key={m.id} label={m.name} checked={selectedMakes.includes(m.id)} onChange={() => toggle(m.id, selectedMakes, setSelectedMakes)} />
+            <CheckboxItem key={m.id} label={m.name}
+              checked={selectedMakes.includes(m.id)}
+              onChange={() => toggle(m.id, selectedMakes, setSelectedMakes)} />
           ))}
         </div>
       </div>
@@ -182,7 +202,9 @@ function MainBrowseInner() {
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Condition</span>
         <div className="flex flex-col gap-2">
           {conditions.map(c => (
-            <CheckboxItem key={c.id} label={c.name} checked={selectedConditions.includes(c.id)} onChange={() => toggle(c.id, selectedConditions, setSelectedConditions)} />
+            <CheckboxItem key={c.id} label={c.name}
+              checked={selectedConditions.includes(c.id)}
+              onChange={() => toggle(c.id, selectedConditions, setSelectedConditions)} />
           ))}
         </div>
       </div>
@@ -191,7 +213,9 @@ function MainBrowseInner() {
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province</span>
         <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
           {PROVINCES.map(p => (
-            <CheckboxItem key={p} label={p} checked={selectedProvinces.includes(p)} onChange={() => toggle(p, selectedProvinces, setSelectedProvinces)} />
+            <CheckboxItem key={p} label={p}
+              checked={selectedProvinces.includes(p)}
+              onChange={() => toggle(p, selectedProvinces, setSelectedProvinces)} />
           ))}
         </div>
       </div>
@@ -210,7 +234,7 @@ function MainBrowseInner() {
       <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
         <div className="flex flex-col gap-2">
-          <CheckboxItem label="🏪 Dealer Stock" checked={selectedSellerTypes.includes('dealer')} onChange={() => toggle('dealer', selectedSellerTypes, setSelectedSellerTypes)} />
+          <CheckboxItem label="🏪 Dealer Stock"  checked={selectedSellerTypes.includes('dealer')}  onChange={() => toggle('dealer',  selectedSellerTypes, setSelectedSellerTypes)} />
           <CheckboxItem label="👤 Private Seller" checked={selectedSellerTypes.includes('private')} onChange={() => toggle('private', selectedSellerTypes, setSelectedSellerTypes)} />
         </div>
       </div>
@@ -226,7 +250,6 @@ function MainBrowseInner() {
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      {/* PAGE HEADER */}
       <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-5 md:py-8">
         <div className="max-w-[1400px] mx-auto">
           <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
@@ -243,7 +266,6 @@ function MainBrowseInner() {
         </div>
       </div>
 
-      {/* AD LEADERBOARD */}
       <div className="w-full flex justify-center py-3 px-4 md:px-6 bg-[#0D0F13]">
         <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
           <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
@@ -251,7 +273,6 @@ function MainBrowseInner() {
         </div>
       </div>
 
-      {/* MOBILE FILTER TOGGLE */}
       <div className="lg:hidden sticky top-[68px] z-40 bg-[#0D0F13] border-b border-white/5 px-4 py-2.5 flex items-center justify-between">
         <button onClick={() => setFiltersOpen(true)}
           className="flex items-center gap-2 bg-[#13151A] border border-white/10 px-4 py-2 rounded-sm text-[12px] font-black uppercase tracking-widest text-[#F0EDE8] hover:border-[#C9922A]/40 transition-all">
@@ -271,7 +292,6 @@ function MainBrowseInner() {
         </div>
       </div>
 
-      {/* MOBILE DRAWER */}
       {filtersOpen && (
         <div className="lg:hidden fixed inset-0 z-[150] flex">
           <div className="absolute inset-0 bg-black/60" onClick={() => setFiltersOpen(false)} />
@@ -289,23 +309,17 @@ function MainBrowseInner() {
         </div>
       )}
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
-
-        {/* DESKTOP SIDEBAR */}
         <aside className="hidden lg:block w-[260px] flex-shrink-0">
           <div className="sticky top-6"><FilterPanel /></div>
         </aside>
 
-        {/* LISTINGS GRID */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-          
-          {/* UPDATED TOP BAR WITH PAGE INDICATOR */}
           <div className="hidden lg:flex items-center justify-between bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
             <span className="text-[13px] text-[#8A8E99]">
               {loading ? 'Loading...' : (
                 <>
-                  <strong className="text-[#F0EDE8]">{totalCount}</strong> active listings found 
+                  <strong className="text-[#F0EDE8]">{totalCount}</strong> active listings found
                   {totalPages > 0 && <span className="mx-2 text-[#C9922A] font-bold">| Page {currentPage} of {totalPages}</span>}
                   {activeFilterCount > 0 && <span> · {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied</span>}
                 </>
@@ -315,7 +329,7 @@ function MainBrowseInner() {
               <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Sort:</span>
               <select value={sortBy} onChange={e => setSortBy(e.target.value)}
                 className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[12px] px-3 py-2 rounded-sm focus:outline-none appearance-none">
-                <option value="newest">Newest First</option>
+                <option value="newest">Featured + Newest First</option>
                 <option value="price_asc">Price: Low to High</option>
                 <option value="price_desc">Price: High to Low</option>
               </select>
@@ -335,42 +349,48 @@ function MainBrowseInner() {
               <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No listings found</h3>
               <p className="text-[#8A8E99] text-sm mb-6">Try adjusting your filters or expanding your search.</p>
               {activeFilterCount > 0 && (
-                <button onClick={clearAllFilters} className="text-[#C9922A] font-bold text-sm uppercase tracking-widest hover:brightness-125">Clear All Filters</button>
+                <button onClick={clearAllFilters} className="bg-[#C9922A] text-black font-black text-sm uppercase tracking-widest px-6 py-3 rounded-sm hover:brightness-110 transition-all">
+                  Clear All Filters
+                </button>
               )}
+              <div className="mt-6 pt-6 border-t border-white/5">
+                <p className="text-[#8A8E99] text-sm mb-3">Have something to sell?</p>
+                <Link href="/sell" className="text-[#C9922A] font-black text-sm uppercase tracking-widest hover:brightness-125">
+                  Post a Free Listing →
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {listings.map(listing => (
-                <ListingCard
-                  key={listing.id}
-                  id={listing.id}
-                  title={listing.title}
-                  make={listing.makes?.name || ''}
-                  calibre={listing.calibre_id || ''}
-                  price={listing.price}
-                  province={listing.province || ''}
-                  condition={listing.conditions?.name || ''}
-                  category={listing.category_id}
-                  listingType={listing.listing_type}
-                  sellerName={listing.dealers?.business_name || 'Private Seller'}
-                  images={listing.images}
-                  featured={listing.is_featured}
-                />
+              {listings.map((listing, idx) => (
+                <React.Fragment key={listing.id}>
+                  <ListingCard
+                    id={listing.id} title={listing.title}
+                    make={listing.makes?.name || ''} calibre={listing.calibre_id || ''}
+                    price={listing.price} province={listing.province || ''}
+                    condition={listing.conditions?.name || ''} category={listing.category_id}
+                    listingType={listing.listing_type}
+                    sellerName={listing.dealers?.business_name || 'Private Seller'}
+                    images={listing.images} featured={listing.is_featured}
+                  />
+                  {(idx + 1) % 6 === 0 && idx < listings.length - 1 && (
+                    <div className="col-span-full w-full h-[90px] bg-[#12141a] border border-white/5 rounded-sm flex items-center justify-center">
+                      <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Advertisement — 970 × 90</span>
+                    </div>
+                  )}
+                </React.Fragment>
               ))}
             </div>
           )}
 
-          {/* UPGRADED DYNAMIC PAGINATION */}
           {totalPages > 1 && (
             <div className="flex flex-col items-center mt-8 pt-6 border-t border-white/5">
               <span className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-4">
                 Page <span className="text-[#C9922A]">{currentPage}</span> of {totalPages}
               </span>
-              
               <div className="flex items-center justify-center gap-2">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
                   className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">‹</button>
-                
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter(page => page === 1 || page === totalPages || Math.abs(currentPage - page) <= 2)
                   .map((page, index, array) => (
@@ -382,13 +402,11 @@ function MainBrowseInner() {
                         }`}>{page}</button>
                     </React.Fragment>
                   ))}
-
                 <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
                   className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">›</button>
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
