@@ -427,6 +427,19 @@ export default function Navbar() {
               </div>
             )}
 
+            {/* Auth — desktop logged OUT */}
+            {!loading && !user && (
+              <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
+                <Link href="/login"  className="text-[#8A8E99] font-bold uppercase tracking-widest text-[12px] hover:text-white transition-colors flex-shrink-0">Sign In</Link>
+                <Link href="/signup" className="text-[#8A8E99] border border-white/10 px-4 py-2 rounded-[2px] font-bold uppercase tracking-widest text-[11px] hover:bg-white/5 transition-all flex-shrink-0">Register</Link>
+                <Link href="/dealer/login"
+                  className="flex items-center gap-2 border border-[#C9922A]/40 bg-[#C9922A]/5 px-4 py-2 rounded-[2px] text-[#C9922A] font-bold uppercase tracking-widest text-[11px] hover:bg-[#C9922A]/10 hover:border-[#C9922A] transition-all flex-shrink-0">
+                  <span className="text-[14px]">{LOGIN_LABELS[loginLabelIdx].icon}</span>
+                  <span>{LOGIN_LABELS[loginLabelIdx].text}</span>
+                </Link>
+              </div>
+            )}
+
             {/* Auth avatar mobile — just avatar, no dropdown text */}
             {!loading && user && (
               <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden w-9 h-9 rounded-full bg-[#C9922A] flex items-center justify-center text-black font-black text-sm flex-shrink-0 relative">

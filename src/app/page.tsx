@@ -6,29 +6,30 @@ import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 
 const CATEGORIES = [
-  { n: 'Pistols',          slug: 'pistols',    i: '🎯', href: '/browse/pistols' },
-  { n: 'Rifles',           slug: 'rifles',     i: '🔭', href: '/browse/rifles' },
-  { n: 'Shotguns',         slug: 'shotguns',   i: '♾️', href: '/browse/shotguns' },
-  { n: 'Revolvers',        slug: 'revolvers',  i: '🎡', href: '/browse/revolvers' },
-  { n: 'Air Guns',         slug: 'air-guns',   i: '💨', href: '/browse/air-guns' },
-  { n: 'Airsoft',          slug: 'airsoft',    i: '⚡', href: '/browse/airsoft' },
-  { n: 'Optics',           slug: 'optics',     i: '🔬', href: '/browse/optics' },
-  { n: 'Holsters & Carry', slug: 'holsters',   i: '∪',  href: '/browse/holsters' },
-  { n: 'Magazines',        slug: 'magazines',  i: '⋮',  href: '/browse/magazines' },
-  { n: 'Ammunition',       slug: 'ammunition', i: '⧊',  href: '/browse/ammunition' },
-  { n: 'Reloading',        slug: 'reloading',  i: '🔧', href: '/browse/reloading' },
-  { n: 'Knives & Blades',  slug: 'knives',     i: '🖋️', href: '/browse/knives' },
-  { n: 'Accessories',      slug: 'accessories',i: '🛠️', href: '/browse/accessories' },
-  { n: 'Clubs & Ranges',   slug: 'clubs',      i: '⊕',  href: '/clubs' },
-  { n: 'Services',         slug: 'services',   i: '🏠', href: '/services' },
-  { n: 'Wanted',           slug: 'wanted',     i: '🔍', href: '/wanted' },
-  { n: 'Industry Jobs',    slug: 'jobs',       i: '💼', href: '/jobs' },
+  { n: 'Pistols',          slug: 'pistols',     i: '🎯', href: '/browse/pistols' },
+  { n: 'Rifles',           slug: 'rifles',      i: '🔭', href: '/browse/rifles' },
+  { n: 'Shotguns',         slug: 'shotguns',    i: '♾️', href: '/browse/shotguns' },
+  { n: 'Revolvers',        slug: 'revolvers',   i: '🎡', href: '/browse/revolvers' },
+  { n: 'Air Guns',         slug: 'air-guns',    i: '💨', href: '/browse/air-guns' },
+  { n: 'Airsoft',          slug: 'airsoft',     i: '⚡', href: '/browse/airsoft' },
+  { n: 'Optics',           slug: 'optics',      i: '🔬', href: '/browse/optics' },
+  { n: 'Holsters & Carry', slug: 'holsters',    i: '∪',  href: '/browse/holsters' },
+  { n: 'Magazines',        slug: 'magazines',   i: '⋮',  href: '/browse/magazines' },
+  { n: 'Ammunition',       slug: 'ammunition',  i: '⧊',  href: '/browse/ammunition' },
+  { n: 'Reloading',        slug: 'reloading',   i: '🔧', href: '/browse/reloading' },
+  { n: 'Knives & Blades',  slug: 'knives',      i: '🖋️', href: '/browse/knives' },
+  { n: 'Accessories',      slug: 'accessories', i: '🛠️', href: '/browse/accessories' },
+  { n: 'Dealers',          slug: 'dealers',     i: '🏪', href: '/dealers' },
+  { n: 'Clubs & Ranges',   slug: 'clubs',       i: '⊕',  href: '/clubs' },
+  { n: 'Services',         slug: 'services',    i: '🏠', href: '/services' },
+  { n: 'Wanted',           slug: 'wanted',      i: '🔍', href: '/wanted' },
+  { n: 'Industry Jobs',    slug: 'jobs',        i: '💼', href: '/jobs' },
 ];
 
 export default function HomePage() {
-  const [reelListings, setReelListings]     = useState<any[]>([]);
-  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
-  const [totalListings, setTotalListings]   = useState(0);
+  const [reelListings, setReelListings]         = useState<any[]>([]);
+  const [categoryCounts, setCategoryCounts]     = useState<Record<string, number>>({});
+  const [totalListings, setTotalListings]       = useState(0);
   const [announcementVisible, setAnnouncementVisible] = useState(true);
 
   useEffect(() => { fetchReelListings(); fetchCategoryCounts(); }, []);
@@ -60,7 +61,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] overflow-x-hidden flex flex-col">
 
-      {/* ANNOUNCEMENT BAR — ranges */}
+      {/* ANNOUNCEMENT BAR */}
       {announcementVisible && (
         <div className="bg-[#C9922A] text-black relative z-50">
           <div className="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap">
@@ -74,9 +75,7 @@ export default function HomePage() {
               Start Free →
             </Link>
             <button onClick={() => setAnnouncementVisible(false)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-black/50 hover:text-black text-lg leading-none font-bold">
-              ×
-            </button>
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-black/50 hover:text-black text-lg leading-none font-bold">×</button>
           </div>
         </div>
       )}
@@ -85,7 +84,7 @@ export default function HomePage() {
 
       {/* TOP LEADERBOARD AD */}
       <div className="w-full flex justify-center pt-3 pb-2 px-4">
-        <div className="w-full max-w-[970px] h-[120px] lg:h-[160px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
+        <div className="w-full max-w-[970px] h-[90px] lg:h-[120px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
           <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Top Leaderboard Ad Space</span>
           <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
         </div>
@@ -187,7 +186,7 @@ export default function HomePage() {
                 </h2>
                 <p className="text-[#8A8E99] text-[11px] uppercase tracking-[0.3em] font-bold">Explore listings across all firearm categories</p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                 {CATEGORIES.map(cat => (
                   <Link key={cat.slug} href={cat.href}
                     className="bg-[#13151A] border border-white/5 p-3 lg:p-4 flex flex-col items-center group hover:border-[#C9922A]/30 transition-all rounded-sm text-center">
@@ -211,9 +210,9 @@ export default function HomePage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                  { t: 'Verified Sellers', d: 'Every dealer and private seller goes through identity verification before listing.', i: '🛡️' },
-                  { t: 'Provincial Search', d: 'Find firearms close to home. Filter by province and city across all 9 provinces.', i: '📍' },
-                  { t: 'FCA Compliant', d: 'All listings comply with the Firearms Control Act. We take legal responsibility seriously.', i: '📋' },
+                  { t: 'Verified Sellers',  d: 'Every dealer and private seller goes through identity verification before listing.', i: '🛡️' },
+                  { t: 'Provincial Search', d: 'Find firearms close to home. Filter by province and city across all 9 provinces.',   i: '📍' },
+                  { t: 'FCA Compliant',     d: 'All listings comply with the Firearms Control Act. We take legal responsibility seriously.', i: '📋' },
                 ].map(item => (
                   <div key={item.t} className="bg-[#13151A] p-5 lg:p-6 border border-white/5 rounded-sm">
                     <div className="w-10 h-10 bg-[#191C23] border border-[#C9922A]/20 flex items-center justify-center rounded-sm mb-4 text-lg">{item.i}</div>
@@ -291,7 +290,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="pt-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <p className="text-[12px] text-[#8A8E99]">© 2026 Gun X — All rights reserved</p>
+                  <p className="text-[12px] text-[#8A8E99]">© 2026 GX SA (Pty) Ltd — All rights reserved</p>
                   <div className="flex flex-wrap justify-center items-center gap-4 text-[12px] text-[#8A8E99]">
                     {[['Terms of Use','/terms'],['Privacy Policy','/privacy'],['POPI Act','/popi'],['Legal Disclaimer','/legal']].map(([label,href]) => (
                       <Link key={label} href={href} className="hover:text-[#C9922A] transition-colors">{label}</Link>
@@ -301,7 +300,7 @@ export default function HomePage() {
               </div>
             </footer>
 
-          </div>{/* end center */}
+          </div>
 
           {/* RIGHT AD */}
           <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2">

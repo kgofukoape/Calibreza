@@ -6,7 +6,6 @@ const FROM_EMAIL     = 'Gun X <onboarding@resend.dev>';
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
 
-// ── Core send function — matches existing working RSVP email format ────────────
 async function sendEmail(to: string, subject: string, html: string) {
   const res = await fetch('https://api.resend.com/emails', {
     method:  'POST',
@@ -16,7 +15,7 @@ async function sendEmail(to: string, subject: string, html: string) {
     },
     body: JSON.stringify({
       from:    FROM_EMAIL,
-      to:      [to],          // ← array, matches existing working route
+      to:      [to],
       subject,
       html,
     }),
@@ -28,8 +27,6 @@ async function sendEmail(to: string, subject: string, html: string) {
   }
   return res.json();
 }
-
-// ── Email templates ────────────────────────────────────────────────────────────
 
 const adminAlert = (entity: string, name: string, detail: string, link: string) => `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
@@ -59,11 +56,10 @@ const approvedTemplate = (heading: string, body: string, btnText: string, btnUrl
   </p>
 </div>`;
 
-// ── Handler ────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const body        = await req.json();
-    const { type }    = body;
+    const body     = await req.json();
+    const { type } = body;
 
     switch (type) {
 
@@ -126,6 +122,19 @@ export async function POST(req: NextRequest) {
           ADMIN_EMAIL,
           `💼 New Job Posted — ${body.title} @ ${body.company}`,
           adminAlert('Job Listing', `${body.title} @ ${body.company}`, `${body.location} · ${body.employer_email}`, `${BASE_URL}/admin/jobs`)
+        );
+        break;
+
+      case 'listing_reported':
+        await sendEmail(
+          ADMIN_EMAIL,
+          `${body.is_urgent ? '🚨 URGENT' : '🚩'} Listing Reported — ${body.reason}`,
+          adminAlert(
+            'Listing Report',
+            body.listing_title || 'Unknown listing',
+            `Reason: ${body.reason} · ${body.is_urgent ? 'URGENT' : 'Standard'} · Contact: ${body.contact || 'Not provided'}`,
+            `${BASE_URL}/admin/listings`
+          )
         );
         break;
 
