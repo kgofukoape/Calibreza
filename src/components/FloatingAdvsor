@@ -1,0 +1,76 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+export default function FloatingAdvisor() {
+  const pathname = usePathname();
+  const [visible, setVisible]   = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  // Hide on advisor page itself and dashboards
+  const hidden = pathname === '/advisor' || pathname.startsWith('/admin') || pathname.startsWith('/dealer-dashboard') || pathname.startsWith('/service-dashboard') || pathname.startsWith('/club-dashboard');
+
+  useEffect(() => {
+    if (hidden) return;
+    // Show after 3 seconds
+    const timer = setTimeout(() => setVisible(true), 3000);
+    return () => clearTimeout(timer);
+  }, [hidden]);
+
+  // Auto-expand hint after 5s then collapse
+  useEffect(() => {
+    if (!visible || dismissed) return;
+    const t1 = setTimeout(() => setExpanded(true), 5000);
+    const t2 = setTimeout(() => setExpanded(false), 9000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [visible, dismissed]);
+
+  if (hidden || !visible || dismissed) return null;
+
+  return (
+    <div className="fixed bottom-6 right-6 z-[200] flex flex-col items-end gap-2">
+
+      {/* TOOLTIP BUBBLE */}
+      {expanded && (
+        <div className="bg-[#13151A] border border-[#C9922A]/30 rounded-sm p-3 shadow-[0_8px_32px_rgba(0,0,0,0.6)] max-w-[200px] animate-slideUp">
+          <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-1">Firearm Advisor</p>
+          <p className="text-[11px] text-[#8A8E99] leading-relaxed">Not sure which firearm suits you? Get a personalised AI assessment.</p>
+          <div className="mt-2 pt-2 border-t border-white/5">
+            <Link href="/advisor"
+              className="block text-center bg-[#C9922A] text-black font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded-sm hover:brightness-110 transition-all">
+              Start Assessment →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* MAIN BUTTON */}
+      <div className="flex items-center gap-2">
+        {/* Dismiss */}
+        <button
+          onClick={() => setDismissed(true)}
+          className="w-6 h-6 rounded-full bg-[#191C23] border border-white/10 flex items-center justify-center text-[#8A8E99] hover:text-white hover:border-white/20 transition-all text-[10px]"
+          title="Dismiss">
+          ×
+        </button>
+
+        {/* Main CTA */}
+        <Link href="/advisor"
+          className="flex items-center gap-2 bg-[#C9922A] text-black px-4 py-3 rounded-sm shadow-[0_4px_20px_rgba(201,146,42,0.4)] hover:brightness-110 transition-all group">
+          <span className="text-lg">🎯</span>
+          <div className="flex flex-col">
+            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="font-black uppercase tracking-widest text-[12px] leading-none">
+              Firearm Advisor
+            </span>
+            <span className="text-[9px] font-bold text-black/70 leading-none mt-0.5">AI-Powered · Free</span>
+          </div>
+          <div className="w-1.5 h-1.5 rounded-full bg-black/40 animate-pulse ml-1" />
+        </Link>
+      </div>
+    </div>
+  );
+}
