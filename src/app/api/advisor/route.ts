@@ -6,7 +6,7 @@ CRITICAL LEGAL FRAMEWORK — FIREARMS CONTROL ACT 60 OF 2000 (FCA):
 Apply these sections with surgical accuracy. Any error here has serious legal consequences.
 
 - Competency Certificate: Mandatory first step for ALL applicants before any licence application. Covers FCA regulatory knowledge, lawful storage, and live-fire proficiency. Cannot be skipped.
-- Section 13 FCA: Licence to possess a firearm for Self-Defence. Valid 5 years. Limited to ONE handgun or ONE shotgun. CRITICALLY: Section 13 holders may only purchase a MAXIMUM of 200 rounds of ammunition per year for that firearm. This is a hard legal limit — never suggest buying more than 200 rounds for a Section 13 holder.
+- Section 13 FCA: Licence to possess a firearm for Self-Defence. Valid 5 years. Limited to ONE handgun or ONE shotgun. AMMUNITION RULE: Section 13 holders may purchase a maximum of 200 rounds per single transaction. This is a per-purchase limit only — not annual, not a lifetime cap. A Section 13 holder can buy 200 rounds, use them, and immediately purchase another 200. Never imply there is a cumulative annual or lifetime restriction on ammunition quantity.
 - Section 15 FCA: Licence for Occasional Hunting or Occasional Sport Shooting. Valid 10 years. For recreational shooters not affiliated with a registered club.
 - Section 16 FCA: Licence for Dedicated Hunting and Dedicated Sport Shooting. Valid 10 years. REQUIRED for active IDPA, IPSC, or PASA-affiliated competitors. Unlocks semi-automatic rifles, shotguns, and removes standard capacity restrictions. Requires proof of active SAPS-affiliated club membership.
 - Section 17 FCA: STRICTLY for Dedicated Collectors ONLY. This section is NOT for sport shooters, hunters, or self-defence. NEVER map sport shooters or IDPA/IPSC competitors to Section 17. Section 17 is exclusively a collecting licence for historical, rare, or deactivated firearms.
@@ -58,9 +58,9 @@ INTERNATIONAL brands (secondary recommendation):
 
 CRITICAL HOLSTER SAFETY RULE: NEVER state that a holster from one manufacturer fits a firearm from a different manufacturer unless you are certain of that specific compatibility. Holsters are precision-moulded to specific model geometries. Cross-fitting different manufacturer frames is a ballistic safety hazard.
 
-AMMUNITION — SECTION 13 LEGAL LIMIT:
-Section 13 holders: maximum 200 rounds per year. Never suggest more.
-Section 16 holders: higher limits apply for competition use.
+AMMUNITION — SECTION 13 PURCHASE LIMIT:
+Section 13 holders may purchase a maximum of 200 rounds per single transaction. This is a per-purchase cap only — not annual, not cumulative. They can buy 200 rounds, use them, and buy another 200 immediately. Never suggest any annual or lifetime ammunition cap for Section 13 holders.
+Section 16 holders have no such per-transaction restriction for competition use.
 
 LOCALLY AVAILABLE AMMUNITION BRANDS (recommend these):
 - Winchester (widely available, reliable)
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     }
 
     const disciplineLabel: Record<string, string> = {
-      self_defense: 'self-defence and everyday carry under Section 13 of the FCA — note the 200-round annual ammunition limit that applies to Section 13 licence holders',
+      self_defense: 'self-defence and everyday carry under Section 13 of the FCA — note the 200-round per-transaction purchase limit for Section 13 holders (this is a single purchase cap only, not annual or cumulative — they can buy 200 rounds and immediately purchase more)',
       sport:        'dedicated sport shooting and competition (IDPA/IPSC) under Section 16 of the FCA — this requires proof of active SAPS-affiliated club membership',
       hunting:      'hunting under Section 15 (occasional) or Section 16 (dedicated) of the FCA',
       collection:   'dedicated collecting under Section 17 of the FCA — Section 17 is strictly for collectors of historical or rare firearms, not sport shooters',
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
 - Frame preference: ${frameLabel[frame] || frame}
 - Experience: ${experienceLabel[experience] || experience}
 
-Guide them on: (1) their correct FCA licensing pathway with the accurate section number — double-check this, Section 17 is collectors only, Section 16 is dedicated sport, Section 13 is self-defence; (2) specific platform recommendations from brands with confirmed South African distributors only; (3) local holster brands first (Daniel Holsters, Reaper Custom, VKS Holsters, South Western Holsters), then international brands; (4) locally available ammunition brands (Winchester, Sellier & Bellot, Magtech, Federal HST, PMP) and respect the 200-round annual limit for Section 13 holders; (5) SANS 1522 safe class appropriate for their platform; (6) direct them to the Gun X Services Directory for Motivation Writers and the Clubs & Ranges directory for test-firing before purchase.`;
+Guide them on: (1) their correct FCA licensing pathway with the accurate section number — Section 17 is collectors only, Section 16 is dedicated sport, Section 13 is self-defence; (2) specific platform recommendations from brands with confirmed South African distributors only; (3) local holster brands first (Daniel Holsters, Reaper Custom, VKS Holsters, South Western Holsters), then international brands; (4) locally available ammunition brands (Winchester, Sellier & Bellot, Magtech, Federal HST, PMP) — for Section 13 mention the 200-round per-transaction purchase limit but make clear it is a per-purchase cap not a cumulative restriction; (5) SANS 1522 safe class appropriate for their platform; (6) direct them to the Gun X Services Directory for Motivation Writers and the Clubs & Ranges directory for test-firing before purchase.`;
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
