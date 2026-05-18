@@ -13,12 +13,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       'Authorization': `Bearer ${RESEND_API_KEY}`,
       'Content-Type':  'application/json',
     },
-    body: JSON.stringify({
-      from:    FROM_EMAIL,
-      to:      [to],
-      subject,
-      html,
-    }),
+    body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html }),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -30,7 +25,7 @@ async function sendEmail(to: string, subject: string, html: string) {
 
 const adminAlert = (entity: string, name: string, detail: string, link: string) => `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
-  <h1 style="color:#C9922A;font-size:26px;margin-bottom:4px;">New ${entity} Application</h1>
+  <h1 style="color:#C9922A;font-size:26px;margin-bottom:4px;">New ${entity}</h1>
   <p style="color:#8A8E99;margin-top:0;">Action required in your Command Center</p>
   <div style="background:#13151A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px;margin:24px 0;">
     <p style="font-size:18px;font-weight:bold;color:#F0EDE8;margin:0 0 8px;">${name}</p>
@@ -40,7 +35,7 @@ const adminAlert = (entity: string, name: string, detail: string, link: string) 
     Review in Command Center →
   </a>
   <p style="color:#5A5E69;font-size:12px;margin-top:32px;border-top:1px solid rgba(255,255,255,0.05);padding-top:16px;">
-    Gun X Command Center · <a href="${BASE_URL}" style="color:#C9922A;text-decoration:none;">calibreza.vercel.app</a>
+    Gun X · <a href="${BASE_URL}" style="color:#C9922A;text-decoration:none;">calibreza.vercel.app</a>
   </p>
 </div>`;
 
@@ -67,7 +62,7 @@ export async function POST(req: NextRequest) {
         await sendEmail(
           ADMIN_EMAIL,
           `🏪 New Dealer Application — ${body.name}`,
-          adminAlert('Dealer', body.name, `${body.city}, ${body.province} · ${body.email}`, `${BASE_URL}/admin/dealers`)
+          adminAlert('Dealer Application', body.name, `${body.city}, ${body.province} · ${body.email}`, `${BASE_URL}/admin/dealers`)
         );
         break;
 
@@ -90,7 +85,7 @@ export async function POST(req: NextRequest) {
         await sendEmail(
           ADMIN_EMAIL,
           `⊕ New Club/Range Application — ${body.name}`,
-          adminAlert('Club / Range', body.name, `${body.city}, ${body.province} · ${body.email}`, `${BASE_URL}/admin/clubs`)
+          adminAlert('Club / Range Application', body.name, `${body.city}, ${body.province} · ${body.email}`, `${BASE_URL}/admin/clubs`)
         );
         break;
 
@@ -98,7 +93,7 @@ export async function POST(req: NextRequest) {
         await sendEmail(
           ADMIN_EMAIL,
           `🔧 New Service Provider — ${body.name}`,
-          adminAlert('Service Provider', body.name, `${body.type} · ${body.city}, ${body.province} · ${body.email}`, `${BASE_URL}/admin/services`)
+          adminAlert('Service Provider Application', body.name, `${body.type} · ${body.city}, ${body.province} · ${body.email}`, `${BASE_URL}/admin/services`)
         );
         break;
 
@@ -134,6 +129,19 @@ export async function POST(req: NextRequest) {
             body.listing_title || 'Unknown listing',
             `Reason: ${body.reason} · ${body.is_urgent ? 'URGENT' : 'Standard'} · Contact: ${body.contact || 'Not provided'}`,
             `${BASE_URL}/admin/listings`
+          )
+        );
+        break;
+
+      case 'contact_form':
+        await sendEmail(
+          ADMIN_EMAIL,
+          `📩 Contact Form — ${body.subject} from ${body.name}`,
+          adminAlert(
+            'Contact Form Message',
+            body.name,
+            `${body.email} · ${body.subject} · "${body.message?.slice(0, 100)}..."`,
+            `${BASE_URL}/admin`
           )
         );
         break;
