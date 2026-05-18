@@ -5,8 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type Step = 'budget' | 'discipline' | 'frame' | 'experience' | 'result';
+type Step = 'disclaimer' | 'budget' | 'discipline' | 'frame' | 'experience' | 'result';
 
 interface Answers {
   budget:     string;
@@ -15,97 +14,51 @@ interface Answers {
   experience: string;
 }
 
-const STEPS: Step[] = ['budget', 'discipline', 'frame', 'experience', 'result'];
+const STEPS: Step[] = ['disclaimer', 'budget', 'discipline', 'frame', 'experience', 'result'];
 
 const QUESTIONS = {
   budget: {
     title: 'What is your budget?',
-    subtitle: 'We\'ll match you to listings within your range.',
+    subtitle: 'For the platform only — budget R2,500–R4,500 separately for competency and CFR licensing.',
     options: [
       { value: '10000',  label: 'Up to R10,000',  desc: 'Entry-level platforms' },
       { value: '25000',  label: 'Up to R25,000',  desc: 'Mid-range proven options' },
       { value: '50000',  label: 'Up to R50,000',  desc: 'Premium configurations' },
-      { value: '999999', label: 'No Limit',        desc: 'Show me the best' },
+      { value: '999999', label: 'No Limit',        desc: 'Show me the best available' },
     ],
   },
   discipline: {
     title: 'What is your primary purpose?',
-    subtitle: 'This determines the platform type that suits your lifestyle.',
+    subtitle: 'This determines your FCA licensing section and platform type.',
     options: [
-      { value: 'self_defense', label: 'Self Defence / EDC',    desc: 'Concealed carry, home protection' },
-      { value: 'sport',        label: 'Sport Shooting',         desc: 'IDPA, IPSC, practical shooting' },
-      { value: 'hunting',      label: 'Hunting',                desc: 'Game, small calibre, long range' },
-      { value: 'collection',   label: 'Collection / Investment', desc: 'Historical, limited editions' },
+      { value: 'self_defense', label: 'Self Defence / EDC',     desc: 'Section 13 FCA — home protection, carry' },
+      { value: 'sport',        label: 'Dedicated Sport Shooting', desc: 'Section 16 FCA — IDPA, IPSC competition' },
+      { value: 'hunting',      label: 'Hunting',                  desc: 'Section 15/16 FCA — game, field use' },
+      { value: 'collection',   label: 'Collection',               desc: 'Section 17 FCA — dedicated collecting' },
     ],
   },
   frame: {
-    title: 'What size platform suits you?',
-    subtitle: 'Frame size affects concealability, capacity, and control.',
+    title: 'What frame profile suits you?',
+    subtitle: 'Test before you buy — visit an accredited range to feel the difference.',
     options: [
-      { value: 'subcompact', label: 'Subcompact',  desc: 'Lightest, most concealable' },
-      { value: 'compact',    label: 'Compact',     desc: 'Balance of size and capacity' },
-      { value: 'fullsize',   label: 'Full Size',   desc: 'Maximum control and capacity' },
-      { value: 'any',        label: 'No Preference', desc: 'Show me all options' },
+      { value: 'subcompact', label: 'Subcompact',     desc: 'Maximum concealment, reduced grip' },
+      { value: 'compact',    label: 'Compact',         desc: 'Balanced — most versatile choice' },
+      { value: 'fullsize',   label: 'Full Size',       desc: 'Maximum control and capacity' },
+      { value: 'any',        label: 'No Preference',   desc: 'Show me all options' },
     ],
   },
   experience: {
     title: 'What is your experience level?',
-    subtitle: 'Helps us recommend the right ergonomics and action type.',
+    subtitle: 'Helps us recommend the right action type and trigger characteristics.',
     options: [
-      { value: 'first_time', label: 'First Time Owner', desc: 'Never owned a firearm' },
-      { value: 'beginner',   label: 'Beginner',          desc: 'Some range experience' },
-      { value: 'intermediate', label: 'Intermediate',    desc: 'Regular shooter' },
-      { value: 'advanced',   label: 'Advanced',          desc: 'Experienced, competitive' },
+      { value: 'first_time',   label: 'First Time Owner',  desc: 'Pre-competency certificate stage' },
+      { value: 'beginner',     label: 'Beginner',           desc: 'Some range experience' },
+      { value: 'intermediate', label: 'Intermediate',       desc: 'Current licence holder' },
+      { value: 'advanced',     label: 'Advanced',           desc: 'Competitive / experienced operator' },
     ],
   },
 };
 
-// ── AI Response Generator ─────────────────────────────────────────────────────
-function generateAdvisory(answers: Answers): string {
-  const disciplineMap: Record<string, string> = {
-    self_defense: 'self-defence and everyday carry',
-    sport:        'sport shooting and competition',
-    hunting:      'hunting and field use',
-    collection:   'collection and investment',
-  };
-
-  const frameMap: Record<string, string> = {
-    subcompact: 'subcompact platforms offer maximum concealability with reduced capacity — ideal for daily carry under clothing',
-    compact:    'compact platforms strike the optimal balance between concealability and magazine capacity — the most versatile choice for most shooters',
-    fullsize:   'full-size platforms deliver maximum barrel length, sight radius, and capacity — preferred for range use and home defence',
-    any:        'we have selected a range of frame sizes to give you the broadest options across the market',
-  };
-
-  const experienceMap: Record<string, string> = {
-    first_time:   'As a first-time owner, we strongly recommend a striker-fired platform with consistent trigger pull and no manual safety to master — reducing mechanical complexity while you build fundamentals.',
-    beginner:     'With some range experience, you are ready to explore both striker-fired and traditional DA/SA platforms. Focus on ergonomics that feel natural in your grip.',
-    intermediate: 'At your experience level, action type preference is personal. Consider a platform you can grow with — one that supports aftermarket upgrades and holster availability.',
-    advanced:     'As an experienced shooter, the platform details matter less than the specific configuration. Focus on trigger characteristics, aftermarket support, and match legality if applicable.',
-  };
-
-  const budgetMap: Record<string, string> = {
-    '10000':  'Your R10,000 budget covers a solid range of reliable entry-level platforms from established manufacturers.',
-    '25000':  'With a R25,000 ceiling, the South African market opens significantly — you can access proven duty-grade platforms with excellent aftermarket support.',
-    '50000':  'At R50,000, you have access to premium competition-ready configurations, custom work, and collector-grade pieces.',
-    '999999': 'With no budget constraint, we have surfaced the finest available configurations currently in the vault.',
-  };
-
-  return `ADVISORY ASSESSMENT — ${disciplineMap[answers.discipline]?.toUpperCase() || 'GENERAL USE'}
-
-${budgetMap[answers.budget] || ''}
-
-For your stated discipline of ${disciplineMap[answers.discipline] || 'general use'}, ${frameMap[answers.frame] || 'the selected frame size provides good versatility'}.
-
-${experienceMap[answers.experience] || ''}
-
-CALIBRE GUIDANCE: For self-defence applications, 9mm Luger remains the ballistic and logistical optimum in South Africa — widely available, controllable, and effective. For sport, 9mm Major or .40 S&W are common depending on your division. For hunting, calibre selection depends on intended game — consult a SAPS-licensed dealer to ensure your licence covers your intended calibre.
-
-LEGAL REMINDER: All firearms must be licenced in your name before acquisition. Transfer must occur through a SAPS-licensed dealer. Ensure your competency certificate covers the action type of your selected platform before applying for a licence.
-
-The listings below represent active stock matching your profile. Contact sellers directly — all transactions must be completed through a licensed dealer.`;
-}
-
-// ── Category Mapping ──────────────────────────────────────────────────────────
 function getCategorySlug(discipline: string): string[] {
   switch (discipline) {
     case 'self_defense': return ['pistols', 'revolvers'];
@@ -116,55 +69,63 @@ function getCategorySlug(discipline: string): string[] {
   }
 }
 
-// ── Typing Effect ─────────────────────────────────────────────────────────────
-function useTypingEffect(text: string, speed = 12) {
+function useTypingEffect(text: string, speed = 10) {
   const [displayed, setDisplayed] = useState('');
   const [done, setDone]           = useState(false);
-
   useEffect(() => {
     setDisplayed('');
     setDone(false);
     let i = 0;
     const timer = setInterval(() => {
-      if (i < text.length) {
-        setDisplayed(text.slice(0, i + 1));
-        i++;
-      } else {
-        setDone(true);
-        clearInterval(timer);
-      }
+      if (i < text.length) { setDisplayed(text.slice(0, i + 1)); i++; }
+      else { setDone(true); clearInterval(timer); }
     }, speed);
     return () => clearInterval(timer);
   }, [text, speed]);
-
   return { displayed, done };
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// Fallback template if API fails
+function generateFallback(answers: Answers): string {
+  const sectionMap: Record<string, string> = {
+    self_defense: 'Section 13 of the FCA',
+    sport:        'Section 16 of the FCA',
+    hunting:      'Section 15 or Section 16 of the FCA',
+    collection:   'Section 17 of the FCA',
+  };
+  return `Your licensing pathway falls under ${sectionMap[answers.discipline] || 'the FCA'}. Your first step — before any platform selection — is completing a SAPS-accredited Competency Certificate. This covers FCA regulatory knowledge, lawful storage, and live-fire proficiency. Once passed, your CFR application can be submitted. Processing typically runs 90 to 180 days.
+
+Visit the Gun X Services Directory at /services to connect with a professional Motivation Writer who can prepare your CFR application portfolio. A well-prepared motivation significantly improves approval rates. Before spending your budget, visit an accredited range in the Clubs & Ranges directory at /clubs to physically test grip profiles and trigger characteristics on platforms matching your stated frame preference.
+
+All firearm storage must comply with Section 86 of the FCA. An approved SANS 1522 safe must be installed before your licence is issued — Class A for handguns, Class B for long arms. Budget this into your total cost of ownership.
+
+This advisory is informational only and does not constitute legal advice. Consult a SAPS-accredited dealer and qualified legal professional before any acquisition decision.`;
+}
+
 export default function AdvisorPage() {
-  const [step, setStep]         = useState<Step>('budget');
-  const [answers, setAnswers]   = useState<Answers>({ budget: '', discipline: '', frame: '', experience: '' });
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading]   = useState(false);
-  const [advisory, setAdvisory] = useState('');
-  const resultRef               = useRef<HTMLDivElement>(null);
+  const [step, setStep]           = useState<Step>('disclaimer');
+  const [answers, setAnswers]     = useState<Answers>({ budget: '', discipline: '', frame: '', experience: '' });
+  const [listings, setListings]   = useState<any[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [advisory, setAdvisory]   = useState('');
+  const [disclaimerAck, setDisclaimerAck] = useState(false);
+  const resultRef                 = useRef<HTMLDivElement>(null);
 
   const { displayed, done } = useTypingEffect(advisory, 8);
 
   const stepIndex = STEPS.indexOf(step);
-  const progress  = step === 'result' ? 100 : Math.round((stepIndex / (STEPS.length - 1)) * 100);
+  const questionSteps = STEPS.filter(s => s !== 'disclaimer' && s !== 'result');
+  const questionIndex = questionSteps.indexOf(step as any);
+  const progress = step === 'result' ? 100 : step === 'disclaimer' ? 0 : Math.round(((questionIndex + 1) / questionSteps.length) * 100);
 
   const handleAnswer = (key: keyof Answers, value: string) => {
     const updated = { ...answers, [key]: value };
     setAnswers(updated);
-
     const keys = Object.keys(QUESTIONS) as (keyof Answers)[];
     const currentIdx = keys.indexOf(key);
-
     if (currentIdx < keys.length - 1) {
       setStep(keys[currentIdx + 1] as Step);
     } else {
-      // Last question answered — run analysis
       runAnalysis(updated);
     }
   };
@@ -173,8 +134,6 @@ export default function AdvisorPage() {
     setStep('result');
     setLoading(true);
     setAdvisory('');
-
-    // Call Claude Haiku via API
     try {
       const res = await fetch('/api/advisor', {
         method: 'POST',
@@ -182,41 +141,36 @@ export default function AdvisorPage() {
         body: JSON.stringify(a),
       });
       const data = await res.json();
-      setAdvisory(data.advisory || generateAdvisory(a));
+      setAdvisory(data.advisory || generateFallback(a));
     } catch {
-      // Fallback to template if API fails
-      setAdvisory(generateAdvisory(a));
+      setAdvisory(generateFallback(a));
     }
 
-    // Query Supabase
+    // Fetch matched listings
     try {
       const categories = getCategorySlug(a.discipline);
       const maxPrice   = parseInt(a.budget);
-
-      let query = supabase
+      const { data: primary } = await supabase
         .from('listings')
         .select('id, title, price, category_id, images, city, listing_type, is_featured, view_count, is_negotiable, created_at')
         .eq('status', 'active')
         .in('category_id', categories)
         .lte('price', maxPrice)
         .order('is_featured', { ascending: false })
-        .order('created_at', { ascending: false })
+        .order('view_count', { ascending: false })
         .limit(12);
 
-      const { data } = await query;
-
-      if (!data || data.length === 0) {
-        // Fallback — show any active listings in broad categories
+      if (!primary || primary.length === 0) {
         const { data: fallback } = await supabase
           .from('listings')
           .select('id, title, price, category_id, images, city, listing_type, is_featured, view_count, is_negotiable, created_at')
           .eq('status', 'active')
-          .in('category_id', ['pistols', 'revolvers', 'rifles'])
+          .in('category_id', categories)
           .order('is_featured', { ascending: false })
           .limit(8);
         setListings(fallback || []);
       } else {
-        setListings(data);
+        setListings(primary);
       }
     } catch {
       setListings([]);
@@ -227,7 +181,8 @@ export default function AdvisorPage() {
   };
 
   const restart = () => {
-    setStep('budget');
+    setStep('disclaimer');
+    setDisclaimerAck(false);
     setAnswers({ budget: '', discipline: '', frame: '', experience: '' });
     setListings([]);
     setAdvisory('');
@@ -236,8 +191,12 @@ export default function AdvisorPage() {
   const formatCategory = (cat: string) =>
     cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
-  const currentQuestion = step !== 'result' ? QUESTIONS[step as keyof typeof QUESTIONS] : null;
-  const currentKey      = step !== 'result' ? step as keyof Answers : null;
+  const currentQuestion = step !== 'result' && step !== 'disclaimer'
+    ? QUESTIONS[step as keyof typeof QUESTIONS]
+    : null;
+  const currentKey = step !== 'result' && step !== 'disclaimer'
+    ? step as keyof Answers
+    : null;
 
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
@@ -248,14 +207,14 @@ export default function AdvisorPage() {
         <div className="max-w-[800px] mx-auto">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-2 h-2 rounded-full bg-[#C9922A] animate-pulse" />
-            <p className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.4em]">AI-Powered</p>
+            <p className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.4em]">Gun X</p>
           </div>
           <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
             className="text-4xl md:text-6xl font-black uppercase tracking-tight leading-none mb-4">
             Firearm <span className="text-[#C9922A]">Match</span> Advisor
           </h1>
           <p className="text-[#8A8E99] text-sm md:text-base leading-relaxed max-w-xl">
-            Answer four questions. Our advisor analyses your profile and surfaces active listings from the vault that match your discipline, budget, and experience level.
+            Answer four questions. Our advisor analyses your profile against South African law and surfaces active listings from the vault that match your discipline, budget, and experience level.
           </p>
         </div>
       </div>
@@ -267,23 +226,79 @@ export default function AdvisorPage() {
 
       <main className="flex-1 max-w-[800px] mx-auto w-full px-4 md:px-6 py-10 md:py-16">
 
-        {/* STEP INDICATOR */}
-        {step !== 'result' && (
+        {/* ── STEP 0: DISCLAIMER ───────────────────────────────────────── */}
+        {step === 'disclaimer' && (
+          <div className="animate-fadeIn">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-6 md:p-8 mb-6">
+              <div className="flex items-start gap-3 mb-4">
+                <span className="text-red-400 text-xl flex-shrink-0 mt-0.5">⚠️</span>
+                <div>
+                  <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                    className="text-red-400 font-black text-[16px] uppercase tracking-widest mb-2">
+                    Important Legal Disclaimer
+                  </p>
+                  <p className="text-[#8A8E99] text-[13px] leading-relaxed mb-3">
+                    This advisory tool is provided for <strong className="text-[#F0EDE8]">general informational purposes only</strong> and does not constitute legal advice, ballistic advice, or a recommendation to purchase any specific firearm.
+                  </p>
+                  <p className="text-[#8A8E99] text-[13px] leading-relaxed mb-3">
+                    All firearm acquisitions in South Africa are governed by the <strong className="text-[#F0EDE8]">Firearms Control Act 60 of 2000 (FCA)</strong>. A valid licence for the correct FCA section must be obtained <strong className="text-[#F0EDE8]">before</strong> any purchase. All transfers must be completed through a SAPS-licensed dealer.
+                  </p>
+                  <p className="text-[#8A8E99] text-[13px] leading-relaxed mb-3">
+                    Always consult a <strong className="text-[#F0EDE8]">SAPS-accredited dealer</strong> and a <strong className="text-[#F0EDE8]">qualified legal professional</strong> before making any firearm acquisition decision.
+                  </p>
+                  <p className="text-[#8A8E99] text-[13px] leading-relaxed">
+                    <strong className="text-red-400">GX SA (Pty) Ltd accepts no liability</strong> for decisions made based on this advisory. Firearm ownership is a serious legal responsibility.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 pt-4 border-t border-red-500/20">
+                <input
+                  type="checkbox"
+                  id="ack"
+                  checked={disclaimerAck}
+                  onChange={e => setDisclaimerAck(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-red-500 flex-shrink-0 cursor-pointer"
+                />
+                <label htmlFor="ack" className="text-[13px] text-[#F0EDE8] cursor-pointer leading-relaxed">
+                  I understand this advisory is informational only. I will consult a SAPS-accredited dealer and legal professional before any firearm acquisition.
+                </label>
+              </div>
+            </div>
+
+            <button
+              onClick={() => { if (disclaimerAck) setStep('budget'); }}
+              disabled={!disclaimerAck}
+              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className={`w-full py-4 font-black uppercase tracking-widest text-[15px] rounded-sm transition-all ${
+                disclaimerAck
+                  ? 'bg-[#C9922A] text-black hover:brightness-110 cursor-pointer'
+                  : 'bg-white/5 text-[#8A8E99] cursor-not-allowed'
+              }`}>
+              {disclaimerAck ? 'I Understand — Begin Assessment →' : 'Please acknowledge the disclaimer above'}
+            </button>
+          </div>
+        )}
+
+        {/* ── STEP INDICATOR ───────────────────────────────────────────── */}
+        {step !== 'result' && step !== 'disclaimer' && (
           <div className="flex items-center gap-2 mb-8">
-            {STEPS.filter(s => s !== 'result').map((s, i) => (
+            {questionSteps.map((s, i) => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-6 h-6 rounded-sm flex items-center justify-center text-[10px] font-black transition-all ${
                   s === step ? 'bg-[#C9922A] text-black' :
-                  STEPS.indexOf(s) < stepIndex ? 'bg-[#C9922A]/30 text-[#C9922A]' :
+                  questionIndex > i ? 'bg-[#C9922A]/30 text-[#C9922A]' :
                   'bg-[#191C23] border border-white/10 text-[#8A8E99]'
                 }`}>{i + 1}</div>
-                {i < 3 && <div className={`w-8 h-px transition-all ${STEPS.indexOf(s) < stepIndex ? 'bg-[#C9922A]/50' : 'bg-white/10'}`} />}
+                {i < questionSteps.length - 1 && (
+                  <div className={`w-8 h-px transition-all ${questionIndex > i ? 'bg-[#C9922A]/50' : 'bg-white/10'}`} />
+                )}
               </div>
             ))}
           </div>
         )}
 
-        {/* QUESTION CARD */}
+        {/* ── QUESTION CARD ─────────────────────────────────────────────── */}
         {currentQuestion && currentKey && (
           <div className="animate-fadeIn">
             <div className="mb-8">
@@ -293,7 +308,6 @@ export default function AdvisorPage() {
               </h2>
               <p className="text-[#8A8E99] text-[14px]">{currentQuestion.subtitle}</p>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {currentQuestion.options.map(opt => (
                 <button key={opt.value}
@@ -310,9 +324,9 @@ export default function AdvisorPage() {
                 </button>
               ))}
             </div>
-
-            {stepIndex > 0 && (
-              <button onClick={() => setStep(STEPS[stepIndex - 1])}
+            {stepIndex > 1 && (
+              <button
+                onClick={() => setStep(STEPS[stepIndex - 1])}
                 className="mt-6 text-[11px] font-black uppercase tracking-widest text-[#8A8E99] hover:text-[#F0EDE8] transition-colors">
                 ← Back
               </button>
@@ -320,17 +334,17 @@ export default function AdvisorPage() {
           </div>
         )}
 
-        {/* RESULTS */}
+        {/* ── RESULTS ───────────────────────────────────────────────────── */}
         {step === 'result' && (
           <div ref={resultRef} className="space-y-8">
 
             {/* SUMMARY PILLS */}
             <div className="flex flex-wrap gap-2">
               {[
-                { label: 'Budget', value: answers.budget === '999999' ? 'No Limit' : `R${parseInt(answers.budget).toLocaleString()}` },
-                { label: 'Use', value: answers.discipline.replace('_', ' ') },
-                { label: 'Frame', value: answers.frame },
-                { label: 'Level', value: answers.experience.replace('_', ' ') },
+                { label: 'Budget',     value: answers.budget === '999999' ? 'No Limit' : `R${parseInt(answers.budget).toLocaleString()}` },
+                { label: 'Discipline', value: answers.discipline.replace('_', ' ') },
+                { label: 'Frame',      value: answers.frame },
+                { label: 'Level',      value: answers.experience.replace('_', ' ') },
               ].map(pill => (
                 <div key={pill.label} className="bg-[#191C23] border border-[#C9922A]/20 rounded-sm px-3 py-1.5 flex items-center gap-2">
                   <span className="text-[9px] font-black uppercase tracking-widest text-[#8A8E99]">{pill.label}</span>
@@ -338,18 +352,18 @@ export default function AdvisorPage() {
                 </div>
               ))}
               <button onClick={restart}
-                className="bg-[#191C23] border border-white/10 rounded-sm px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#8A8E99] hover:text-[#F0EDE8] hover:border-white/20 transition-all">
+                className="bg-[#191C23] border border-white/10 rounded-sm px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#8A8E99] hover:text-[#F0EDE8] transition-all">
                 ↺ Restart
               </button>
             </div>
 
-            {/* AI ADVISORY */}
+            {/* ADVISORY BLOCK */}
             <div className="bg-[#191C23] border border-[#C9922A]/20 rounded-sm p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-2 h-2 rounded-full bg-[#C9922A] animate-pulse" />
                 <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
                   className="text-[11px] font-black uppercase tracking-[0.4em] text-[#C9922A]">
-                  AI Advisory — Generating Assessment
+                  Match Advisor — Assessment
                 </p>
                 {!done && <div className="w-3 h-3 border border-[#C9922A] border-t-transparent rounded-full animate-spin" />}
               </div>
@@ -359,12 +373,47 @@ export default function AdvisorPage() {
               </pre>
             </div>
 
-            {/* LISTINGS */}
+            {/* ECOSYSTEM CTA BUTTONS — drives traffic to monetised directories */}
+            {done && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Link href="/services?search=motivation+writer"
+                  className="group bg-[#13151A] border border-white/5 rounded-sm p-4 hover:border-[#C9922A]/40 transition-all flex items-center gap-3">
+                  <span className="text-2xl flex-shrink-0">📝</span>
+                  <div>
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                      className="font-black text-[14px] uppercase text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">
+                      Find a Motivation Writer
+                    </p>
+                    <p className="text-[11px] text-[#8A8E99]">Professional CFR application preparation</p>
+                  </div>
+                  <span className="text-[#8A8E99] group-hover:text-[#C9922A] transition-colors ml-auto">→</span>
+                </Link>
+
+                <Link href="/clubs"
+                  className="group bg-[#13151A] border border-white/5 rounded-sm p-4 hover:border-[#C9922A]/40 transition-all flex items-center gap-3">
+                  <span className="text-2xl flex-shrink-0">🎯</span>
+                  <div>
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                      className="font-black text-[14px] uppercase text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">
+                      Find a Range Near You
+                    </p>
+                    <p className="text-[11px] text-[#8A8E99]">Test-fire before you buy</p>
+                  </div>
+                  <span className="text-[#8A8E99] group-hover:text-[#C9922A] transition-colors ml-auto">→</span>
+                </Link>
+              </div>
+            )}
+
+            {/* MATCHED LISTINGS */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
                   className="text-2xl font-black uppercase">
-                  {loading ? 'Scanning Vault...' : listings.length > 0 ? `${listings.length} Matched Listing${listings.length !== 1 ? 's' : ''}` : 'No Exact Match — Top Alternatives'}
+                  {loading
+                    ? 'Scanning Vault...'
+                    : listings.length > 0
+                    ? `${listings.length} Matched Listing${listings.length !== 1 ? 's' : ''}`
+                    : 'No Exact Match — Top Alternatives'}
                 </h2>
                 {!loading && listings.length > 0 && (
                   <Link href="/browse" className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] hover:brightness-125">
@@ -390,10 +439,9 @@ export default function AdvisorPage() {
                   <div className="text-4xl mb-4 opacity-30">🔍</div>
                   <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
                     className="text-xl font-black uppercase mb-2">No Exact Configuration in Vault</p>
-                  <p className="text-[#8A8E99] text-sm mb-6">
-                    Showing top-rated alternative platforms currently available.
-                  </p>
-                  <Link href="/browse" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
+                  <p className="text-[#8A8E99] text-sm mb-6">Showing top-rated alternative platforms currently available.</p>
+                  <Link href="/browse"
+                    className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
                     Browse Full Inventory
                   </Link>
                 </div>
@@ -409,9 +457,7 @@ export default function AdvisorPage() {
                             ? <img src={image} alt={listing.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             : <div className="w-full h-full flex items-center justify-center text-4xl opacity-10">🔫</div>}
                           {listing.is_featured && (
-                            <div className="absolute top-2 left-2 bg-[#C9922A] text-black text-[8px] font-black px-2 py-0.5 rounded-sm uppercase tracking-tight">
-                              ⭐ Featured
-                            </div>
+                            <div className="absolute top-2 left-2 bg-[#C9922A] text-black text-[8px] font-black px-2 py-0.5 rounded-sm uppercase">⭐ Featured</div>
                           )}
                           <div className="absolute top-2 right-2 bg-black/70 text-[#8A8E99] text-[9px] font-black px-2 py-0.5 rounded-sm uppercase">
                             {formatCategory(listing.category_id)}
@@ -438,15 +484,15 @@ export default function AdvisorPage() {
               )}
             </div>
 
-            {/* LEGAL NOTICE */}
-            <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5">
-              <p className="text-[#C9922A] font-black text-[12px] uppercase tracking-widest mb-2">⚠️ Legal Notice</p>
+            {/* LEGAL DISCLAIMER — bottom */}
+            <div className="bg-red-500/5 border border-red-500/20 rounded-sm p-5">
+              <p className="text-red-400 font-black text-[12px] uppercase tracking-widest mb-2">⚠️ Legal Disclaimer</p>
               <p className="text-[#8A8E99] text-[13px] leading-relaxed">
-                All firearm acquisitions must comply with the Firearms Control Act (Act 60 of 2000). A valid licence for the relevant category is required before purchase. All transfers must be completed through a SAPS-licensed dealer. The AI advisory is informational only and does not constitute legal or ballistic advice.
+                This advisory is informational only and does not constitute legal or ballistic advice. All acquisitions must comply with the Firearms Control Act 60 of 2000. A valid licence for the correct FCA section must be obtained before purchase. All transfers must be completed through a SAPS-licensed dealer. GX SA (Pty) Ltd accepts no liability for decisions made based on this advisory.
               </p>
             </div>
 
-            {/* CTA */}
+            {/* BOTTOM CTA */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Link href="/dealers"
                 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
@@ -459,7 +505,7 @@ export default function AdvisorPage() {
               </Link>
               <button onClick={restart}
                 className="border border-[#C9922A]/30 text-[#C9922A] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-[#C9922A]/10 transition-all">
-                ↺ Start New Assessment
+                ↺ New Assessment
               </button>
             </div>
           </div>
