@@ -141,8 +141,15 @@ export default function AdvisorPage() {
         body: JSON.stringify(a),
       });
       const data = await res.json();
-      setAdvisory(data.advisory || generateFallback(a));
-    } catch {
+      console.log('Advisor API response:', data);
+      if (data.advisory) {
+        setAdvisory(data.advisory);
+      } else {
+        console.error('No advisory in response:', data);
+        setAdvisory(generateFallback(a));
+      }
+    } catch (err) {
+      console.error('Advisor fetch error:', err);
       setAdvisory(generateFallback(a));
     }
 
@@ -152,18 +159,18 @@ export default function AdvisorPage() {
       const maxPrice   = parseInt(a.budget);
       const { data: primary } = await supabase
         .from('listings')
-        .select('id, title, price, category_id, images, city, listing_type, is_featured, view_count, is_negotiable, created_at')
+        .select('id, title, price, category_id, images, city, listing_type, is_featured, views_count, is_negotiable, created_at')
         .eq('status', 'active')
         .in('category_id', categories)
         .lte('price', maxPrice)
         .order('is_featured', { ascending: false })
-        .order('view_count', { ascending: false })
+        .order('views_count', { ascending: false })
         .limit(12);
 
       if (!primary || primary.length === 0) {
         const { data: fallback } = await supabase
           .from('listings')
-          .select('id, title, price, category_id, images, city, listing_type, is_featured, view_count, is_negotiable, created_at')
+          .select('id, title, price, category_id, images, city, listing_type, is_featured, views_count, is_negotiable, created_at')
           .eq('status', 'active')
           .in('category_id', categories)
           .order('is_featured', { ascending: false })
@@ -474,7 +481,7 @@ export default function AdvisorPage() {
                           </div>
                           <div className="flex items-center justify-between text-[11px] text-[#8A8E99]">
                             <span>📍 {listing.city || 'N/A'}</span>
-                            <span>👁 {listing.view_count || 0} views</span>
+                            <span>👁 {listing.views_count || 0} views</span>
                           </div>
                         </div>
                       </Link>
