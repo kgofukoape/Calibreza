@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
-
 const SYSTEM_PROMPT = `You are the Gun X Firearm Match Advisor — an institutional-grade digital firearms consultant for the South African civilian firearms community. You operate with absolute legal precision and tactical authority. Your tone is direct, measured, and entirely tailored to South African law and market conditions.
 
 CRITICAL LEGAL FRAMEWORK — FIREARMS CONTROL ACT 60 OF 2000 (FCA):
