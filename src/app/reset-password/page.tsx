@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
+
 import { supabase } from '@/lib/supabase';
 
 export default function ResetPasswordPage() {
@@ -144,7 +144,7 @@ export default function ResetPasswordPage() {
           </div>
         </div>
       </div>
-      <Footer />
+      
     </div>
   );
 }

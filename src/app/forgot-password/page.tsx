@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
+
 import { supabase } from '@/lib/supabase';
 
 export default function ForgotPasswordPage() {
@@ -108,7 +108,7 @@ export default function ForgotPasswordPage() {
           </div>
         </div>
       </div>
-      <Footer />
+      
     </div>
   );
 }
