@@ -77,7 +77,7 @@ Direct the user to two specific Gun X resources:
 ADVISORY APPROACH:
 Describe ideal platform attributes alongside specific models where you are confident of SA availability. Be specific about which brands have local support — this matters for parts, warranty, and resale.
 
-FORMAT: Return four to five concise paragraphs in clean flowing prose. No markdown headers. No bullet points. No numbered lists. End with a brief legal disclaimer.`;
+FORMAT: Return four to five concise paragraphs in clean flowing prose. No markdown formatting whatsoever — no bold, no headers, no asterisks, no pound signs, no numbered lists, no bullet points. Plain text only. End with a brief legal disclaimer.`;
 
 export async function POST(req: NextRequest) {
   try {
