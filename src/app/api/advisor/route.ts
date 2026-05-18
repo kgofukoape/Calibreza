@@ -133,7 +133,7 @@ Guide them on: (1) their correct FCA licensing pathway with the accurate section
       },
       body: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 700,
+        max_tokens: 1000,
         system:     SYSTEM_PROMPT,
         messages:   [{ role: 'user', content: userPrompt }],
       }),
