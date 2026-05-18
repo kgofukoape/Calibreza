@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
-const ADMIN_EMAIL    = 'kgofu.koape@gmail.com';
-const FROM_EMAIL     = 'Gun X <onboarding@resend.dev>';
+const ADMIN_EMAIL    = 'pewpew@gunx.co.za';
+const FROM_EMAIL     = 'Gun X <notifications@gunx.co.za>';
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
 
@@ -137,15 +137,7 @@ export async function POST(req: NextRequest) {
           )
         );
         break;
-        case 'contact_form':
-          await sendEmail(
-            ADMIN_EMAIL,
-            `📩 Contact Form — ${body.subject} from ${body.name}`,
-            adminAlert('Contact Form', body.name,
-              `${body.email} · ${body.subject} · "${body.message.slice(0, 100)}..."`,
-              `${BASE_URL}/admin`)
-          );
-          break;
+
       default:
         return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 });
     }
