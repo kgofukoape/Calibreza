@@ -25,31 +25,35 @@ export default function WishlistPage() {
   const loadWishlist = async () => {
     setLoading(true);
     try {
-      const currentUser = await getCurrentUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user || null;
       if (!currentUser) { router.push('/login'); return; }
       setUser(currentUser);
 
-      const { data, error } = await supabase
+      // Step 1: get saved listing IDs
+      const { data: savedData, error: savedError } = await supabase
         .from('saved_listings')
-        .select(`
-          id,
-          created_at,
-          listing_id,
-          listings:listing_id (
-            id, title, price, status, images, province, city,
-            category_id, listing_type, is_featured, created_at,
-            views_count, is_negotiable,
-            makes:make_id(name),
-            conditions:condition_id(name),
-            dealers:dealer_id(business_name, slug, phone),
-            profiles:seller_id(full_name, phone)
-          )
-        `)
+        .select('id, created_at, listing_id')
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setItems(data || []);
+      if (savedError) throw savedError;
+      if (!savedData || savedData.length === 0) { setItems([]); return; }
+
+      // Step 2: fetch listings separately — avoids join column name issues
+      const listingIds = savedData.map((s: any) => s.listing_id).filter(Boolean);
+      const { data: listingsData } = await supabase
+        .from('listings')
+        .select('id, title, price, status, images, province, city, category_id, listing_type, is_featured, created_at, view_count, is_negotiable, seller_id, dealer_id, makes:make_id(name), conditions:condition_id(name)')
+        .in('id', listingIds);
+
+      // Step 3: merge
+      const merged = savedData.map((saved: any) => ({
+        ...saved,
+        listings: listingsData?.find((l: any) => l.id === saved.listing_id) || null,
+      }));
+
+      setItems(merged);
     } catch (err) {
       console.error('Wishlist load error:', err);
     } finally {
