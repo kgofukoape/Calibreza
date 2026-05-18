@@ -137,7 +137,15 @@ export async function POST(req: NextRequest) {
           )
         );
         break;
-
+        case 'contact_form':
+          await sendEmail(
+            ADMIN_EMAIL,
+            `📩 Contact Form — ${body.subject} from ${body.name}`,
+            adminAlert('Contact Form', body.name,
+              `${body.email} · ${body.subject} · "${body.message.slice(0, 100)}..."`,
+              `${BASE_URL}/admin`)
+          );
+          break;
       default:
         return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 });
     }
