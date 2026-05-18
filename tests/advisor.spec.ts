@@ -9,7 +9,6 @@ test.describe('Firearm Match Advisor', () => {
 
   test('begin button disabled until checkbox ticked', async ({ page }) => {
     await page.goto('/advisor');
-    // Button should be disabled before checkbox
     const btn = page.locator('button').filter({ hasText: 'acknowledge' });
     await expect(btn).toBeDisabled();
   });
@@ -18,7 +17,6 @@ test.describe('Firearm Match Advisor', () => {
     await page.goto('/advisor');
     await page.locator('#ack').check();
     await page.waitForTimeout(500);
-    // Button text changes to "I Understand" when enabled
     const btn = page.locator('button').filter({ hasText: 'I Understand' });
     await expect(btn).toBeVisible({ timeout: 3000 });
   });
@@ -28,13 +26,13 @@ test.describe('Firearm Match Advisor', () => {
     await page.goto('/advisor');
     await page.locator('#ack').check();
     await page.waitForTimeout(500);
-    // Click the now-enabled button
     await page.locator('button').filter({ hasText: 'I Understand' }).click({ timeout: 10000 });
     await page.locator('button').filter({ hasText: 'Up to R25,000' }).click();
     await page.locator('button').filter({ hasText: 'Self Defence' }).click();
     await page.locator('button').filter({ hasText: 'Compact' }).last().click();
     await page.locator('button').filter({ hasText: 'Intermediate' }).click();
-    await expect(page.locator('text=Match Advisor')).toBeVisible({ timeout: 30000 });
+    // Use specific text that only appears in results
+    await expect(page.locator('text=Match Advisor — Assessment')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('text=Find a Motivation Writer')).toBeVisible({ timeout: 50000 });
   });
 
