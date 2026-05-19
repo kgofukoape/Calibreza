@@ -6,6 +6,9 @@ import { useParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import ListingCard from '@/components/listings/ListingCard';
 import { supabase } from '@/lib/supabase';
+import dynamic from 'next/dynamic';
+
+const ProfileMap = dynamic(() => import('@/components/ProfileMap'), { ssr: false });
 
 // ─── Ad Components ────────────────────────────────────────────────────────────
 function LeaderboardAd() {
@@ -29,7 +32,6 @@ function InlineAd() {
   );
 }
 
-// ─── WhatsApp Icon ────────────────────────────────────────────────────────────
 function WaIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current" aria-hidden="true">
@@ -38,7 +40,6 @@ function WaIcon() {
   );
 }
 
-// ─── Filter Sidebar (original component, preserved exactly) ──────────────────
 const CONDITIONS = ['Brand New', 'Like New', 'Good', 'Fair'];
 
 function DealerFilterSidebar({
@@ -50,8 +51,8 @@ function DealerFilterSidebar({
   calibres: string[];
   onFiltersChange: (filters: any) => void;
 }) {
-  const [selectedBrands, setSelectedBrands]       = useState<string[]>([]);
-  const [selectedCalibres, setSelectedCalibres]   = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands]         = useState<string[]>([]);
+  const [selectedCalibres, setSelectedCalibres]     = useState<string[]>([]);
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -148,7 +149,6 @@ function DealerFilterSidebar({
   );
 }
 
-// ─── Main Storefront ──────────────────────────────────────────────────────────
 function DealerStorefrontContent() {
   const params = useParams();
   const [dealer, setDealer]           = useState<any>(null);
@@ -156,8 +156,6 @@ function DealerStorefrontContent() {
   const [loading, setLoading]         = useState(true);
   const [activeTab, setActiveTab]     = useState('inventory');
   const [filters, setFilters]         = useState<any>({ brands: [], calibres: [], conditions: [], minPrice: null, maxPrice: null });
-
-  // NEW: Quote modal
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [quoteSent, setQuoteSent]           = useState(false);
   const [quoteForm, setQuoteForm]           = useState({ name: '', email: '', phone: '', message: '' });
@@ -180,8 +178,8 @@ function DealerStorefrontContent() {
     } catch { setDealer(null); setLoading(false); }
   };
 
-  const filterBrands   = useMemo(() => Array.from(new Set(allListings.map(l => l.makes?.name).filter(Boolean))) as string[], [allListings]);
-  const filterCalibres = useMemo(() => Array.from(new Set(allListings.map(l => l.calibres?.name).filter(Boolean))) as string[], [allListings]);
+  const filterBrands     = useMemo(() => Array.from(new Set(allListings.map(l => l.makes?.name).filter(Boolean))) as string[], [allListings]);
+  const filterCalibres   = useMemo(() => Array.from(new Set(allListings.map(l => l.calibres?.name).filter(Boolean))) as string[], [allListings]);
   const featuredListings = allListings.filter(l => l.is_featured);
 
   const filteredListings = useMemo(() => allListings.filter(l => {
@@ -193,7 +191,6 @@ function DealerStorefrontContent() {
     return true;
   }), [allListings, filters]);
 
-  // WhatsApp URL
   const waNumber = dealer?.phone ? (() => {
     const d = dealer.phone.replace(/\D/g, '');
     return d.startsWith('27') ? d : d.startsWith('0') ? '27' + d.slice(1) : '27' + d;
@@ -237,7 +234,6 @@ function DealerStorefrontContent() {
       <Navbar />
       <LeaderboardAd />
 
-      {/* SAPS LICENCE BANNER */}
       {dealer.saps_dealer_number && (
         <div className="bg-blue-500/5 border-b border-blue-500/10 px-6 py-2">
           <div className="max-w-[1400px] mx-auto flex items-center gap-2 text-[12px]">
@@ -276,7 +272,6 @@ function DealerStorefrontContent() {
                 <span>📦 {allListings.length} Active Listing{allListings.length !== 1 ? 's' : ''}</span>
               </div>
             </div>
-            {/* CTA buttons */}
             <div className="flex flex-wrap gap-3 mb-2 flex-shrink-0">
               <button onClick={() => setShowQuoteModal(true)}
                 className="bg-[#C9922A] text-black font-black px-6 py-3.5 uppercase tracking-widest text-[13px] hover:brightness-110 transition-all rounded-sm">
@@ -303,9 +298,9 @@ function DealerStorefrontContent() {
           <div className="flex gap-8">
             {[
               { id: 'inventory', label: `Inventory (${allListings.length})` },
-              { id: 'about',    label: 'About' },
-              { id: 'reviews',  label: 'Reviews' },
-              { id: 'contact',  label: 'Contact & Hours' },
+              { id: 'about',     label: 'About' },
+              { id: 'reviews',   label: 'Reviews' },
+              { id: 'contact',   label: 'Contact & Hours' },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
@@ -328,8 +323,6 @@ function DealerStorefrontContent() {
             <div className="flex flex-col lg:flex-row gap-6">
               <DealerFilterSidebar brands={filterBrands} calibres={filterCalibres} onFiltersChange={setFilters} />
               <div className="flex-1 min-w-0">
-
-                {/* FEATURED ROW */}
                 {featuredListings.length > 0 && (
                   <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5 mb-6">
                     <div className="flex items-center gap-2 mb-4">
@@ -348,8 +341,6 @@ function DealerStorefrontContent() {
                     </div>
                   </div>
                 )}
-
-                {/* ALL LISTINGS */}
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">
                     <span className="text-[#F0EDE8] font-black">{filteredListings.length}</span> listing{filteredListings.length !== 1 ? 's' : ''}
@@ -365,7 +356,6 @@ function DealerStorefrontContent() {
                           province={item.provinces?.name || dealer.province || 'N/A'} condition={item.conditions?.name || 'N/A'}
                           category={item.category_id} listingType="dealer" sellerName={dealer.business_name}
                           images={item.images} featured={item.is_featured} />
-                        {/* Ad slot every 6 listings */}
                         {(idx + 1) % 6 === 0 && idx < filteredListings.length - 1 && <InlineAd />}
                       </React.Fragment>
                     ))}
@@ -440,6 +430,20 @@ function DealerStorefrontContent() {
                   <div><p className="text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-1">Physical Address</p><p className="text-xl font-bold leading-tight">{dealer.address || `${dealer.city}, ${dealer.province}`}</p></div>
                   {dealer.website && <div><p className="text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-1">Website</p><a href={dealer.website} target="_blank" rel="noopener noreferrer" className="text-xl font-bold text-[#C9922A] hover:underline">Visit Website →</a></div>}
                 </div>
+
+                {/* ── MAP ── */}
+                {dealer.lat && dealer.lng && (
+                  <div className="mt-6 pt-6 border-t border-white/5">
+                    <p className="text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-3">📍 Find Us</p>
+                    <ProfileMap
+                      lat={parseFloat(dealer.lat)}
+                      lng={parseFloat(dealer.lng)}
+                      name={dealer.business_name}
+                      address={dealer.address}
+                    />
+                  </div>
+                )}
+
                 <div className="flex gap-3 mt-8 pt-6 border-t border-white/5">
                   <button onClick={() => setShowQuoteModal(true)} style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
                     className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 transition-all">
@@ -472,14 +476,13 @@ function DealerStorefrontContent() {
         </main>
       </div>
 
-      {/* FOOTER */}
       <footer className="py-10 border-t border-white/5 text-center">
         <p className="text-[10px] text-[#8A8E99] uppercase tracking-[0.4em] font-bold">
           Gun X Classifieds &bull; South Africa&apos;s Premier Marketplace
         </p>
       </footer>
 
-      {/* REQUEST QUOTE MODAL */}
+      {/* QUOTE MODAL */}
       {showQuoteModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#191C23] border border-white/10 rounded-sm p-6 max-w-md w-full">
