@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
 
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
@@ -48,6 +49,8 @@ function RangeApplyInner() {
     phone: '',
     website: '',
     address: '',
+    lat: '',
+    lng: '',
     city: '',
     province: 'Gauteng',
     postal_code: '',

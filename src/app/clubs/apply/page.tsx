@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
 
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
@@ -52,6 +53,8 @@ function ClubApplyInner() {
     province: '',
     city: '',
     address: '',
+    lat: '',
+    lng: '',
     phone: '',
     email: '',
     website: '',
@@ -279,7 +282,20 @@ function ClubApplyInner() {
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>Physical Address</label>
-                <input name="address" value={form.address} onChange={handleChange} className={inputClass} placeholder="Street address or GPS coordinates" />
+                <AddressAutocomplete
+                  value={form.address}
+                  onChange={val => setForm(prev => ({ ...prev, address: val }))}
+                  onSelect={({ address, lat, lng, city, province }) => setForm(prev => ({
+                    ...prev,
+                    address,
+                    lat: lat.toString(),
+                    lng: lng.toString(),
+                    city: city || prev.city,
+                    province: province || prev.province,
+                  }))}
+                  label="Address"
+                  placeholder="Start typing your club address..."
+                />
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>About Your Club</label>
