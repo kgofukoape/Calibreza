@@ -112,7 +112,7 @@ function AccessoriesBrowseInner() {
     setLoading(true);
     let query = supabase
       .from('listings')
-      .select(`*, makes:make_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
+      .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
       .eq('status', 'active')
       .eq('category_id', 'accessories');
 
@@ -385,7 +385,7 @@ function AccessoriesBrowseInner() {
                   id={listing.id}
                   title={listing.title}
                   make={listing.makes?.name || ''}
-                  calibre={listing.calibre_id || ''}
+                  calibre={listing.calibres?.name || ''}
                   price={listing.price}
                   province={listing.city || ''}
                   condition={listing.conditions?.name || ''}

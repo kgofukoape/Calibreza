@@ -98,7 +98,7 @@ function MainBrowseInner() {
 
     let query = supabase
       .from('listings')
-      .select(`*, makes:make_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
+      .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
       .eq('status', 'active');
 
     if (activeCategories.length > 0)  query = query.in('category_id', activeCategories);
@@ -366,7 +366,7 @@ function MainBrowseInner() {
                 <React.Fragment key={listing.id}>
                   <ListingCard
                     id={listing.id} title={listing.title}
-                    make={listing.makes?.name || ''} calibre={listing.calibre_id || ''}
+                    make={listing.makes?.name || ''} calibre={listing.calibres?.name || ''}
                     price={listing.price} province={listing.province || ''}
                     condition={listing.conditions?.name || ''} category={listing.category_id}
                     listingType={listing.listing_type}
