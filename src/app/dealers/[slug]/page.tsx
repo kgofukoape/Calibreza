@@ -4,33 +4,13 @@ import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 import ListingCard from '@/components/listings/ListingCard';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 
 const ProfileMap = dynamic(() => import('@/components/ProfileMap'), { ssr: false });
-
-// ─── Ad Components ────────────────────────────────────────────────────────────
-function LeaderboardAd() {
-  return (
-    <div className="w-full bg-[#0D0F13] py-3">
-      <div className="max-w-[1400px] mx-auto px-6 flex justify-end">
-        <div className="w-[calc(100%-160px)] h-[120px] bg-[#13151A] border border-dashed border-white/10 rounded-sm flex flex-col items-center justify-center gap-1">
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#8A8E99]/50">Advertisement</span>
-          <span className="text-[11px] font-bold text-[#8A8E99]/30">970 × 120 — Leaderboard</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InlineAd() {
-  return (
-    <div className="col-span-full w-full h-[90px] bg-[#12141a] border border-white/5 rounded-sm flex items-center justify-center my-2">
-      <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Advertisement — 970 × 90</span>
-    </div>
-  );
-}
 
 function WaIcon() {
   return (
@@ -232,7 +212,11 @@ function DealerStorefrontContent() {
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13]">
       <Navbar />
-      <LeaderboardAd />
+
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="dealers_profile" />
+      </div>
 
       {dealer.saps_dealer_number && (
         <div className="bg-blue-500/5 border-b border-blue-500/10 px-6 py-2">
@@ -341,12 +325,14 @@ function DealerStorefrontContent() {
                     </div>
                   </div>
                 )}
+
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">
                     <span className="text-[#F0EDE8] font-black">{filteredListings.length}</span> listing{filteredListings.length !== 1 ? 's' : ''}
                     {filteredListings.length !== allListings.length && <span className="text-[#C9922A] ml-1">(filtered from {allListings.length})</span>}
                   </p>
                 </div>
+
                 {filteredListings.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                     {filteredListings.map((item, idx) => (
@@ -356,7 +342,12 @@ function DealerStorefrontContent() {
                           province={item.provinces?.name || dealer.province || 'N/A'} condition={item.conditions?.name || 'N/A'}
                           category={item.category_id} listingType="dealer" sellerName={dealer.business_name}
                           images={item.images} featured={item.is_featured} />
-                        {(idx + 1) % 6 === 0 && idx < filteredListings.length - 1 && <InlineAd />}
+                        {/* LEADERBOARD MID — after every 6th listing */}
+                        {(idx + 1) % 6 === 0 && idx < filteredListings.length - 1 && (
+                          <div className="col-span-full flex justify-center py-2">
+                            <AdBanner slot="leaderboard_mid" page="dealers_profile" />
+                          </div>
+                        )}
                       </React.Fragment>
                     ))}
                   </div>
@@ -367,6 +358,18 @@ function DealerStorefrontContent() {
                     <button onClick={() => setFilters({ brands: [], calibres: [], conditions: [], minPrice: null, maxPrice: null })} className="text-[#C9922A] text-sm font-bold uppercase tracking-widest hover:brightness-125">Clear Filters</button>
                   </div>
                 )}
+
+                {/* SQUARE CARD — below inventory on mobile */}
+                <div className="flex justify-center mt-6 lg:hidden">
+                  <AdBanner slot="square_card" page="dealers_profile" />
+                </div>
+              </div>
+
+              {/* RIGHT SIDEBAR AD — desktop only */}
+              <div className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
+                <div className="sticky top-[160px]">
+                  <AdBanner slot="sidebar_right" page="dealers_profile" />
+                </div>
               </div>
             </div>
           )}
@@ -431,7 +434,6 @@ function DealerStorefrontContent() {
                   {dealer.website && <div><p className="text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-1">Website</p><a href={dealer.website} target="_blank" rel="noopener noreferrer" className="text-xl font-bold text-[#C9922A] hover:underline">Visit Website →</a></div>}
                 </div>
 
-                {/* ── MAP ── */}
                 {dealer.lat && dealer.lng && (
                   <div className="mt-6 pt-6 border-t border-white/5">
                     <p className="text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-3">📍 Find Us</p>
@@ -456,7 +458,13 @@ function DealerStorefrontContent() {
                     </a>
                   )}
                 </div>
+
+                {/* SQUARE CARD AD — below contact details */}
+                <div className="mt-6 pt-6 border-t border-white/5 flex justify-center">
+                  <AdBanner slot="square_card" page="dealers_profile" />
+                </div>
               </div>
+
               <div className="bg-[#13151A] border border-white/5 p-10 rounded-sm">
                 <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-8 text-[#F0EDE8]">Business Hours</h2>
                 <div className="space-y-3">
@@ -476,11 +484,7 @@ function DealerStorefrontContent() {
         </main>
       </div>
 
-      <footer className="py-10 border-t border-white/5 text-center">
-        <p className="text-[10px] text-[#8A8E99] uppercase tracking-[0.4em] font-bold">
-          Gun X Classifieds &bull; South Africa&apos;s Premier Marketplace
-        </p>
-      </footer>
+      <Footer />
 
       {/* QUOTE MODAL */}
       {showQuoteModal && (
