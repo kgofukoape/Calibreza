@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 import ListingCard from '@/components/listings/ListingCard';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 
 export default function ListingDetailsPage({ params }: { params: { id: string } }) {
@@ -16,7 +18,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [shareCopied, setShareCopied] = useState(false);
   const [messageBody, setMessageBody] = useState('');
@@ -51,7 +52,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Use getSession directly — fixes save button for logged-in users
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user || null;
       setCurrentUser(user);
@@ -144,15 +144,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     setTimeout(() => setShareCopied(false), 2000);
   };
 
-  const Leaderboard = () => (
-    <div className="w-full flex justify-center py-3">
-      <div className="w-full max-w-[970px] h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative rounded-sm">
-        <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Advertisement — 970 × 90</span>
-        <div className="absolute inset-0 border border-dashed border-white/10 opacity-20 rounded-sm" />
-      </div>
-    </div>
-  );
-
   const WaIcon = ({ size = 5 }: { size?: number }) => (
     <svg viewBox="0 0 24 24" className={`w-${size} h-${size} fill-current`} aria-hidden="true">
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
@@ -163,7 +154,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     return (
       <div className="flex flex-col min-h-screen bg-[#0D0F13]">
         <Navbar />
-        <div className="px-4"><Leaderboard /></div>
+        <div className="w-full flex justify-center py-3 px-4">
+          <AdBanner slot="leaderboard_top" page="listings_detail" />
+        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="w-12 h-12 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
         </div>
@@ -175,7 +168,9 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     return (
       <div className="flex flex-col min-h-screen bg-[#0D0F13]">
         <Navbar />
-        <div className="px-4"><Leaderboard /></div>
+        <div className="w-full flex justify-center py-3 px-4">
+          <AdBanner slot="leaderboard_top" page="listings_detail" />
+        </div>
         <div className="flex-1 flex items-center justify-center flex-col gap-4">
           <h2 className="text-2xl font-bold text-[#F0EDE8]">Listing Not Found</h2>
           <p className="text-[#8A8E99]">This listing may have been removed.</p>
@@ -185,10 +180,10 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     );
   }
 
-  const images   = listing?.images && Array.isArray(listing.images) && listing.images.length > 0 ? listing.images : null;
-  const waNumber = formatWhatsAppNumber(seller?.phone);
-  const waMsg    = encodeURIComponent(`Hi, I'm interested in your ${listing.title} on Gun X. Is it still available?`);
-  const waUrl    = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : null;
+  const images    = listing?.images && Array.isArray(listing.images) && listing.images.length > 0 ? listing.images : null;
+  const waNumber  = formatWhatsAppNumber(seller?.phone);
+  const waMsg     = encodeURIComponent(`Hi, I'm interested in your ${listing.title} on Gun X. Is it still available?`);
+  const waUrl     = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : null;
   const viewCount = listing.view_count || 1;
 
   const specs = [
@@ -207,7 +202,10 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full overflow-x-hidden text-[#F0EDE8]">
       <Navbar />
 
-      <div className="px-4"><Leaderboard /></div>
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="listings_detail" />
+      </div>
 
       {/* BREADCRUMB */}
       <div className="bg-[#191C23] border-b border-white/5 py-3 px-4 md:px-6">
@@ -224,7 +222,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
 
       <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 md:px-6 py-5 md:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
 
-        {/* LEFT */}
+        {/* ── LEFT COLUMN ──────────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 flex flex-col gap-5">
 
           {/* GALLERY */}
@@ -283,7 +281,10 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             <div className="text-[14px] text-[#8A8E99] leading-relaxed whitespace-pre-wrap">{listing.description || 'No description provided.'}</div>
           </div>
 
-          <Leaderboard />
+          {/* LEADERBOARD MID — below description */}
+          <div className="w-full flex justify-center">
+            <AdBanner slot="leaderboard_mid" page="listings_detail" />
+          </div>
 
           {/* MOBILE SPECS */}
           <div className="lg:hidden bg-[#191C23] border border-white/5 rounded-sm p-5">
@@ -296,6 +297,11 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* MOBILE SQUARE CARD AD */}
+          <div className="lg:hidden flex justify-center">
+            <AdBanner slot="square_card" page="listings_detail" />
           </div>
 
           {/* LEGAL NOTICE */}
@@ -317,10 +323,11 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR */}
+        {/* ── RIGHT SIDEBAR ─────────────────────────────────────────────── */}
         <aside className="hidden lg:flex w-[340px] xl:w-[380px] flex-shrink-0 flex-col gap-4">
-          <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 flex flex-col gap-4">
 
+          {/* PRICE + CTA CARD */}
+          <div className="bg-[#191C23] border border-white/5 rounded-sm p-6 flex flex-col gap-4">
             <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-sm px-3 py-2">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
               <span className="text-red-400 font-black text-[12px] uppercase tracking-widest">{viewersNow} people viewing right now</span>
@@ -367,7 +374,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </div>
           </div>
 
-          {/* SELLER */}
+          {/* SELLER CARD */}
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[15px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-4">
               {seller?.is_dealer ? 'Dealer' : 'Seller'}
@@ -391,7 +398,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             )}
           </div>
 
-          {/* SPECS */}
+          {/* SPECS CARD */}
           <div className="bg-[#191C23] border border-white/5 rounded-sm p-5">
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-bold text-[15px] tracking-widest uppercase text-[#F0EDE8] border-b border-white/5 pb-3 mb-3">Specifications</h3>
             <div className="flex flex-col">
@@ -404,19 +411,20 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </div>
           </div>
 
-          {/* ADS */}
-          <div className="w-full bg-[#12141a] border border-white/5 rounded-sm flex flex-col items-center justify-center" style={{ height: '250px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest font-bold mb-1">Advertisement</span>
-            <span className="text-[9px] text-[#3A3E49] font-bold">300 × 250</span>
-          </div>
+          {/* SQUARE CARD AD — sidebar */}
+          <AdBanner slot="square_card" page="listings_detail" />
+
         </aside>
       </main>
 
       {/* SIMILAR LISTINGS */}
       {similarListings.length > 0 && (
         <section className="max-w-[1280px] mx-auto w-full px-4 md:px-6 pb-12">
-          <Leaderboard />
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl md:text-3xl uppercase text-[#F0EDE8] mb-5 mt-2">
+          {/* LEADERBOARD before similar listings */}
+          <div className="w-full flex justify-center mb-6">
+            <AdBanner slot="leaderboard_mid" page="listings_detail" />
+          </div>
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-extrabold text-2xl md:text-3xl uppercase text-[#F0EDE8] mb-5">
             Similar <span className="text-[#C9922A]">Listings</span>
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -433,6 +441,8 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           </div>
         </section>
       )}
+
+      <Footer />
 
       {/* MOBILE STICKY CTA */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0D0F13]/95 backdrop-blur-sm border-t border-white/10 px-4 py-3 flex gap-3">

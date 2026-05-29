@@ -10,17 +10,18 @@ test.describe('Listings', () => {
 
   test('listing detail page loads when listing exists', async ({ page }) => {
     await page.goto('/browse/pistols');
-    await page.waitForTimeout(3000);
-    // Wait for listings to load from Supabase
+    await page.waitForTimeout(4000);
     await page.waitForSelector('a[href^="/listings/"]', { timeout: 10000 }).catch(() => null);
     const listing = page.locator('a[href^="/listings/"]').first();
     const count = await listing.count();
     if (count > 0) {
       const href = await listing.getAttribute('href');
-      // Navigate directly instead of clicking to avoid overlay issues
-      if (href) {
-        await page.goto(href);
+      // Validate it's a real UUID not a placeholder
+      if (href && !href.includes('11111111')) {
+        await page.goto(href, { timeout: 15000 });
         await expect(page.url()).toContain('/listings/');
+      } else {
+        test.skip(true, 'No real listings available to test');
       }
     } else {
       test.skip(true, 'No listings available to test');

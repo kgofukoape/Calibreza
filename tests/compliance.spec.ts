@@ -40,12 +40,17 @@ test.describe('Regulatory Compliance', () => {
     await page.locator('button').filter({ hasText: 'Self Defence' }).click();
     await page.locator('button').filter({ hasText: 'Compact' }).last().click();
     await page.locator('button').filter({ hasText: 'Intermediate' }).click();
-    await page.waitForTimeout(50000);
+    // Wait for CTAs to appear — they only show when typing is done
+    await expect(page.locator('text=Find a Motivation Writer')).toBeVisible({ timeout: 80000 });
+    // Wait for pre to have substantial content (typing animation complete)
+    await page.waitForFunction(() => {
+      const pre = document.querySelector('pre');
+      return pre && (pre.textContent?.length ?? 0) > 100;
+    }, { timeout: 30000 });
     const advisoryText = await page.locator('pre').textContent();
     // Must mention Section 13
     expect(advisoryText).toMatch(/Section 13/i);
     // Must NOT map self-defence to Section 17 as the correct pathway
-    // (mentioning Section 17 to explain what it ISN'T is fine)
     expect(advisoryText).not.toMatch(/your.*section 17|section 17.*your pathway|section 17.*self.defence/i);
   });
 

@@ -4,7 +4,9 @@ import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 import ListingCard from '@/components/listings/ListingCard';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 
 const ITEMS_PER_PAGE = 12;
@@ -20,26 +22,27 @@ type CategoryConfig = {
   showCalibres: boolean;
   showLicence: boolean;
   description: string;
+  adPage: string;
 };
 
 const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
-  pistols:    { label: 'Pistols',          showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse semi-automatic pistols and handguns' },
-  rifles:             { label: 'Rifles',              showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse all rifles' },
-  'bolt-action':      { label: 'Bolt Action Rifles',  showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse bolt action rifles' },
-  'semi-auto-rifles': { label: 'Semi-Auto Rifles',    showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse semi-automatic rifles' },
-  'lever-action':     { label: 'Lever Action Rifles', showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse lever action rifles' },
-  'pump-action-rifles': { label: 'Pump Action Rifles', showMakes: true, showCalibres: true,  showLicence: true,  description: 'Browse pump action rifles' },
-  shotguns:   { label: 'Shotguns',         showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse pump, semi-auto and over-under shotguns' },
-  revolvers:  { label: 'Revolvers',        showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse single and double-action revolvers' },
-  'air-guns': { label: 'Air Guns',         showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse air rifles and air pistols' },
-  airsoft:    { label: 'Airsoft',          showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse airsoft rifles, pistols and gear' },
-  knives:     { label: 'Knives & Blades',  showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse folding knives, fixed blades and tactical gear' },
-  holsters:   { label: 'Holsters & Carry', showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse IWB, OWB and duty holsters' },
-  magazines:  { label: 'Magazines',        showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse factory and aftermarket magazines' },
-  ammunition: { label: 'Ammunition',       showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse FMJ, HP, hunting and specialty ammo' },
-  reloading:  { label: 'Reloading',        showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse presses, dies, brass and reloading components' },
-  optics:     { label: 'Optics & Sights',  showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse scopes, red dots, iron sights and mounts' },
-  accessories:{ label: 'Accessories & Parts', showMakes: true, showCalibres: false, showLicence: false, description: 'Browse stocks, grips, suppressors, lights, rails & more' },
+  pistols:              { label: 'Pistols',              showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse semi-automatic pistols and handguns',          adPage: 'browse_pistols' },
+  rifles:               { label: 'Rifles',               showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse all rifles',                                   adPage: 'browse_rifles' },
+  'bolt-action':        { label: 'Bolt Action Rifles',   showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse bolt action rifles',                           adPage: 'browse_rifles' },
+  'semi-auto-rifles':   { label: 'Semi-Auto Rifles',     showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse semi-automatic rifles',                        adPage: 'browse_rifles' },
+  'lever-action':       { label: 'Lever Action Rifles',  showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse lever action rifles',                          adPage: 'browse_rifles' },
+  'pump-action-rifles': { label: 'Pump Action Rifles',   showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse pump action rifles',                           adPage: 'browse_rifles' },
+  shotguns:             { label: 'Shotguns',             showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse pump, semi-auto and over-under shotguns',      adPage: 'browse_shotguns' },
+  revolvers:            { label: 'Revolvers',            showMakes: true,  showCalibres: true,  showLicence: true,  description: 'Browse single and double-action revolvers',            adPage: 'browse_revolvers' },
+  'air-guns':           { label: 'Air Guns',             showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse air rifles and air pistols',                   adPage: 'browse_air_guns' },
+  airsoft:              { label: 'Airsoft',              showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse airsoft rifles, pistols and gear',             adPage: 'browse_airsoft' },
+  knives:               { label: 'Knives & Blades',      showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse folding knives, fixed blades and tactical gear',adPage: 'browse_knives' },
+  holsters:             { label: 'Holsters & Carry',     showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse IWB, OWB and duty holsters',                   adPage: 'browse_holsters' },
+  magazines:            { label: 'Magazines',            showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse factory and aftermarket magazines',             adPage: 'browse_magazines' },
+  ammunition:           { label: 'Ammunition',           showMakes: true,  showCalibres: true,  showLicence: false, description: 'Browse FMJ, HP, hunting and specialty ammo',          adPage: 'browse_ammunition' },
+  reloading:            { label: 'Reloading',            showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse presses, dies, brass and reloading components', adPage: 'browse_reloading' },
+  optics:               { label: 'Optics & Sights',      showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse scopes, red dots, iron sights and mounts',     adPage: 'browse_optics' },
+  accessories:          { label: 'Accessories & Parts',  showMakes: true,  showCalibres: false, showLicence: false, description: 'Browse stocks, grips, suppressors, lights, rails & more', adPage: 'browse_accessories' },
 };
 
 function BrowseCategoryInner() {
@@ -306,6 +309,9 @@ function BrowseCategoryInner() {
     );
   }
 
+  // Derive the page key for ads from config
+  const adPage = config.adPage as any;
+
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
@@ -335,12 +341,9 @@ function BrowseCategoryInner() {
         </div>
       </div>
 
-      {/* LEADERBOARD AD */}
-      <div className="w-full flex justify-center py-3 px-4 md:px-6 bg-[#0D0F13]">
-        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
+      {/* LEADERBOARD TOP AD */}
+      <div className="w-full flex justify-center py-3 px-4 bg-[#0D0F13]">
+        <AdBanner slot="leaderboard_top" page={adPage} />
       </div>
 
       {/* MOBILE FILTER TOGGLE BAR */}
@@ -387,10 +390,9 @@ function BrowseCategoryInner() {
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
 
         {/* LEFT SIDEBAR AD */}
-        <div className="hidden 2xl:flex flex-col items-center flex-shrink-0 w-[160px]">
-          <div className="w-[160px] h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6">
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Ad</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
+        <div className="hidden 2xl:flex flex-col items-start flex-shrink-0 w-[160px]">
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_left" page={adPage} />
           </div>
         </div>
 
@@ -446,25 +448,39 @@ function BrowseCategoryInner() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {listings.map(listing => (
-                <ListingCard
-                  key={listing.id}
-                  id={listing.id}
-                  title={listing.title}
-                  make={listing.makes?.name || ''}
-                  calibre={listing.calibres?.name || ''}
-                  price={listing.price}
-                  province={listing.city || ''}
-                  condition={listing.conditions?.name || ''}
-                  category={listing.category_id}
-                  listingType={listing.listing_type}
-                  sellerName={listing.dealers?.business_name || 'Private Seller'}
-                  images={listing.images}
-                  featured={listing.is_featured}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {listings.map((listing, idx) => (
+                  <React.Fragment key={listing.id}>
+                    <ListingCard
+                      id={listing.id}
+                      title={listing.title}
+                      make={listing.makes?.name || ''}
+                      calibre={listing.calibres?.name || ''}
+                      price={listing.price}
+                      province={listing.city || ''}
+                      condition={listing.conditions?.name || ''}
+                      category={listing.category_id}
+                      listingType={listing.listing_type}
+                      sellerName={listing.dealers?.business_name || 'Private Seller'}
+                      images={listing.images}
+                      featured={listing.is_featured}
+                    />
+                    {/* LEADERBOARD MID AD — inject after every 9th listing */}
+                    {(idx + 1) % 9 === 0 && (
+                      <div className="col-span-full flex justify-center py-2">
+                        <AdBanner slot="leaderboard_mid" page={adPage} />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+
+              {/* SQUARE CARD AD — below grid on mobile */}
+              <div className="flex justify-center mt-2 lg:hidden">
+                <AdBanner slot="square_card" page={adPage} />
+              </div>
+            </>
           )}
 
           {totalPages > 1 && (
@@ -494,14 +510,15 @@ function BrowseCategoryInner() {
         </div>
 
         {/* RIGHT SIDEBAR AD */}
-        <div className="hidden 2xl:flex flex-col items-center flex-shrink-0 w-[160px]">
-          <div className="w-[160px] h-[600px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6">
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Ad</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
+        <div className="hidden 2xl:flex flex-col items-start flex-shrink-0 w-[160px]">
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_right" page={adPage} />
           </div>
         </div>
 
       </div>
+
+      <Footer />
     </div>
   );
 }
