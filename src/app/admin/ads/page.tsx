@@ -6,53 +6,117 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 const NAV = [
-  { href: '/admin', icon: '⚡', label: 'Overview' },
-  { href: '/admin/dealers', icon: '🏪', label: 'Dealers' },
-  { href: '/admin/clubs', icon: '⊕', label: 'Clubs' },
-  { href: '/admin/listings', icon: '📋', label: 'Listings' },
+  { href: '/admin',           icon: '⚡', label: 'Overview' },
+  { href: '/admin/dealers',   icon: '🏪', label: 'Dealers' },
+  { href: '/admin/clubs',     icon: '⊕', label: 'Clubs' },
+  { href: '/admin/listings',  icon: '📋', label: 'Listings' },
   { href: '/admin/analytics', icon: '📈', label: 'Analytics' },
-  { href: '/admin/ads', icon: '📢', label: 'Ad Manager', active: true },
-  { href: '/admin/crm', icon: '💰', label: 'CRM' },
-  { href: '/admin/users', icon: '👥', label: 'Users' },
+  { href: '/admin/ads',       icon: '📢', label: 'Ad Manager', active: true },
+  { href: '/admin/crm',       icon: '💰', label: 'CRM' },
+  { href: '/admin/users',     icon: '👥', label: 'Users' },
 ];
+
+// ─── LOCKED RATE CARD — matches AdBanner.tsx and /advertise page ─────────────
+const SLOT_RATES: Record<string, number> = {
+  leaderboard_top: 1500,
+  leaderboard_mid: 1200,
+  sidebar_left:    800,
+  sidebar_right:   800,
+  square_card:     500,
+};
 
 const AD_SLOTS = [
-  { id: 'leaderboard_top', label: 'Leaderboard Top', size: '970×90', pages: ['all pages'] },
-  { id: 'sidebar_left', label: 'Sidebar Left', size: '160×600', pages: ['browse', 'listings', 'dealers'] },
-  { id: 'sidebar_right', label: 'Sidebar Right', size: '160×600', pages: ['browse', 'listings', 'dealers'] },
-  { id: 'leaderboard_mid', label: 'Leaderboard Mid', size: '728×90', pages: ['homepage'] },
-  { id: 'square_card', label: 'Square Card', size: '300×250', pages: ['sidebar', 'mobile'] },
+  { id: 'leaderboard_top', label: 'Leaderboard Top',  size: '970×90',  rate: SLOT_RATES.leaderboard_top },
+  { id: 'leaderboard_mid', label: 'Leaderboard Mid',  size: '728×90',  rate: SLOT_RATES.leaderboard_mid },
+  { id: 'sidebar_left',    label: 'Sidebar Left',     size: '160×600', rate: SLOT_RATES.sidebar_left },
+  { id: 'sidebar_right',   label: 'Sidebar Right',    size: '160×600', rate: SLOT_RATES.sidebar_right },
+  { id: 'square_card',     label: 'Square Card',      size: '300×250', rate: SLOT_RATES.square_card },
 ];
 
-const PAGE_OPTIONS = ['all', 'home', 'browse', 'listings', 'dealers', 'clubs', 'services', 'jobs', 'wanted'];
+// ─── MUST match AdBanner.tsx AdPage type exactly ──────────────────────────────
+const PAGE_OPTIONS = [
+  { value: 'all',                  label: 'All Pages (Sitewide)' },
+  { value: 'home',                 label: 'Homepage' },
+  { value: 'browse_pistols',       label: 'Browse — Pistols' },
+  { value: 'browse_rifles',        label: 'Browse — Rifles' },
+  { value: 'browse_shotguns',      label: 'Browse — Shotguns' },
+  { value: 'browse_revolvers',     label: 'Browse — Revolvers' },
+  { value: 'browse_ammunition',    label: 'Browse — Ammunition' },
+  { value: 'browse_optics',        label: 'Browse — Optics' },
+  { value: 'browse_accessories',   label: 'Browse — Accessories' },
+  { value: 'browse_holsters',      label: 'Browse — Holsters' },
+  { value: 'browse_air_guns',      label: 'Browse — Air Guns' },
+  { value: 'browse_airsoft',       label: 'Browse — Airsoft' },
+  { value: 'browse_magazines',     label: 'Browse — Magazines' },
+  { value: 'browse_reloading',     label: 'Browse — Reloading' },
+  { value: 'browse_knives',        label: 'Browse — Knives' },
+  { value: 'listings_detail',      label: 'Listing Detail Page' },
+  { value: 'dealers_directory',    label: 'Dealers Directory' },
+  { value: 'dealers_profile',      label: 'Dealer Profile' },
+  { value: 'clubs_directory',      label: 'Clubs & Ranges Directory' },
+  { value: 'clubs_profile',        label: 'Club / Range Profile' },
+  { value: 'services_directory',   label: 'Services Directory' },
+  { value: 'services_profile',     label: 'Service Provider Profile' },
+  { value: 'jobs_board',           label: 'Jobs Board' },
+  { value: 'jobs_detail',          label: 'Job Detail Page' },
+  { value: 'wanted',               label: 'Wanted Ads' },
+  { value: 'search',               label: 'Search Results' },
+  { value: 'advisor',              label: 'FCA Match Advisor' },
+  { value: 'sell',                 label: 'Sell / Post Ad' },
+  { value: 'faqs',                 label: 'FAQs' },
+  { value: 'firearm_ownership',    label: 'Firearm Ownership Guide' },
+  { value: 'about',                label: 'About Page' },
+];
+
+const DURATION_OPTIONS = [
+  { value: 1, label: '1 Month' },
+  { value: 2, label: '2 Months' },
+  { value: 3, label: '3 Months (Max)' },
+];
 
 const AD_FORMATS = {
   image: { label: 'Static Image', accept: 'image/jpeg,image/png,image/webp', tip: 'JPG/PNG/WebP — max 50MB. Best: 72dpi, sRGB colour space.' },
-  gif: { label: 'Animated GIF', accept: 'image/gif', tip: 'GIF — max 30MB. Keep under 15 seconds. No audio.' },
-  video: { label: 'Video', accept: 'video/mp4,video/webm', tip: 'MP4/WebM — max 50MB. H.264 codec. No audio for autoplay. Max 30 seconds.' },
+  gif:   { label: 'Animated GIF', accept: 'image/gif',                       tip: 'GIF — max 30MB. Keep under 15 seconds. No audio.' },
+  video: { label: 'Video',        accept: 'video/mp4,video/webm',            tip: 'MP4/WebM — max 50MB. H.264 codec. No audio for autoplay. Max 30 seconds.' },
 };
 
 const EMPTY_FORM = {
   client_name: '', client_email: '', client_phone: '', client_company: '',
   title: '', slot: 'leaderboard_top', page: 'all', ad_type: 'image',
-  click_url: '', starts_at: '', expires_at: '', rate_per_day: '', amount_paid: '',
+  click_url: '', starts_at: '', duration_months: 1,
+  expires_at: '', rate_per_day: '', amount_paid: '',
   invoice_number: '', notes: '',
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function addMonths(dateStr: string, months: number): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  // Format back to datetime-local string
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function calcAmount(slot: string, months: number): number {
+  return (SLOT_RATES[slot] || 0) * months;
+}
+
 export default function AdManagerPage() {
   const router = useRouter();
-  const [ads, setAds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string>('');
+  const [ads, setAds]               = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [showForm, setShowForm]     = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [form, setForm]             = useState<any>({ ...EMPTY_FORM });
+  const [file, setFile]             = useState<File | null>(null);
+  const [preview, setPreview]       = useState<string>('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedAd, setSelectedAd] = useState<any>(null);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError]           = useState('');
+  const [success, setSuccess]       = useState('');
+  const [conflictWarning, setConflictWarning] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -63,6 +127,24 @@ export default function AdManagerPage() {
     fetchAds();
   }, []);
 
+  // ── Auto-calculate expires_at and amount_paid when slot/start/duration changes
+  useEffect(() => {
+    if (form.starts_at && form.duration_months) {
+      const expires = addMonths(form.starts_at, form.duration_months);
+      const amount  = calcAmount(form.slot, form.duration_months);
+      setForm((prev: any) => ({ ...prev, expires_at: expires, amount_paid: amount.toString() }));
+    }
+  }, [form.starts_at, form.duration_months, form.slot]);
+
+  // ── Check for conflicts whenever slot or page changes
+  useEffect(() => {
+    if (form.slot && form.page && form.starts_at && form.expires_at) {
+      checkConflict();
+    } else {
+      setConflictWarning('');
+    }
+  }, [form.slot, form.page, form.starts_at, form.expires_at]);
+
   const fetchAds = async () => {
     const { data } = await supabase.from('ads').select('*').order('created_at', { ascending: false });
     setAds(data || []);
@@ -71,18 +153,49 @@ export default function AdManagerPage() {
   };
 
   const checkExpiring = (adList: any[]) => {
-    const soon = new Date(Date.now() + 3 * 86400000); // 3 days
+    const soon = new Date(Date.now() + 3 * 86400000);
     const expiring = adList.filter(a =>
       a.status === 'active' &&
       !a.expiry_notified &&
       new Date(a.expires_at) < soon &&
       new Date(a.expires_at) > new Date()
     );
-    if (expiring.length > 0) {
-      expiring.forEach(async (ad) => {
-        // Mark as notified (in real app, also send email here)
-        await supabase.from('ads').update({ expiry_notified: true }).eq('id', ad.id);
-      });
+    expiring.forEach(async (ad) => {
+      await supabase.from('ads').update({ expiry_notified: true }).eq('id', ad.id);
+    });
+  };
+
+  // ─── CONFLICT CHECK ─────────────────────────────────────────────────────────
+  // Blocks saving if an active ad already occupies this slot+page during the
+  // requested date range. Excludes the current ad if editing.
+  const checkConflict = async () => {
+    if (!form.starts_at || !form.expires_at) return;
+
+    let query = supabase
+      .from('ads')
+      .select('id, client_name, client_company, starts_at, expires_at')
+      .eq('slot', form.slot)
+      .eq('page', form.page)
+      .eq('status', 'active')
+      // Overlapping: existing starts before new ends AND existing ends after new starts
+      .lt('starts_at', form.expires_at)
+      .gt('expires_at', form.starts_at);
+
+    // Exclude current ad if editing
+    if (selectedAd?.id) {
+      query = query.neq('id', selectedAd.id);
+    }
+
+    const { data } = await query;
+
+    if (data && data.length > 0) {
+      const conflict = data[0];
+      const name = conflict.client_company || conflict.client_name;
+      const from = new Date(conflict.starts_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+      const to   = new Date(conflict.expires_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+      setConflictWarning(`⚠️ Conflict: "${name}" already has this slot booked from ${from} to ${to}. Choose a different slot, page, or date range.`);
+    } else {
+      setConflictWarning('');
     }
   };
 
@@ -94,19 +207,22 @@ export default function AdManagerPage() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const val = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
+    setForm((prev: any) => ({ ...prev, [e.target.name]: val }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file && !selectedAd?.file_url) { setError('Please upload an ad file.'); return; }
+    if (!file && !selectedAd?.file_url) { setError('Please upload an ad creative file.'); return; }
+    if (conflictWarning) { setError('Resolve the booking conflict before saving.'); return; }
+
     setSaving(true); setError(''); setSuccess('');
 
     let fileUrl = selectedAd?.file_url || '';
 
     if (file) {
       setUploading(true);
-      const ext = file.name.split('.').pop();
+      const ext  = file.name.split('.').pop();
       const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from('images').upload(path, file);
       if (upErr) { setError('Upload failed: ' + upErr.message); setSaving(false); setUploading(false); return; }
@@ -116,42 +232,43 @@ export default function AdManagerPage() {
     }
 
     const payload = {
-      client_name: form.client_name,
-      client_email: form.client_email,
-      client_phone: form.client_phone,
+      client_name:    form.client_name,
+      client_email:   form.client_email,
+      client_phone:   form.client_phone,
       client_company: form.client_company,
-      title: form.title,
-      slot: form.slot,
-      page: form.page,
-      ad_type: form.ad_type,
-      file_url: fileUrl,
-      click_url: form.click_url,
-      starts_at: form.starts_at,
-      expires_at: form.expires_at,
-      rate_per_day: parseInt(form.rate_per_day) || 0,
-      amount_paid: parseInt(form.amount_paid) || 0,
+      title:          form.title,
+      slot:           form.slot,
+      page:           form.page,
+      ad_type:        form.ad_type,
+      file_url:       fileUrl,
+      click_url:      form.click_url,
+      starts_at:      form.starts_at,
+      expires_at:     form.expires_at,
+      rate_per_day:   parseInt(form.rate_per_day) || 0,
+      amount_paid:    parseInt(form.amount_paid)  || 0,
       invoice_number: form.invoice_number,
-      notes: form.notes,
-      status: 'active',
+      notes:          form.notes,
+      status:         'active',
     };
 
     if (selectedAd) {
       const { error: err } = await supabase.from('ads').update(payload).eq('id', selectedAd.id);
-      if (err) { setError(err.message); } else { setSuccess('Ad updated successfully.'); }
+      if (err) { setError(err.message); setSaving(false); return; }
+      setSuccess('Ad updated successfully.');
     } else {
       const { error: err } = await supabase.from('ads').insert(payload);
-      if (err) { setError(err.message); } else { setSuccess('Ad created and is now live.'); }
+      if (err) { setError(err.message); setSaving(false); return; }
+      setSuccess('Ad created and is now live.');
     }
 
     setSaving(false);
-    if (!error) {
-      setShowForm(false);
-      setSelectedAd(null);
-      setForm({ ...EMPTY_FORM });
-      setFile(null);
-      setPreview('');
-      fetchAds();
-    }
+    setShowForm(false);
+    setSelectedAd(null);
+    setForm({ ...EMPTY_FORM });
+    setFile(null);
+    setPreview('');
+    setConflictWarning('');
+    fetchAds();
   };
 
   const handlePause = async (ad: any) => {
@@ -169,37 +286,59 @@ export default function AdManagerPage() {
   const handleEdit = (ad: any) => {
     setSelectedAd(ad);
     setForm({
-      client_name: ad.client_name || '', client_email: ad.client_email || '',
-      client_phone: ad.client_phone || '', client_company: ad.client_company || '',
-      title: ad.title || '', slot: ad.slot || 'leaderboard_top',
-      page: ad.page || 'all', ad_type: ad.ad_type || 'image',
-      click_url: ad.click_url || '',
-      starts_at: ad.starts_at?.slice(0, 16) || '',
-      expires_at: ad.expires_at?.slice(0, 16) || '',
-      rate_per_day: ad.rate_per_day?.toString() || '',
-      amount_paid: ad.amount_paid?.toString() || '',
+      client_name:    ad.client_name    || '',
+      client_email:   ad.client_email   || '',
+      client_phone:   ad.client_phone   || '',
+      client_company: ad.client_company || '',
+      title:          ad.title          || '',
+      slot:           ad.slot           || 'leaderboard_top',
+      page:           ad.page           || 'all',
+      ad_type:        ad.ad_type        || 'image',
+      click_url:      ad.click_url      || '',
+      starts_at:      ad.starts_at?.slice(0, 16) || '',
+      expires_at:     ad.expires_at?.slice(0, 16) || '',
+      duration_months: 1,
+      rate_per_day:   ad.rate_per_day?.toString() || '',
+      amount_paid:    ad.amount_paid?.toString()  || '',
       invoice_number: ad.invoice_number || '',
-      notes: ad.notes || '',
+      notes:          ad.notes          || '',
     });
     setPreview(ad.file_url || '');
     setShowForm(true);
+    setConflictWarning('');
   };
 
-  const filtered = ads.filter(a => filterStatus === 'all' || a.status === filterStatus);
-  const now = new Date();
-  const expiringSoon = ads.filter(a => a.status === 'active' && new Date(a.expires_at) < new Date(Date.now() + 3 * 86400000) && new Date(a.expires_at) > now);
-  const totalRevenue = ads.reduce((s, a) => s + (a.amount_paid || 0), 0);
-  const activeAds = ads.filter(a => a.status === 'active').length;
-  const totalImpressions = ads.reduce((s, a) => s + (a.impressions || 0), 0);
-  const totalClicks = ads.reduce((s, a) => s + (a.clicks || 0), 0);
+  const resetForm = () => {
+    setShowForm(false);
+    setSelectedAd(null);
+    setForm({ ...EMPTY_FORM });
+    setFile(null);
+    setPreview('');
+    setError('');
+    setSuccess('');
+    setConflictWarning('');
+  };
+
+  const filtered         = ads.filter(a => filterStatus === 'all' || a.status === filterStatus);
+  const now              = new Date();
+  const expiringSoon     = ads.filter(a => a.status === 'active' && new Date(a.expires_at) < new Date(Date.now() + 3 * 86400000) && new Date(a.expires_at) > now);
+  const totalRevenue     = ads.reduce((s, a) => s + (a.amount_paid  || 0), 0);
+  const activeAds        = ads.filter(a => a.status === 'active').length;
+  const totalImpressions = ads.reduce((s, a) => s + (a.impressions  || 0), 0);
+  const totalClicks      = ads.reduce((s, a) => s + (a.clicks       || 0), 0);
+
+  const selectedSlotInfo = AD_SLOTS.find(s => s.id === form.slot);
+  const monthlyRate      = selectedSlotInfo?.rate || 0;
+  const totalValue       = monthlyRate * (form.duration_months || 1);
 
   const inputClass = "w-full bg-[#080B12] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#E8EAF0] focus:outline-none focus:border-[#E63946]/50 transition-colors";
   const labelClass = "block text-[10px] font-black uppercase tracking-widest text-white/40 mb-1.5";
-  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  const fmtDate    = (d: string) => d ? new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
   return (
     <div className="min-h-screen bg-[#080B12] text-[#E8EAF0] flex">
 
+      {/* ── SIDEBAR NAV ──────────────────────────────────────────────────────── */}
       <aside className="w-[260px] bg-[#0D1420] border-r border-white/5 flex flex-col fixed h-full z-50">
         <div className="p-6 border-b border-white/5 flex items-center gap-3">
           <div className="w-8 h-8 bg-[#E63946] rounded-sm flex items-center justify-center">
@@ -229,6 +368,7 @@ export default function AdManagerPage() {
         </div>
       </aside>
 
+      {/* ── MAIN ─────────────────────────────────────────────────────────────── */}
       <main className="flex-1 ml-[260px] overflow-y-auto">
         <header className="bg-[#0D1420] border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
           <div>
@@ -237,7 +377,7 @@ export default function AdManagerPage() {
             </h1>
             <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-bold">Upload · Schedule · Track · Invoice</p>
           </div>
-          <button onClick={() => { setShowForm(!showForm); setSelectedAd(null); setForm({ ...EMPTY_FORM }); setPreview(''); }}
+          <button onClick={() => showForm ? resetForm() : setShowForm(true)}
             style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
             className="bg-[#E63946] text-white font-black uppercase tracking-widest text-[13px] px-6 py-2.5 rounded-sm hover:brightness-110 transition-all">
             {showForm ? '✕ Cancel' : '+ New Ad'}
@@ -255,7 +395,7 @@ export default function AdManagerPage() {
                   {expiringSoon.length} ad{expiringSoon.length > 1 ? 's' : ''} expiring within 3 days
                 </p>
                 <p className="text-white/40 text-[11px] mt-0.5">
-                  {expiringSoon.map(a => a.client_name).join(', ')} — contact clients to renew
+                  {expiringSoon.map(a => a.client_company || a.client_name).join(', ')} — contact clients to renew
                 </p>
               </div>
             </div>
@@ -264,10 +404,10 @@ export default function AdManagerPage() {
           {/* OVERVIEW STATS */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'Active Ads', value: activeAds, color: 'text-[#10B981]', border: 'border-[#10B981]/20' },
-              { label: 'Total Revenue', value: `R${totalRevenue.toLocaleString()}`, color: 'text-[#C9922A]', border: 'border-[#C9922A]/20' },
-              { label: 'Total Impressions', value: totalImpressions.toLocaleString(), color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20' },
-              { label: 'Total Clicks', value: totalClicks.toLocaleString(), color: 'text-[#8B5CF6]', border: 'border-[#8B5CF6]/20' },
+              { label: 'Active Ads',        value: activeAds,                    color: 'text-[#10B981]', border: 'border-[#10B981]/20' },
+              { label: 'Total Revenue',     value: `R${totalRevenue.toLocaleString()}`, color: 'text-[#C9922A]', border: 'border-[#C9922A]/20' },
+              { label: 'Total Impressions', value: totalImpressions.toLocaleString(),   color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20' },
+              { label: 'Total Clicks',      value: totalClicks.toLocaleString(),         color: 'text-[#8B5CF6]', border: 'border-[#8B5CF6]/20' },
             ].map(s => (
               <div key={s.label} className={`bg-[#0D1420] border ${s.border} rounded-sm p-4`}>
                 <p className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-2">{s.label}</p>
@@ -278,28 +418,31 @@ export default function AdManagerPage() {
 
           {/* AD SLOTS GUIDE */}
           <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
-            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="text-lg font-black uppercase text-white mb-4">Available Ad Slots</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase text-white mb-4">
+              Available Ad Slots — Rate Card
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               {AD_SLOTS.map(slot => {
-                const active = ads.filter(a => a.slot === slot.id && a.status === 'active').length;
+                const activeOnSlot = ads.filter(a => a.slot === slot.id && a.status === 'active');
                 return (
-                  <div key={slot.id} className={`border rounded-sm p-3 ${active > 0 ? 'border-[#10B981]/30 bg-[#10B981]/5' : 'border-white/10'}`}>
+                  <div key={slot.id} className={`border rounded-sm p-3 ${activeOnSlot.length > 0 ? 'border-[#10B981]/30 bg-[#10B981]/5' : 'border-white/10'}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[12px] font-black text-white uppercase tracking-wide">{slot.label}</p>
-                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-sm ${active > 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-white/5 text-white/30'}`}>
-                        {active > 0 ? `${active} live` : 'vacant'}
+                      <p className="text-[11px] font-black text-white uppercase tracking-wide">{slot.label}</p>
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-sm ${activeOnSlot.length > 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-white/5 text-white/30'}`}>
+                        {activeOnSlot.length > 0 ? `${activeOnSlot.length} live` : 'vacant'}
                       </span>
                     </div>
                     <p className="text-[11px] text-[#C9922A] font-bold">{slot.size}px</p>
-                    <p className="text-[10px] text-white/30">{slot.pages.join(', ')}</p>
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[15px] font-black text-white mt-1">
+                      R{slot.rate.toLocaleString()}<span className="text-[10px] text-white/30 font-normal">/mo</span>
+                    </p>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* CREATE/EDIT FORM */}
+          {/* ── CREATE / EDIT FORM ─────────────────────────────────────────────── */}
           {showForm && (
             <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-white/5">
@@ -307,9 +450,20 @@ export default function AdManagerPage() {
                   {selectedAd ? 'Edit Ad' : 'Create New Ad'}
                 </h2>
               </div>
+
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                {error && <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-3 text-red-400 text-sm">{error}</div>}
-                {success && <div className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-sm p-3 text-[#10B981] text-sm">{success}</div>}
+
+                {error           && <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-3 text-red-400 text-sm font-bold">{error}</div>}
+                {success         && <div className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-sm p-3 text-[#10B981] text-sm font-bold">{success}</div>}
+                {conflictWarning && (
+                  <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-sm p-4 flex items-start gap-3">
+                    <span className="text-[#F59E0B] text-lg flex-shrink-0">🚫</span>
+                    <div>
+                      <p className="text-[#F59E0B] font-black text-[12px] uppercase tracking-widest mb-1">Booking Conflict Detected</p>
+                      <p className="text-[#F59E0B]/80 text-[12px]">{conflictWarning}</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* CLIENT INFO */}
                 <div>
@@ -318,7 +472,7 @@ export default function AdManagerPage() {
                     <div><label className={labelClass}>Client Name *</label><input name="client_name" value={form.client_name} onChange={handleChange} required className={inputClass} placeholder="John Smith" /></div>
                     <div><label className={labelClass}>Client Email *</label><input name="client_email" type="email" value={form.client_email} onChange={handleChange} required className={inputClass} placeholder="john@company.co.za" /></div>
                     <div><label className={labelClass}>Phone</label><input name="client_phone" value={form.client_phone} onChange={handleChange} className={inputClass} placeholder="082 123 4567" /></div>
-                    <div><label className={labelClass}>Company</label><input name="client_company" value={form.client_company} onChange={handleChange} className={inputClass} placeholder="Company Name" /></div>
+                    <div><label className={labelClass}>Company</label><input name="client_company" value={form.client_company} onChange={handleChange} className={inputClass} placeholder="Company Name (Pty) Ltd" /></div>
                   </div>
                 </div>
 
@@ -326,27 +480,43 @@ export default function AdManagerPage() {
                 <div>
                   <h3 className="text-[11px] font-black uppercase tracking-widest text-[#E63946] mb-4">Ad Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2"><label className={labelClass}>Ad Title / Campaign Name *</label><input name="title" value={form.title} onChange={handleChange} required className={inputClass} placeholder="Summer Promo — Calibre Arms" /></div>
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>Ad Title / Campaign Name *</label>
+                      <input name="title" value={form.title} onChange={handleChange} required className={inputClass} placeholder="Summer Promo — Calibre Arms" />
+                    </div>
+
                     <div>
                       <label className={labelClass}>Ad Slot *</label>
                       <select name="slot" value={form.slot} onChange={handleChange} className={inputClass}>
-                        {AD_SLOTS.map(s => <option key={s.id} value={s.id}>{s.label} ({s.size})</option>)}
+                        {AD_SLOTS.map(s => (
+                          <option key={s.id} value={s.id}>{s.label} ({s.size}) — R{s.rate.toLocaleString()}/mo</option>
+                        ))}
                       </select>
                     </div>
+
                     <div>
-                      <label className={labelClass}>Show On Page</label>
+                      <label className={labelClass}>Show On Page *</label>
                       <select name="page" value={form.page} onChange={handleChange} className={inputClass}>
-                        {PAGE_OPTIONS.map(p => <option key={p} value={p}>{p === 'all' ? 'All Pages' : p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+                        {PAGE_OPTIONS.map(p => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
                       </select>
                     </div>
+
                     <div>
                       <label className={labelClass}>Ad Format</label>
                       <select name="ad_type" value={form.ad_type} onChange={handleChange} className={inputClass}>
-                        {Object.entries(AD_FORMATS).map(([id, f]) => <option key={id} value={id}>{f.label}</option>)}
+                        {Object.entries(AD_FORMATS).map(([id, f]) => (
+                          <option key={id} value={id}>{f.label}</option>
+                        ))}
                       </select>
                       <p className="text-[10px] text-white/30 mt-1">{AD_FORMATS[form.ad_type as keyof typeof AD_FORMATS]?.tip}</p>
                     </div>
-                    <div><label className={labelClass}>Click URL</label><input name="click_url" value={form.click_url} onChange={handleChange} className={inputClass} placeholder="https://client-website.co.za" /></div>
+
+                    <div>
+                      <label className={labelClass}>Click URL</label>
+                      <input name="click_url" value={form.click_url} onChange={handleChange} className={inputClass} placeholder="https://client-website.co.za" />
+                    </div>
                   </div>
                 </div>
 
@@ -368,45 +538,91 @@ export default function AdManagerPage() {
                       <div>
                         <label className={labelClass}>Preview</label>
                         <div className="w-full h-[120px] bg-[#080B12] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
-                          {form.ad_type === 'video' ? (
-                            <video src={preview} autoPlay muted loop playsInline className="max-w-full max-h-full" />
-                          ) : (
-                            <img src={preview} alt="Preview" className="max-w-full max-h-full object-contain" />
-                          )}
+                          {form.ad_type === 'video'
+                            ? <video src={preview} autoPlay muted loop playsInline className="max-w-full max-h-full" />
+                            : <img src={preview} alt="Preview" className="max-w-full max-h-full object-contain" />
+                          }
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* SCHEDULE */}
+                {/* SCHEDULE & BILLING */}
                 <div>
                   <h3 className="text-[11px] font-black uppercase tracking-widest text-[#E63946] mb-4">Schedule & Billing</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className={labelClass}>Start Date *</label><input type="datetime-local" name="starts_at" value={form.starts_at} onChange={handleChange} required className={inputClass} /></div>
-                    <div><label className={labelClass}>End Date *</label><input type="datetime-local" name="expires_at" value={form.expires_at} onChange={handleChange} required className={inputClass} /></div>
-                    <div><label className={labelClass}>Rate per Day (R)</label><input type="number" name="rate_per_day" value={form.rate_per_day} onChange={handleChange} className={inputClass} placeholder="500" /></div>
-                    <div><label className={labelClass}>Amount Paid (R)</label><input type="number" name="amount_paid" value={form.amount_paid} onChange={handleChange} className={inputClass} placeholder="7000" /></div>
-                    <div><label className={labelClass}>Invoice Number</label><input name="invoice_number" value={form.invoice_number} onChange={handleChange} className={inputClass} placeholder="INV-1001" /></div>
-                    <div><label className={labelClass}>Notes</label><input name="notes" value={form.notes} onChange={handleChange} className={inputClass} placeholder="Special instructions..." /></div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                    <div>
+                      <label className={labelClass}>Start Date *</label>
+                      <input type="datetime-local" name="starts_at" value={form.starts_at} onChange={handleChange} required className={inputClass} />
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Duration *</label>
+                      <select name="duration_months" value={form.duration_months} onChange={handleChange} className={inputClass}>
+                        {DURATION_OPTIONS.map(d => (
+                          <option key={d.value} value={d.value}>{d.label}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-white/30 mt-1">Max 3 months per booking</p>
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>End Date (auto-calculated)</label>
+                      <div className={`${inputClass} bg-[#0D1420] text-white/50 cursor-not-allowed`}>
+                        {form.expires_at ? new Date(form.expires_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '— select start date —'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Amount Paid (R) — auto-filled</label>
+                      <input type="number" name="amount_paid" value={form.amount_paid} onChange={handleChange} className={inputClass} placeholder="0" />
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Invoice Number</label>
+                      <input name="invoice_number" value={form.invoice_number} onChange={handleChange} className={inputClass} placeholder="INV-1001" />
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Notes</label>
+                      <input name="notes" value={form.notes} onChange={handleChange} className={inputClass} placeholder="Special instructions..." />
+                    </div>
                   </div>
-                  {form.starts_at && form.expires_at && form.rate_per_day && (
-                    <div className="mt-3 bg-[#080B12] border border-white/5 rounded-sm p-3">
-                      <p className="text-[11px] text-white/40 uppercase tracking-widest">
-                        Duration: {Math.ceil((new Date(form.expires_at).getTime() - new Date(form.starts_at).getTime()) / 86400000)} days ·
-                        Total value: <strong className="text-[#C9922A]">R{(Math.ceil((new Date(form.expires_at).getTime() - new Date(form.starts_at).getTime()) / 86400000) * parseInt(form.rate_per_day || '0')).toLocaleString()}</strong>
-                      </p>
+
+                  {/* BILLING SUMMARY */}
+                  {form.starts_at && (
+                    <div className="mt-4 bg-[#080B12] border border-white/5 rounded-sm p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-1">Slot Rate</p>
+                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black text-[#C9922A]">R{monthlyRate.toLocaleString()}/mo</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-1">Duration</p>
+                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black text-white">{form.duration_months} month{form.duration_months > 1 ? 's' : ''}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-1">Total Value</p>
+                        <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black text-[#10B981]">R{totalValue.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-1">Conflict Status</p>
+                        <p className={`text-[12px] font-black uppercase ${conflictWarning ? 'text-[#F59E0B]' : 'text-[#10B981]'}`}>
+                          {conflictWarning ? '🚫 Conflict' : '✓ Slot Available'}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button type="submit" disabled={saving}
+                  <button type="submit" disabled={saving || !!conflictWarning}
                     style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                    className="bg-[#E63946] text-white font-black uppercase tracking-widest text-[14px] px-8 py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
+                    className="bg-[#E63946] text-white font-black uppercase tracking-widest text-[14px] px-8 py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                     {uploading ? 'Uploading...' : saving ? 'Saving...' : selectedAd ? 'Update Ad' : '🚀 Launch Ad'}
                   </button>
-                  <button type="button" onClick={() => { setShowForm(false); setSelectedAd(null); }}
+                  <button type="button" onClick={resetForm}
                     className="border border-white/10 text-white/50 font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
                     Cancel
                   </button>
@@ -415,7 +631,7 @@ export default function AdManagerPage() {
             </div>
           )}
 
-          {/* ADS TABLE */}
+          {/* ── ADS TABLE ─────────────────────────────────────────────────────── */}
           <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
               <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-white">
@@ -448,9 +664,10 @@ export default function AdManagerPage() {
                   </thead>
                   <tbody className="divide-y divide-white/5">
                     {filtered.map(ad => {
-                      const isExpired = new Date(ad.expires_at) < new Date();
+                      const isExpired      = new Date(ad.expires_at) < now;
                       const isExpiringSoon = !isExpired && new Date(ad.expires_at) < new Date(Date.now() + 3 * 86400000);
-                      const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '0.0';
+                      const ctr            = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '0.0';
+                      const pageLabel      = PAGE_OPTIONS.find(p => p.value === ad.page)?.label || ad.page;
                       return (
                         <tr key={ad.id} className="hover:bg-white/[0.02] transition-all">
                           <td className="px-4 py-4">
@@ -464,7 +681,7 @@ export default function AdManagerPage() {
                           </td>
                           <td className="px-4 py-4">
                             <p className="text-[12px] font-bold text-white/60 uppercase">{ad.slot?.replace(/_/g, ' ')}</p>
-                            <p className="text-[10px] text-white/30">{ad.page}</p>
+                            <p className="text-[10px] text-white/30 truncate max-w-[140px]">{pageLabel}</p>
                           </td>
                           <td className="px-4 py-4">
                             <p className="text-[11px] text-white/60">{fmtDate(ad.starts_at)}</p>
