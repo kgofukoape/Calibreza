@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import AdBanner from '@/components/AdBanner';
 
 const JOB_TYPES = [{ id: '', label: 'All Jobs' }, { id: 'Retail / Sales', label: '🏪 Retail / Sales' }, { id: 'Gunsmithing', label: '🔧 Gunsmithing' }, { id: 'Instruction / Training', label: '🎯 Instruction' }, { id: 'Security / PSIRA', label: '🛡️ Security / PSIRA' }, { id: 'Compliance / Admin', label: '📋 Compliance' }, { id: 'Other', label: '📦 Other' }];
 const PROVINCES = ['All Provinces', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'National / Remote'];
@@ -64,6 +66,11 @@ export default function JobsPage() {
         </div>
       </div>
 
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="jobs_board" />
+      </div>
+
       {/* TABS (PILL DESIGN) */}
       <div className="border-b border-white/5 bg-[#0D0F13] sticky top-[80px] z-30 shadow-md">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6">
@@ -79,7 +86,7 @@ export default function JobsPage() {
       </div>
 
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-8 flex flex-col lg:flex-row gap-8">
-        
+
         {/* LEFT FILTERS */}
         <div className="w-full lg:w-[320px] flex-shrink-0 flex flex-col gap-4">
           <input type="text" placeholder="Search keywords..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-[#161920] border border-white/5 rounded-full px-5 py-3 text-[13px] focus:outline-none focus:border-[#C9922A]/50 transition-colors" />
@@ -94,9 +101,14 @@ export default function JobsPage() {
               ))}
             </div>
           </div>
+
+          {/* SQUARE CARD AD — below filters */}
+          <div className="flex justify-center mt-2">
+            <AdBanner slot="square_card" page="jobs_board" />
+          </div>
         </div>
 
-        {/* RIGHT GRID - THE NEW DESIGN */}
+        {/* RIGHT GRID */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
             <p className="text-[#8A8E99] font-bold text-sm uppercase tracking-widest">{filtered.length} <span className="text-[#F0EDE8]">Jobs Found</span></p>
@@ -111,63 +123,72 @@ export default function JobsPage() {
                <p className="text-[#8A8E99] text-sm">Try adjusting your filters or search terms.</p>
              </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 pb-20">
-              {filtered.map(job => (
-                <div key={job.id} className="relative group">
-                  
-                  {/* BASE CARD (Visible Normally) */}
-                  <div className={`h-full bg-[#161920] border rounded-2xl p-6 flex flex-col transition-all ${job.is_boosted ? 'border-red-500/30 bg-red-500/5' : 'border-white/5'}`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <span className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8A8E99]">{job.category}</span>
-                      {job.is_boosted && <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[8px] font-black uppercase tracking-widest animate-pulse">Urgent</span>}
-                    </div>
-                    
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[22px] font-black uppercase tracking-tight leading-tight mb-2 text-[#F0EDE8]">{job.title}</h3>
-                    
-                    <div className="flex items-center gap-1.5 mb-4">
-                      {user ? (
-                        <><p className="text-[13px] font-bold text-[#C9922A]">{job.company}</p><svg className="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg></>
-                      ) : <p className="text-[13px] font-bold text-[#C9922A]">🔒 Confidential Employer</p>}
+            <>
+              {/* LEADERBOARD MID — above grid */}
+              <div className="flex justify-center mb-6">
+                <AdBanner slot="leaderboard_mid" page="jobs_board" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 pb-20">
+                {filtered.map(job => (
+                  <div key={job.id} className="relative group">
+
+                    {/* BASE CARD */}
+                    <div className={`h-full bg-[#161920] border rounded-2xl p-6 flex flex-col transition-all ${job.is_boosted ? 'border-red-500/30 bg-red-500/5' : 'border-white/5'}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-[#8A8E99]">{job.category}</span>
+                        {job.is_boosted && <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[8px] font-black uppercase tracking-widest animate-pulse">Urgent</span>}
+                      </div>
+
+                      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[22px] font-black uppercase tracking-tight leading-tight mb-2 text-[#F0EDE8]">{job.title}</h3>
+
+                      <div className="flex items-center gap-1.5 mb-4">
+                        {user ? (
+                          <><p className="text-[13px] font-bold text-[#C9922A]">{job.company}</p><svg className="w-3.5 h-3.5 text-blue-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg></>
+                        ) : <p className="text-[13px] font-bold text-[#C9922A]">🔒 Confidential Employer</p>}
+                      </div>
+
+                      <div className="mt-auto space-y-2 pt-4 border-t border-white/5">
+                         <p className="text-[12px] text-[#8A8E99] flex items-center gap-2"><span className="opacity-50">📍</span> {job.location}</p>
+                         <p className="text-[12px] text-[#8A8E99] flex items-center gap-2"><span className="opacity-50">💰</span> {job.salary_range}</p>
+                         <p className="text-[10px] text-white/30 uppercase tracking-widest pt-2">Posted {fmt(job.created_at)}</p>
+                      </div>
                     </div>
 
-                    <div className="mt-auto space-y-2 pt-4 border-t border-white/5">
-                       <p className="text-[12px] text-[#8A8E99] flex items-center gap-2"><span className="opacity-50">📍</span> {job.location}</p>
-                       <p className="text-[12px] text-[#8A8E99] flex items-center gap-2"><span className="opacity-50">💰</span> {job.salary_range}</p>
-                       <p className="text-[10px] text-white/30 uppercase tracking-widest pt-2">Posted {fmt(job.created_at)}</p>
+                    {/* HOVER POP-OUT CARD */}
+                    <div className="hidden lg:flex absolute -inset-4 bg-[#1a1d24] border border-[#C9922A]/50 rounded-3xl p-8 flex-col opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-50 pointer-events-none group-hover:pointer-events-auto transform scale-95 group-hover:scale-100">
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="px-3 py-1 rounded-full bg-[#C9922A]/10 text-[#C9922A] text-[9px] font-black uppercase tracking-widest">{job.category}</span>
+                      </div>
+                      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[24px] font-black uppercase tracking-tight leading-tight mb-2 text-[#F0EDE8]">{job.title}</h3>
+
+                      <div className="flex-1 mt-4">
+                        <p className="text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] mb-2">Key Requirements:</p>
+                        <ul className="space-y-1 mb-4">
+                          {(job.requirements || []).slice(0, 3).map((req: string, i: number) => (
+                            <li key={i} className="text-[12px] text-[#8A8E99] flex gap-2"><span className="text-[#C9922A]">✓</span><span className="truncate">{req}</span></li>
+                          ))}
+                        </ul>
+                        <p className="text-[12px] text-[#8A8E99] line-clamp-3 italic">"{job.description}"</p>
+                      </div>
+
+                      <Link href={`/jobs/${job.id}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="w-full mt-6 bg-[#C9922A] text-black text-center py-3 rounded-full font-black uppercase tracking-widest text-[14px] hover:brightness-110 transition-all shadow-lg">
+                        View Full Details →
+                      </Link>
                     </div>
+
+                    {/* Mobile Click Target */}
+                    <Link href={`/jobs/${job.id}`} className="absolute inset-0 z-20 lg:hidden"></Link>
+
                   </div>
-
-                  {/* HOVER POP-OUT CARD (Expands on Desktop Hover) */}
-                  <div className="hidden lg:flex absolute -inset-4 bg-[#1a1d24] border border-[#C9922A]/50 rounded-3xl p-8 flex-col opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-50 pointer-events-none group-hover:pointer-events-auto transform scale-95 group-hover:scale-100">
-                    <div className="flex justify-between items-start mb-3">
-                      <span className="px-3 py-1 rounded-full bg-[#C9922A]/10 text-[#C9922A] text-[9px] font-black uppercase tracking-widest">{job.category}</span>
-                    </div>
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[24px] font-black uppercase tracking-tight leading-tight mb-2 text-[#F0EDE8]">{job.title}</h3>
-                    
-                    <div className="flex-1 mt-4">
-                      <p className="text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] mb-2">Key Requirements:</p>
-                      <ul className="space-y-1 mb-4">
-                        {(job.requirements || []).slice(0, 3).map((req: string, i: number) => (
-                          <li key={i} className="text-[12px] text-[#8A8E99] flex gap-2"><span className="text-[#C9922A]">✓</span><span className="truncate">{req}</span></li>
-                        ))}
-                      </ul>
-                      <p className="text-[12px] text-[#8A8E99] line-clamp-3 italic">"{job.description}"</p>
-                    </div>
-
-                    <Link href={`/jobs/${job.id}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="w-full mt-6 bg-[#C9922A] text-black text-center py-3 rounded-full font-black uppercase tracking-widest text-[14px] hover:brightness-110 transition-all shadow-lg">
-                      View Full Details →
-                    </Link>
-                  </div>
-
-                  {/* Mobile Click Target (Hidden on Desktop) */}
-                  <Link href={`/jobs/${job.id}`} className="absolute inset-0 z-20 lg:hidden"></Link>
-
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

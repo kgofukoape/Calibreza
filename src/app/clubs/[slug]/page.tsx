@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 
@@ -232,11 +234,9 @@ export default function ClubDetailPage() {
         </div>
       )}
 
-      <div className="w-full flex justify-center pt-3 pb-2 px-4">
-        <div className="w-full max-w-[970px] h-[90px] md:h-[120px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Advertisement — 970 × 90</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="clubs_profile" />
       </div>
 
       {/* COVER */}
@@ -324,10 +324,11 @@ export default function ClubDetailPage() {
 
       {/* 3-COLUMN LAYOUT */}
       <div className="flex w-full items-start flex-1">
+
+        {/* LEFT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-4">
-          <div className="sticky top-[57px] w-full bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center" style={{ height: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
+          <div className="sticky top-[57px]">
+            <AdBanner slot="sidebar_left" page="clubs_profile" />
           </div>
         </aside>
 
@@ -410,12 +411,12 @@ export default function ClubDetailPage() {
                     <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">Range Facilities</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
                       {[
-                        { label: 'Environment',     value: club.range_environment || '—', icon: club.range_environment === 'indoor' ? '🏠' : club.range_environment === 'both' ? '🏠🌳' : '🌳' },
-                        { label: 'Booths / Lanes',  value: (club.booth_count || club.lane_count) ? `${club.booth_count || club.lane_count} booths` : '—', icon: '🎯' },
-                        { label: 'Max Distance',    value: club.max_distance_m ? `${club.max_distance_m}m` : '—', icon: '📏' },
-                        { label: 'Covered Booths',  value: club.covered_lanes ? 'Yes' : 'No', icon: '🏗️' },
-                        { label: 'Booking Required',value: club.booking_required ? 'Yes' : 'Walk-in', icon: '📋' },
-                        { label: 'Range Officer',   value: club.range_officer_on_duty ? 'On Duty' : 'No', icon: '👮' },
+                        { label: 'Environment',      value: club.range_environment || '—', icon: club.range_environment === 'indoor' ? '🏠' : club.range_environment === 'both' ? '🏠🌳' : '🌳' },
+                        { label: 'Booths / Lanes',   value: (club.booth_count || club.lane_count) ? `${club.booth_count || club.lane_count} booths` : '—', icon: '🎯' },
+                        { label: 'Max Distance',     value: club.max_distance_m ? `${club.max_distance_m}m` : '—', icon: '📏' },
+                        { label: 'Covered Booths',   value: club.covered_lanes ? 'Yes' : 'No', icon: '🏗️' },
+                        { label: 'Booking Required', value: club.booking_required ? 'Yes' : 'Walk-in', icon: '📋' },
+                        { label: 'Range Officer',    value: club.range_officer_on_duty ? 'On Duty' : 'No', icon: '👮' },
                       ].map((s, i) => (
                         <div key={i} className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
                           <div className="text-2xl mb-2">{s.icon}</div>
@@ -603,33 +604,30 @@ export default function ClubDetailPage() {
                       {club.address && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Address</p><p className="text-lg font-bold leading-snug">{club.address}</p></div>}
                       {club.website && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Website</p><a href={club.website} target="_blank" rel="noopener noreferrer" className="text-lg font-bold text-[#C9922A] hover:underline">Visit Website →</a></div>}
                     </div>
-
-                    {/* ── MAP ── */}
                     {club.lat && club.lng && (
                       <div className="mt-5 pt-5 border-t border-white/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">📍 Find Us</p>
-                        <ProfileMap
-                          lat={parseFloat(club.lat)}
-                          lng={parseFloat(club.lng)}
-                          name={club.name}
-                          address={club.address}
-                        />
+                        <ProfileMap lat={parseFloat(club.lat)} lng={parseFloat(club.lng)} name={club.name} address={club.address} />
                       </div>
                     )}
                   </div>
-
                   <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
                     <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-5">Pricing</h2>
                     {club.range_fee ? <div className="flex justify-between items-center py-3 border-b border-white/5"><span className="text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">Range Fee</span><div className="text-right"><span className="text-2xl font-black text-[#C9922A]">R{club.range_fee}</span><span className="text-[11px] text-[#8A8E99] ml-1">{FEE_LABEL[club.range_fee_type || 'session']}</span></div></div> : null}
                     {club.membership_fee ? <div className="flex justify-between items-center py-3 border-b border-white/5"><span className="text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">Annual Membership</span><span className="text-2xl font-black text-[#C9922A]">R{Number(club.membership_fee).toLocaleString('en-ZA')}</span></div> : null}
                     {!club.range_fee && !club.membership_fee && <p className="text-[#8A8E99] text-[13px]">Contact the {isRange ? 'range' : 'club'} for pricing.</p>}
+
+                    {/* SQUARE CARD AD — contact tab */}
+                    <div className="mt-6 pt-6 border-t border-white/5 flex justify-center">
+                      <AdBanner slot="square_card" page="clubs_profile" />
+                    </div>
                   </div>
                 </div>
               )}
 
             </main>
 
-            {/* SIDEBAR */}
+            {/* RIGHT SIDEBAR */}
             <aside className="w-full lg:w-[260px] flex-shrink-0 flex flex-col gap-4">
               <div className="bg-[#13151A] border border-white/5 rounded-sm p-5">
                 <h3 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-lg font-black uppercase mb-4">Quick Info</h3>
@@ -655,22 +653,24 @@ export default function ClubDetailPage() {
                   {!isPremium && <Link href="/clubs/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="w-full border border-[#C9922A]/30 text-[#C9922A] bg-[#C9922A]/5 font-black uppercase tracking-widest text-[11px] py-2.5 rounded-sm hover:bg-[#C9922A]/10 transition-all text-center">Upgrade — 2 Months Free</Link>}
                 </div>
               </div>
-              <div className="w-full bg-[#12141a] border border-white/5 flex flex-col items-center justify-center" style={{ height: '250px' }}>
-                <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-2">Advertisement</span>
-                <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold mx-4 mb-4">300 × 250</div>
-              </div>
+
+              {/* SQUARE CARD AD — right sidebar */}
+              <AdBanner slot="square_card" page="clubs_profile" />
+
               <Link href="/clubs" className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest hover:text-[#C9922A] transition-colors">← Back to All Clubs & Ranges</Link>
             </aside>
           </div>
         </div>
 
+        {/* RIGHT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-4">
-          <div className="sticky top-[57px] w-full bg-[#12141a] border border-white/5 flex flex-col items-center justify-center p-3 text-center" style={{ height: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 x 600</div>
+          <div className="sticky top-[57px]">
+            <AdBanner slot="sidebar_right" page="clubs_profile" />
           </div>
         </aside>
       </div>
+
+      <Footer />
     </div>
   );
 }

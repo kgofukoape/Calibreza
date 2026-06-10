@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 
 const PROVINCES = [
@@ -84,12 +86,9 @@ export default function ClubsPage() {
         </div>
       </div>
 
-      {/* LEADERBOARD AD */}
-      <div className="w-full flex justify-center py-3 px-4 md:px-6">
-        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="clubs_directory" />
       </div>
 
       {/* MAIN */}
@@ -97,11 +96,8 @@ export default function ClubsPage() {
 
         {/* LEFT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6 p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">
-              160 × 600
-            </div>
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_left" page="clubs_directory" />
           </div>
         </aside>
 
@@ -117,9 +113,7 @@ export default function ClubsPage() {
             ].map(tab => (
               <button key={tab.id} onClick={() => setSelectedType(tab.id)}
                 className={`px-4 py-2 rounded-sm text-[12px] font-black uppercase tracking-widest transition-all ${
-                  selectedType === tab.id
-                    ? 'bg-[#C9922A] text-black'
-                    : 'bg-[#13151A] border border-white/10 text-[#8A8E99] hover:text-[#F0EDE8]'
+                  selectedType === tab.id ? 'bg-[#C9922A] text-black' : 'bg-[#13151A] border border-white/10 text-[#8A8E99] hover:text-[#F0EDE8]'
                 }`}>
                 {tab.label}
               </button>
@@ -128,13 +122,8 @@ export default function ClubsPage() {
 
           {/* FILTERS */}
           <div className="flex flex-col sm:flex-row gap-3 mb-5">
-            <input
-              type="text"
-              placeholder="Search clubs or city..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="flex-1 bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50"
-            />
+            <input type="text" placeholder="Search clubs or city..." value={search} onChange={e => setSearch(e.target.value)}
+              className="flex-1 bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50" />
             <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)}
               className="bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50 appearance-none cursor-pointer">
               {PROVINCES.map(p => <option key={p}>{p}</option>)}
@@ -166,108 +155,103 @@ export default function ClubsPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-5">
-              {filtered.map(club => {
-                const isRange = club.facility_type === 'range';
-                return (
-                  <Link key={club.id} href={`/clubs/${club.slug}`}
-                    className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/30 transition-all group">
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-5">
+                {filtered.map((club, idx) => {
+                  const isRange = club.facility_type === 'range';
+                  return (
+                    <React.Fragment key={club.id}>
+                      <Link href={`/clubs/${club.slug}`}
+                        className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/30 transition-all group">
 
-                    {/* Cover Photo */}
-                    <div className="relative h-[160px] bg-[#191C23] overflow-hidden">
-                      {club.cover_url ? (
-                        <img src={club.cover_url} alt={club.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-[#1a1d24] to-[#0D0F13] flex items-center justify-center">
-                          <span className="text-6xl opacity-5">{isRange ? '🎯' : '⊕'}</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#13151A] to-transparent" />
+                        <div className="relative h-[160px] bg-[#191C23] overflow-hidden">
+                          {club.cover_url ? (
+                            <img src={club.cover_url} alt={club.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-[#1a1d24] to-[#0D0F13] flex items-center justify-center">
+                              <span className="text-6xl opacity-5">{isRange ? '🎯' : '⊕'}</span>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#13151A] to-transparent" />
 
-                      {/* Logo */}
-                      <div className="absolute bottom-3 left-4 w-14 h-14 rounded-sm bg-[#C9922A] border-2 border-[#13151A] overflow-hidden flex items-center justify-center shadow-lg">
-                        {club.logo_url ? (
-                          <img src={club.logo_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-black font-black text-xl">
-                            {club.name?.charAt(0)}
-                          </span>
-                        )}
-                      </div>
+                          <div className="absolute bottom-3 left-4 w-14 h-14 rounded-sm bg-[#C9922A] border-2 border-[#13151A] overflow-hidden flex items-center justify-center shadow-lg">
+                            {club.logo_url ? (
+                              <img src={club.logo_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-black font-black text-xl">{club.name?.charAt(0)}</span>
+                            )}
+                          </div>
 
-                      {/* Type badge */}
-                      <div className={`absolute top-3 left-3 text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider ${
-                        isRange ? 'bg-[#C9922A] text-black' : 'bg-white/10 text-[#F0EDE8]'
-                      }`}>
-                        {isRange ? '🎯 Range' : '🏛️ Club'}
-                      </div>
+                          <div className={`absolute top-3 left-3 text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider ${isRange ? 'bg-[#C9922A] text-black' : 'bg-white/10 text-[#F0EDE8]'}`}>
+                            {isRange ? '🎯 Range' : '🏛️ Club'}
+                          </div>
 
-                      {/* Verified Badge */}
-                      {club.is_verified && (
-                        <div className="absolute top-3 right-3 bg-[#2A9C6E] text-white text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">
-                          ✓ Verified
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Card Content */}
-                    <div className="p-4 pt-3">
-                      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                        className="text-xl font-black uppercase tracking-tight text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors mb-1">
-                        {club.name}
-                      </h3>
-                      <p className="text-[12px] text-[#8A8E99] mb-3">
-                        📍 {club.city}{club.province ? `, ${club.province}` : ''}
-                      </p>
-
-                      {/* Range-specific info */}
-                      {isRange && (
-                        <div className="flex gap-3 mb-3 text-[11px] text-[#8A8E99]">
-                          {club.booth_count && <span>🎯 {club.booth_count} booths</span>}
-                          {club.max_distance_m && <span>📏 {club.max_distance_m}m</span>}
-                          {club.guns_for_hire && <span className="text-[#C9922A]">🔫 Guns for hire</span>}
-                        </div>
-                      )}
-
-                      {club.disciplines?.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {club.disciplines.slice(0, 3).map((d: string) => (
-                            <span key={d} className="bg-[#0D0F13] border border-white/10 text-[#8A8E99] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm">
-                              {d}
-                            </span>
-                          ))}
-                          {club.disciplines.length > 3 && (
-                            <span className="text-[#8A8E99] text-[9px] font-bold self-center">+{club.disciplines.length - 3}</span>
+                          {club.is_verified && (
+                            <div className="absolute top-3 right-3 bg-[#2A9C6E] text-white text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">✓ Verified</div>
                           )}
                         </div>
-                      )}
 
-                      <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                        <div className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">
-                          {club.membership_fee ? `From R${Number(club.membership_fee).toLocaleString('en-ZA')}/yr` : 'Contact for info'}
+                        <div className="p-4 pt-3">
+                          <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                            className="text-xl font-black uppercase tracking-tight text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors mb-1">
+                            {club.name}
+                          </h3>
+                          <p className="text-[12px] text-[#8A8E99] mb-3">📍 {club.city}{club.province ? `, ${club.province}` : ''}</p>
+
+                          {isRange && (
+                            <div className="flex gap-3 mb-3 text-[11px] text-[#8A8E99]">
+                              {club.booth_count && <span>🎯 {club.booth_count} booths</span>}
+                              {club.max_distance_m && <span>📏 {club.max_distance_m}m</span>}
+                              {club.guns_for_hire && <span className="text-[#C9922A]">🔫 Guns for hire</span>}
+                            </div>
+                          )}
+
+                          {club.disciplines?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {club.disciplines.slice(0, 3).map((d: string) => (
+                                <span key={d} className="bg-[#0D0F13] border border-white/10 text-[#8A8E99] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm">{d}</span>
+                              ))}
+                              {club.disciplines.length > 3 && <span className="text-[#8A8E99] text-[9px] font-bold self-center">+{club.disciplines.length - 3}</span>}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                            <div className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">
+                              {club.membership_fee ? `From R${Number(club.membership_fee).toLocaleString('en-ZA')}/yr` : 'Contact for info'}
+                            </div>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">View {isRange ? 'Range' : 'Club'} →</span>
+                          </div>
                         </div>
-                        <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">
-                          View {isRange ? 'Range' : 'Club'} →
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                      </Link>
+
+                      {/* LEADERBOARD MID — after every 6th card */}
+                      {(idx + 1) % 6 === 0 && idx < filtered.length - 1 && (
+                        <div className="col-span-full flex justify-center py-2">
+                          <AdBanner slot="leaderboard_mid" page="clubs_directory" />
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+
+              {/* SQUARE CARD — mobile */}
+              <div className="flex justify-center mt-6 xl:hidden">
+                <AdBanner slot="square_card" page="clubs_directory" />
+              </div>
+            </>
           )}
         </main>
 
         {/* RIGHT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6 p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">
-              160 × 600
-            </div>
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_right" page="clubs_directory" />
           </div>
         </aside>
       </div>
+
+      <Footer />
     </div>
   );
 }

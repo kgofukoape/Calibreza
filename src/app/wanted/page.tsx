@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 import ListingCard from '@/components/listings/ListingCard';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 
 const PROVINCES = ['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Limpopo','Mpumalanga','North West','Free State','Northern Cape'];
@@ -73,22 +75,18 @@ export default function WantedPage() {
         </div>
       </div>
 
-      {/* LEADERBOARD AD */}
-      <div className="w-full flex justify-center py-3 px-4 md:px-6">
-        <div className="w-full max-w-[970px] h-[120px] md:h-[160px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="wanted" />
       </div>
 
       {/* MAIN — 3 col layout */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-6">
 
-        {/* LEFT AD */}
+        {/* LEFT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6 p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 × 600</div>
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_left" page="wanted" />
           </div>
         </aside>
 
@@ -127,6 +125,11 @@ export default function WantedPage() {
                   <input type="number" placeholder="Max" className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
                 </div>
               </div>
+
+              {/* SQUARE CARD AD — below filters */}
+              <div className="flex justify-center pt-2">
+                <AdBanner slot="square_card" page="wanted" />
+              </div>
             </div>
           </aside>
 
@@ -136,9 +139,7 @@ export default function WantedPage() {
               <p className="text-[12px] text-[#8A8E99] uppercase tracking-widest font-bold">
                 <span className="text-[#F0EDE8] font-black">{listings.length}</span> wanted ads
               </p>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
                 className="bg-[#13151A] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none appearance-none cursor-pointer">
                 <option value="newest">Newest First</option>
                 <option value="highest">Highest Budget</option>
@@ -160,35 +161,43 @@ export default function WantedPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {listings.map(listing => (
-                  <ListingCard
-                    key={listing.id}
-                    id={listing.id}
-                    title={listing.title}
-                    make={listing.makes?.name || 'N/A'}
-                    calibre={listing.calibres?.name || 'N/A'}
-                    price={listing.price}
-                    province={listing.provinces?.name || listing.city || 'N/A'}
-                    condition={listing.conditions?.name || 'N/A'}
-                    category={formatCategory(listing.category_id)}
-                    listingType={listing.listing_type}
-                    sellerName={listing.city || 'N/A'}
-                    images={listing.images}
-                  />
+                {listings.map((listing, idx) => (
+                  <React.Fragment key={listing.id}>
+                    <ListingCard
+                      id={listing.id}
+                      title={listing.title}
+                      make={listing.makes?.name || 'N/A'}
+                      calibre={listing.calibres?.name || 'N/A'}
+                      price={listing.price}
+                      province={listing.provinces?.name || listing.city || 'N/A'}
+                      condition={listing.conditions?.name || 'N/A'}
+                      category={formatCategory(listing.category_id)}
+                      listingType={listing.listing_type}
+                      sellerName={listing.city || 'N/A'}
+                      images={listing.images}
+                    />
+                    {/* LEADERBOARD MID — after every 9th */}
+                    {(idx + 1) % 9 === 0 && idx < listings.length - 1 && (
+                      <div className="col-span-full flex justify-center py-2">
+                        <AdBanner slot="leaderboard_mid" page="wanted" />
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT AD */}
+        {/* RIGHT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6 p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 × 600</div>
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_right" page="wanted" />
           </div>
         </aside>
       </div>
+
+      <Footer />
     </div>
   );
 }

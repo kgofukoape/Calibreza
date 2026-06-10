@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 
 const PROVINCES = [
@@ -59,22 +61,18 @@ export default function DealersDirectoryPage() {
         </div>
       </div>
 
-      {/* LEADERBOARD AD */}
-      <div className="w-full flex justify-center py-3 px-4 md:px-6">
-        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="dealers_directory" />
       </div>
 
       {/* MAIN */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-6">
 
-        {/* LEFT AD */}
+        {/* LEFT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6 p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 × 600</div>
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_left" page="dealers_directory" />
           </div>
         </aside>
 
@@ -106,79 +104,96 @@ export default function DealersDirectoryPage() {
               <p className="text-[#8A8E99] text-sm">Try a different province or search term</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {filtered.map(dealer => (
-                <Link key={dealer.id} href={`/dealers/${dealer.slug}`}
-                  className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/30 transition-all group">
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {filtered.map((dealer, idx) => (
+                  <React.Fragment key={dealer.id}>
+                    <Link href={`/dealers/${dealer.slug}`}
+                      className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/30 transition-all group">
 
-                  {/* Cover / Banner */}
-                  <div className="relative h-[140px] bg-[#191C23] overflow-hidden">
-                    {dealer.banner_url ? (
-                      <img src={dealer.banner_url} alt="" className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#1a1d24] to-[#0D0F13]" />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#13151A] to-transparent" />
+                      {/* Cover / Banner */}
+                      <div className="relative h-[140px] bg-[#191C23] overflow-hidden">
+                        {dealer.banner_url ? (
+                          <img src={dealer.banner_url} alt="" className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#1a1d24] to-[#0D0F13]" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#13151A] to-transparent" />
 
-                    {/* Logo overlaid */}
-                    <div className="absolute bottom-3 left-4 w-14 h-14 rounded-sm border-2 border-[#13151A] overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg"
-                      style={{ background: dealer.logo_url ? 'transparent' : '#C9922A' }}>
-                      {dealer.logo_url ? (
-                        <img src={dealer.logo_url} alt={dealer.business_name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-black font-black text-xl">
-                          {dealer.business_name?.charAt(0)}
-                        </span>
-                      )}
-                    </div>
+                        {/* Logo */}
+                        <div className="absolute bottom-3 left-4 w-14 h-14 rounded-sm border-2 border-[#13151A] overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg"
+                          style={{ background: dealer.logo_url ? 'transparent' : '#C9922A' }}>
+                          {dealer.logo_url ? (
+                            <img src={dealer.logo_url} alt={dealer.business_name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-black font-black text-xl">
+                              {dealer.business_name?.charAt(0)}
+                            </span>
+                          )}
+                        </div>
 
-                    {/* Tier badge */}
-                    {(dealer.subscription_tier === 'premium' || dealer.subscription_tier === 'pro') && (
-                      <div className="absolute top-3 right-3 bg-[#C9922A] text-black text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">
-                        {dealer.subscription_tier === 'premium' ? '⭐ Premium' : '✓ Pro'}
+                        {/* Tier badge */}
+                        {(dealer.subscription_tier === 'premium' || dealer.subscription_tier === 'pro') && (
+                          <div className="absolute top-3 right-3 bg-[#C9922A] text-black text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">
+                            {dealer.subscription_tier === 'premium' ? '⭐ Premium' : '✓ Pro'}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card content */}
+                      <div className="p-4 pt-3">
+                        <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                          className="text-xl font-black uppercase tracking-tight text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors mb-1">
+                          {dealer.business_name}
+                        </h2>
+                        <p className="text-[12px] text-[#8A8E99] mb-3">
+                          📍 {dealer.city}, {dealer.province}
+                        </p>
+                        {dealer.description && (
+                          <p className="text-[12px] text-[#8A8E99] line-clamp-2 mb-3 leading-relaxed">
+                            {dealer.description}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                          {dealer.rating ? (
+                            <span className="text-[12px] text-[#8A8E99]">
+                              ⭐ {dealer.rating.toFixed(1)} <span className="text-[#8A8E99]/60">({dealer.review_count || 0})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">Licensed Dealer</span>
+                          )}
+                          <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">View Store →</span>
+                        </div>
+                      </div>
+                    </Link>
+
+                    {/* LEADERBOARD MID — after every 6th dealer card */}
+                    {(idx + 1) % 6 === 0 && idx < filtered.length - 1 && (
+                      <div className="col-span-full flex justify-center py-2">
+                        <AdBanner slot="leaderboard_mid" page="dealers_directory" />
                       </div>
                     )}
-                  </div>
+                  </React.Fragment>
+                ))}
+              </div>
 
-                  {/* Card content */}
-                  <div className="p-4 pt-3">
-                    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-xl font-black uppercase tracking-tight text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors mb-1">
-                      {dealer.business_name}
-                    </h2>
-                    <p className="text-[12px] text-[#8A8E99] mb-3">
-                      📍 {dealer.city}, {dealer.province}
-                    </p>
-                    {dealer.description && (
-                      <p className="text-[12px] text-[#8A8E99] line-clamp-2 mb-3 leading-relaxed">
-                        {dealer.description}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                      {dealer.rating ? (
-                        <span className="text-[12px] text-[#8A8E99]">
-                          ⭐ {dealer.rating.toFixed(1)} <span className="text-[#8A8E99]/60">({dealer.review_count || 0})</span>
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">Licensed Dealer</span>
-                      )}
-                      <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">View Store →</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+              {/* SQUARE CARD — mobile, below grid */}
+              <div className="flex justify-center mt-6 xl:hidden">
+                <AdBanner slot="square_card" page="dealers_directory" />
+              </div>
+            </>
           )}
         </main>
 
-        {/* RIGHT AD */}
+        {/* RIGHT SIDEBAR AD */}
         <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
-          <div className="w-[160px] bg-[#12141a] border border-white/5 flex flex-col items-center justify-center sticky top-6 p-3" style={{ minHeight: '600px' }}>
-            <span className="text-[9px] text-[#5A5E69] uppercase tracking-widest mb-3">Advertisement</span>
-            <div className="flex-1 w-full border border-dashed border-white/10 flex items-center justify-center text-[9px] text-[#3A3E49] font-bold">160 × 600</div>
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_right" page="dealers_directory" />
           </div>
         </aside>
       </div>
+
+      <Footer />
     </div>
   );
 }
