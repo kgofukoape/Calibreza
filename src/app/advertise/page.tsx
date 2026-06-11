@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/footer';
+import Footer from '@/components/layout/Footer';
 
 // ─── LOCKED PRICING — matches CLAUDE.md revenue table exactly ───────────────
 // Zone Alpha   Leaderboard Top  970×90    R1,500/month
