@@ -1,16 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-
-// ─── LOCKED PRICING — matches CLAUDE.md revenue table exactly ───────────────
-// Zone Alpha   Leaderboard Top  970×90    R1,500/month
-// Zone Bravo   Leaderboard Mid  728×90    R1,200/month
-// Zone Charlie Sidebar L/R      160×600   R800/month
-// Zone Delta   Square Card      300×250   R500/month
-// ─────────────────────────────────────────────────────────────────────────────
+import { supabase } from '@/lib/supabase';
 
 interface AdZone {
   id: string;
@@ -76,218 +71,258 @@ const AD_ZONES: AdZone[] = [
 ];
 
 export default function AdvertisePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setAuthChecked(true);
+    };
+    checkAuth();
+  }, []);
+
+  const handleBookingClick = () => {
+    if (!user) {
+      router.push('/dealer/login?redirect=/advertise/book');
+    } else {
+      router.push('/advertise/book');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-14 md:py-20">
-        <div className="max-w-[1000px] mx-auto">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="w-2 h-2 rounded-full bg-[#C9922A] animate-pulse" />
-            <p className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.4em]">
-              Media Kit · Banner Advertising
-            </p>
+      {/* HERO */}
+      <section className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-12 md:py-20">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-3 flex items-center gap-2">
+            <Link href="/" className="hover:text-[#C9922A]">Home</Link>
+            <span>/</span>
+            <span className="text-[#F0EDE8]">Advertise</span>
           </div>
-          <h1
-            style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-5xl md:text-7xl font-black uppercase tracking-tight leading-none mb-5"
-          >
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="text-5xl md:text-7xl font-black uppercase tracking-tight leading-none mb-4">
             Advertise on <span className="text-[#C9922A]">Gun X</span>
           </h1>
-          <p className="text-[#8A8E99] text-base leading-relaxed max-w-2xl mb-8">
-            Reach high-conviction South African buyers at the exact moment of acquisition. Four
-            fixed ad zones. Flat monthly rates. No impression tracking, no hidden fees.
+          <p className="text-[16px] md:text-[18px] text-[#F0EDE8] max-w-2xl leading-relaxed mb-6">
+            Premium ad placements on South Africa's cleanest firearms classifieds platform. Reach licensed firearm owners, dealers, clubs, and ranges across the country.
           </p>
+          <div className="flex flex-wrap gap-6 text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">
+            <span>🇿🇦 National Reach</span>
+            <span>🎯 FCA-Verified Audience</span>
+            <span>📊 Live Performance Tracking</span>
+          </div>
+        </div>
+      </section>
 
-          {/* Quick stat strip */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* WHY ADVERTISE */}
+      <section className="px-4 md:px-6 py-12 md:py-16">
+        <div className="max-w-[1280px] mx-auto">
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-8 text-center">
+            Why <span className="text-[#C9922A]">Gun X</span>
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { value: '9', label: 'Provinces' },
-              { value: '16+', label: 'Categories' },
-              { value: '4', label: 'Ad Zones' },
-              { value: '100%', label: 'FCA Compliant' },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="bg-[#0D0F13] border border-white/5 rounded-sm px-4 py-3 text-center"
-              >
-                <p
-                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="text-2xl font-black text-[#C9922A]"
-                >
-                  {s.value}
-                </p>
-                <p className="text-[9px] font-black uppercase tracking-widest text-[#8A8E99] mt-0.5">
-                  {s.label}
-                </p>
+              {
+                icon: '🎯',
+                title: 'Qualified Audience',
+                body: 'Every visitor is here for one reason: firearms. No tyre-kickers, no irrelevant traffic. Direct access to buyers, dealers, club members, and security professionals.',
+              },
+              {
+                icon: '📈',
+                title: 'Real Performance Tracking',
+                body: 'Every ad logs impressions and clicks in real time. See exactly how your campaign performs through the advertiser dashboard.',
+              },
+              {
+                icon: '🛡️',
+                title: 'Industry-Aligned',
+                body: 'Gun X is South Africa\'s premier firearms community marketplace. Your brand sits alongside trusted dealers and verified clubs — not in a noisy general classifieds.',
+              },
+            ].map((card, i) => (
+              <div key={i} className="bg-[#13151A] border border-white/5 rounded-sm p-6 hover:border-[#C9922A]/20 transition-all">
+                <div className="text-4xl mb-3">{card.icon}</div>
+                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                  className="text-xl font-black uppercase tracking-tight mb-2 text-[#C9922A]">
+                  {card.title}
+                </h3>
+                <p className="text-[13px] text-[#8A8E99] leading-relaxed">{card.body}</p>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── RATE CARD ────────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-[1000px] mx-auto w-full px-4 md:px-6 py-12 md:py-20 space-y-5">
-
-        {AD_ZONES.map((zone, idx) => (
-          <div
-            key={zone.id}
-            className="bg-[#13151A] border border-white/5 rounded-sm hover:border-[#C9922A]/30 transition-all duration-300 relative group overflow-hidden"
-          >
-            {/* Copper accent bar on left */}
-            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#C9922A]/20 group-hover:bg-[#C9922A]/60 transition-all duration-300" />
-
-            {zone.badge && (
-              <span className="absolute top-4 right-4 bg-[#C9922A]/10 border border-[#C9922A]/40 text-[#C9922A] text-[9px] font-black uppercase px-2 py-0.5 rounded-sm tracking-wider">
-                {zone.badge}
-              </span>
-            )}
-
-            <div className="pl-6 pr-5 py-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
-
-              {/* Left: metadata */}
-              <div className="md:col-span-3 space-y-4">
-                <div className="flex items-start gap-4">
-                  {/* Zone badge */}
-                  <div className="flex-shrink-0 w-12 h-12 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm flex items-center justify-center">
-                    <span
-                      style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-[#C9922A] font-black text-[11px] tracking-widest"
-                    >
-                      {String(idx + 1).padStart(2, '0')}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C9922A] mb-0.5">
-                      {zone.code}
-                    </p>
-                    <h2
-                      style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-2xl md:text-3xl font-black uppercase tracking-wide text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors"
-                    >
-                      {zone.label}
-                    </h2>
-                    <p className="text-[11px] text-[#8A8E99] font-mono mt-0.5">
-                      {zone.dimensions}
-                      {zone.dimensionsMobile && (
-                        <span className="text-[#5A5E69] ml-2">· {zone.dimensionsMobile}</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-[13px] text-[#8A8E99] leading-relaxed">
-                  <p>
-                    <strong className="text-[#F0EDE8]">Placement:</strong>{' '}
-                    {zone.placement}
-                  </p>
-                  <p>
-                    <strong className="text-[#F0EDE8]">Audience:</strong>{' '}
-                    {zone.audience}
-                  </p>
-                </div>
-
-                {/* Pages tags */}
-                <div className="flex flex-wrap gap-2">
-                  {zone.pages.map((pg) => (
-                    <span
-                      key={pg}
-                      className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] border border-white/10 px-2 py-0.5 rounded-sm"
-                    >
-                      {pg}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right: price callout */}
-              <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-5 flex flex-col items-center justify-center text-center h-full min-h-[100px]">
-                <span className="text-[9px] font-black text-[#8A8E99] uppercase tracking-widest block mb-2">
-                  Flat Monthly Rate
-                </span>
-                <div
-                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="text-4xl font-black text-[#C9922A]"
-                >
-                  {zone.rate}
-                </div>
-                <span className="text-[9px] text-[#5A5E69] block mt-1">
-                  Excl. VAT · 30-Day Term
-                </span>
-              </div>
-
-            </div>
-          </div>
-        ))}
-
-        {/* ── WHAT YOU PROVIDE ───────────────────────────────────────────── */}
-        <div className="bg-[#13151A] border border-white/5 rounded-sm p-6 mt-4">
-          <h3
-            style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-xl font-black uppercase tracking-wide text-[#F0EDE8] mb-4"
-          >
-            What You Supply
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[13px] text-[#8A8E99]">
-            {[
-              {
-                title: 'Creative Asset',
-                body: 'A static image (JPG or PNG) or animated GIF at the exact pixel dimensions for your chosen zone.',
-              },
-              {
-                title: 'Destination URL',
-                body: 'Where the banner click should land — your website, WhatsApp line, or product page.',
-              },
-              {
-                title: 'Billing',
-                body: 'EFT payment upfront to GX SA (Pty) Ltd. Invoice issued within 24 hours of placement confirmation.',
-              },
-            ].map((item) => (
-              <div key={item.title} className="space-y-1">
-                <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">
-                  {item.title}
-                </p>
-                <p className="leading-relaxed">{item.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── CTA ────────────────────────────────────────────────────────── */}
-        <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-1">
-            <h3
-              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="text-2xl font-black uppercase tracking-wide text-[#F0EDE8]"
-            >
-              Ready to secure your slot?
-            </h3>
-            <p className="text-[13px] text-[#8A8E99] max-w-lg leading-relaxed">
-              Slots are limited per zone. Contact us with your chosen zone, creative asset, and
-              destination URL to confirm availability and receive your invoice.
+      {/* RATE CARD */}
+      <section className="bg-[#0A0C10] border-y border-white/5 px-4 md:px-6 py-12 md:py-16">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="text-center mb-10">
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-3">
+              Rate Card — <span className="text-[#C9922A]">Per Month</span>
+            </h2>
+            <p className="text-[14px] text-[#8A8E99] max-w-xl mx-auto">
+              Flat monthly rates per slot. Book 1, 2, or 3 months in a single booking. No surge pricing. No bidding wars.
             </p>
           </div>
-          <Link
-            href="/contact?intent=advertising"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:brightness-110 transition-all text-center whitespace-nowrap w-full md:w-auto flex-shrink-0"
-          >
-            Enquire Now →
-          </Link>
-        </div>
 
-        {/* ── COMPLIANCE NOTE ────────────────────────────────────────────── */}
-        <div className="border-l-2 border-white/10 bg-white/2 p-4 rounded-sm">
-          <p className="text-[11px] text-[#5A5E69] leading-relaxed">
-            <strong className="text-[#8A8E99]">Compliance:</strong> All creative assets must
-            comply with South African advertising codes. GX SA reserves the right to refuse
-            placements from unverified operations or any content that contradicts the Firearms
-            Control Act 60 of 2000.
-          </p>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {AD_ZONES.map(zone => (
+              <div key={zone.id}
+                className={`bg-[#13151A] border rounded-sm overflow-hidden flex flex-col ${
+                  zone.badge ? 'border-[#C9922A]/40' : 'border-white/5'
+                }`}>
 
-      </main>
+                <div className="p-6 flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/30 bg-[#C9922A]/5 px-2 py-1 rounded-sm">
+                        {zone.code}
+                      </span>
+                      {zone.badge && (
+                        <span className="text-[10px] font-black uppercase tracking-widest text-black bg-[#C9922A] px-2 py-1 rounded-sm">
+                          {zone.badge}
+                        </span>
+                      )}
+                    </div>
+                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                      className="text-2xl font-black uppercase tracking-tight leading-tight mb-1">
+                      {zone.label}
+                    </h3>
+                    <p className="text-[12px] text-[#8A8E99] font-mono">{zone.dimensions}</p>
+                    {zone.dimensionsMobile && (
+                      <p className="text-[11px] text-[#8A8E99]/70 font-mono">{zone.dimensionsMobile}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                      className="text-3xl md:text-4xl font-black text-[#C9922A] leading-none">
+                      {zone.rate}
+                    </p>
+                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest mt-1 font-bold">per month</p>
+                  </div>
+                </div>
+
+                <div className="px-6 pb-6 flex-1 flex flex-col gap-4 border-t border-white/5 pt-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Placement</p>
+                    <p className="text-[13px] text-[#F0EDE8] leading-relaxed">{zone.placement}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Live On</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {zone.pages.map(p => (
+                        <span key={p} className="text-[10px] bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Best For</p>
+                    <p className="text-[12px] text-[#8A8E99] leading-relaxed italic">{zone.audience}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 bg-[#13151A] border border-white/5 rounded-sm p-5 text-center">
+            <p className="text-[13px] text-[#F0EDE8]">
+              <strong className="text-[#C9922A]">Book 1, 2, or 3 months</strong> in a single booking · End date auto-calculated · Locked rates · No surge pricing
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="px-4 md:px-6 py-12 md:py-16">
+        <div className="max-w-[1280px] mx-auto">
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-8 text-center">
+            How <span className="text-[#C9922A]">It Works</span>
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              { step: '01', title: 'Choose Slot & Page', body: 'Pick a zone and a page (or all pages). View live availability before booking.' },
+              { step: '02', title: 'Upload Creative', body: 'Static image, animated GIF, or video. JPG, PNG, WebP, GIF, MP4 supported.' },
+              { step: '03', title: 'Pay & Submit for Review', body: 'Pay via PayFast or EFT. All ads are reviewed by our team before going live to keep the platform brand-safe.' },
+              { step: '04', title: 'Track Performance', body: 'Once approved your ad goes live. Live impressions and clicks visible in the advertiser dashboard 24/7.' },
+            ].map((item, i) => (
+              <div key={i} className="bg-[#13151A] border border-white/5 rounded-sm p-5">
+                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                  className="text-3xl font-black text-[#C9922A]/30 mb-2 leading-none">
+                  {item.step}
+                </p>
+                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                  className="text-lg font-black uppercase tracking-tight mb-2">
+                  {item.title}
+                </h3>
+                <p className="text-[12px] text-[#8A8E99] leading-relaxed">{item.body}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Content policy note */}
+          <div className="mt-8 bg-[#13151A] border border-white/5 rounded-sm p-5">
+            <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-2">📋 Content Standards</p>
+            <p className="text-[13px] text-[#8A8E99] leading-relaxed">
+              Gun X reviews every ad before publication. We accept brands, products, and services aligned with the licensed firearms community — dealers, manufacturers, accessories, training, legal services, insurance, hunting, security, and adjacent industries. We reserve the right to decline ads that conflict with platform values, FCA compliance, POPI Act, or general community standards. Reviews typically take under 24 hours.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA — GATED */}
+      <section className="bg-[#13151A] border-t border-white/5 px-4 md:px-6 py-12 md:py-16">
+        <div className="max-w-[800px] mx-auto text-center">
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">
+            Ready to <span className="text-[#C9922A]">Launch</span>?
+          </h2>
+
+          {authChecked && !user && (
+            <p className="text-[14px] text-[#8A8E99] mb-6">
+              Sign in or register to book an ad slot. Open to registered members, dealers, clubs, ranges, and service providers.
+            </p>
+          )}
+
+          {authChecked && user && (
+            <p className="text-[14px] text-[#8A8E99] mb-6">
+              Signed in as <span className="text-[#C9922A] font-bold">{user.email}</span> — book your slot below.
+            </p>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
+            <button onClick={handleBookingClick}
+              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
+              {authChecked && user ? 'Book a Slot →' : 'Sign In to Book →'}
+            </button>
+            <a href="mailto:pewpew@gunx.co.za?subject=Advertising Enquiry"
+              className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all inline-block text-center">
+              ✉ Email Sales
+            </a>
+          </div>
+
+          <div className="border-t border-white/5 pt-6 text-[12px] text-[#8A8E99]">
+            <p className="mb-2">
+              <strong className="text-[#F0EDE8]">Booking requires a free Gun X account.</strong> Available to:
+            </p>
+            <p className="text-[#8A8E99]/80">
+              Private members · Dealers · Distributors · Wholesalers · Clubs · Ranges · Security Officers · Service Providers
+            </p>
+          </div>
+        </div>
+      </section>
 
       <Footer />
     </div>

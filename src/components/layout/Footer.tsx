@@ -8,6 +8,29 @@ export default function Footer() {
   return (
     <footer className="bg-[#08090B] border-t border-white/5 pt-10 pb-6 px-4 md:px-6 mt-auto">
       <div className="max-w-[1280px] mx-auto">
+
+        {/* ── ADVERTISE BANNER — site-wide highlighted CTA ─────────────────── */}
+        <div className="mb-10 bg-gradient-to-r from-[#C9922A]/10 via-[#C9922A]/5 to-transparent border border-[#C9922A]/20 rounded-sm p-5 md:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[#C9922A] text-lg">📢</span>
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="text-xl md:text-2xl font-black uppercase tracking-tight text-[#F0EDE8]">
+                Advertise on <span className="text-[#C9922A]">Gun X</span>
+              </h3>
+            </div>
+            <p className="text-[12px] text-[#8A8E99] leading-relaxed max-w-xl">
+              Premium ad placements across South Africa's cleanest firearms classifieds platform. Flat monthly rates from R500.
+            </p>
+          </div>
+          <Link href="/advertise"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="flex-shrink-0 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-2.5 rounded-sm hover:brightness-110 transition-all whitespace-nowrap">
+            View Rate Card →
+          </Link>
+        </div>
+
+        {/* ── LINK COLUMNS ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
 
           <div className="col-span-2 md:col-span-1">
