@@ -33,6 +33,7 @@ const AD_SLOTS = [
   { id: 'square_card',     label: 'Square Card',      size: '300×250', rate: SLOT_RATES.square_card },
 ];
 
+// ─── MUST match AdBanner.tsx AdPage type exactly ──────────────────────────────
 const PAGE_OPTIONS = [
   { value: 'all',                  label: 'All Pages (Sitewide)' },
   { value: 'home',                 label: 'Homepage' },
@@ -92,6 +93,7 @@ function addMonths(dateStr: string, months: number): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   d.setMonth(d.getMonth() + months);
+  // Format back to datetime-local string
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -110,13 +112,11 @@ export default function AdManagerPage() {
   const [form, setForm]             = useState<any>({ ...EMPTY_FORM });
   const [file, setFile]             = useState<File | null>(null);
   const [preview, setPreview]       = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState('pending_review');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [selectedAd, setSelectedAd] = useState<any>(null);
   const [error, setError]           = useState('');
   const [success, setSuccess]       = useState('');
   const [conflictWarning, setConflictWarning] = useState('');
-  const [reviewingAd, setReviewingAd] = useState<any>(null);
-  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -127,6 +127,7 @@ export default function AdManagerPage() {
     fetchAds();
   }, []);
 
+  // ── Auto-calculate expires_at and amount_paid when slot/start/duration changes
   useEffect(() => {
     if (form.starts_at && form.duration_months) {
       const expires = addMonths(form.starts_at, form.duration_months);
@@ -135,6 +136,7 @@ export default function AdManagerPage() {
     }
   }, [form.starts_at, form.duration_months, form.slot]);
 
+  // ── Check for conflicts whenever slot or page changes
   useEffect(() => {
     if (form.slot && form.page && form.starts_at && form.expires_at) {
       checkConflict();
@@ -163,20 +165,26 @@ export default function AdManagerPage() {
     });
   };
 
+  // ─── CONFLICT CHECK ─────────────────────────────────────────────────────────
+  // Blocks saving if an active ad already occupies this slot+page during the
+  // requested date range. Excludes the current ad if editing.
   const checkConflict = async () => {
     if (!form.starts_at || !form.expires_at) return;
 
-    // Conflict check only against APPROVED (active) ads — pending ads don't block
     let query = supabase
       .from('ads')
       .select('id, client_name, client_company, starts_at, expires_at')
       .eq('slot', form.slot)
       .eq('page', form.page)
       .eq('status', 'active')
+      // Overlapping: existing starts before new ends AND existing ends after new starts
       .lt('starts_at', form.expires_at)
       .gt('expires_at', form.starts_at);
 
-    if (selectedAd?.id) query = query.neq('id', selectedAd.id);
+    // Exclude current ad if editing
+    if (selectedAd?.id) {
+      query = query.neq('id', selectedAd.id);
+    }
 
     const { data } = await query;
 
@@ -201,33 +209,6 @@ export default function AdManagerPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const val = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
     setForm((prev: any) => ({ ...prev, [e.target.name]: val }));
-  };
-
-  // ─── REVIEW HANDLERS — admin-created ads bypass review (already trusted) ───
-  // Self-service submissions land as pending_review and require approval here.
-  const handleApprove = async (ad: any) => {
-    if (!confirm(`Approve "${ad.title}" by ${ad.client_company || ad.client_name}? Ad will go live immediately.`)) return;
-    const { error } = await supabase.from('ads').update({
-      status: 'active',
-      reviewed_at: new Date().toISOString(),
-      review_notes: null,
-    }).eq('id', ad.id);
-    if (error) { alert('Approve failed: ' + error.message); return; }
-    setReviewingAd(null);
-    fetchAds();
-  };
-
-  const handleReject = async (ad: any) => {
-    if (!rejectReason.trim()) { alert('Please provide a reason for rejection.'); return; }
-    const { error } = await supabase.from('ads').update({
-      status: 'rejected',
-      reviewed_at: new Date().toISOString(),
-      review_notes: rejectReason,
-    }).eq('id', ad.id);
-    if (error) { alert('Reject failed: ' + error.message); return; }
-    setReviewingAd(null);
-    setRejectReason('');
-    fetchAds();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -267,9 +248,7 @@ export default function AdManagerPage() {
       amount_paid:    parseInt(form.amount_paid)  || 0,
       invoice_number: form.invoice_number,
       notes:          form.notes,
-      // Admin-created ads go live immediately (trusted source)
       status:         'active',
-      reviewed_at:    new Date().toISOString(),
     };
 
     if (selectedAd) {
@@ -342,9 +321,8 @@ export default function AdManagerPage() {
 
   const filtered         = ads.filter(a => filterStatus === 'all' || a.status === filterStatus);
   const now              = new Date();
-  const pendingCount     = ads.filter(a => a.status === 'pending_review').length;
   const expiringSoon     = ads.filter(a => a.status === 'active' && new Date(a.expires_at) < new Date(Date.now() + 3 * 86400000) && new Date(a.expires_at) > now);
-  const totalRevenue     = ads.filter(a => a.status === 'active').reduce((s, a) => s + (a.amount_paid || 0), 0);
+  const totalRevenue     = ads.reduce((s, a) => s + (a.amount_paid  || 0), 0);
   const activeAds        = ads.filter(a => a.status === 'active').length;
   const totalImpressions = ads.reduce((s, a) => s + (a.impressions  || 0), 0);
   const totalClicks      = ads.reduce((s, a) => s + (a.clicks       || 0), 0);
@@ -360,6 +338,7 @@ export default function AdManagerPage() {
   return (
     <div className="min-h-screen bg-[#080B12] text-[#E8EAF0] flex">
 
+      {/* ── SIDEBAR NAV ──────────────────────────────────────────────────────── */}
       <aside className="w-[260px] bg-[#0D1420] border-r border-white/5 flex flex-col fixed h-full z-50">
         <div className="p-6 border-b border-white/5 flex items-center gap-3">
           <div className="w-8 h-8 bg-[#E63946] rounded-sm flex items-center justify-center">
@@ -389,13 +368,14 @@ export default function AdManagerPage() {
         </div>
       </aside>
 
+      {/* ── MAIN ─────────────────────────────────────────────────────────────── */}
       <main className="flex-1 ml-[260px] overflow-y-auto">
         <header className="bg-[#0D1420] border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
           <div>
             <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight text-white">
               Ad <span className="text-[#E63946]">Manager</span>
             </h1>
-            <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-bold">Upload · Review · Schedule · Track · Invoice</p>
+            <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-bold">Upload · Schedule · Track · Invoice</p>
           </div>
           <button onClick={() => showForm ? resetForm() : setShowForm(true)}
             style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
@@ -405,25 +385,6 @@ export default function AdManagerPage() {
         </header>
 
         <div className="p-8 space-y-6">
-
-          {/* PENDING REVIEW ALERT */}
-          {pendingCount > 0 && (
-            <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/40 rounded-sm p-4 flex items-center gap-3">
-              <span className="text-[#F59E0B] text-2xl">🛡️</span>
-              <div className="flex-1">
-                <p className="text-[#F59E0B] font-black text-sm uppercase tracking-widest">
-                  {pendingCount} ad{pendingCount > 1 ? 's' : ''} awaiting review
-                </p>
-                <p className="text-white/40 text-[11px] mt-0.5">
-                  Self-service submissions waiting for approval before going live. Click "Pending Review" tab below.
-                </p>
-              </div>
-              <button onClick={() => setFilterStatus('pending_review')}
-                className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B] border border-[#F59E0B]/30 px-4 py-2 rounded-sm hover:bg-[#F59E0B]/10 transition-all">
-                Review Now →
-              </button>
-            </div>
-          )}
 
           {/* EXPIRY ALERT */}
           {expiringSoon.length > 0 && (
@@ -441,13 +402,12 @@ export default function AdManagerPage() {
           )}
 
           {/* OVERVIEW STATS */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'Pending Review',    value: pendingCount,                       color: 'text-[#F59E0B]', border: 'border-[#F59E0B]/20' },
-              { label: 'Active Ads',        value: activeAds,                          color: 'text-[#10B981]', border: 'border-[#10B981]/20' },
-              { label: 'Revenue (active)',  value: `R${totalRevenue.toLocaleString()}`, color: 'text-[#C9922A]', border: 'border-[#C9922A]/20' },
-              { label: 'Impressions',       value: totalImpressions.toLocaleString(),   color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20' },
-              { label: 'Clicks',            value: totalClicks.toLocaleString(),        color: 'text-[#8B5CF6]', border: 'border-[#8B5CF6]/20' },
+              { label: 'Active Ads',        value: activeAds,                    color: 'text-[#10B981]', border: 'border-[#10B981]/20' },
+              { label: 'Total Revenue',     value: `R${totalRevenue.toLocaleString()}`, color: 'text-[#C9922A]', border: 'border-[#C9922A]/20' },
+              { label: 'Total Impressions', value: totalImpressions.toLocaleString(),   color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20' },
+              { label: 'Total Clicks',      value: totalClicks.toLocaleString(),         color: 'text-[#8B5CF6]', border: 'border-[#8B5CF6]/20' },
             ].map(s => (
               <div key={s.label} className={`bg-[#0D1420] border ${s.border} rounded-sm p-4`}>
                 <p className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-2">{s.label}</p>
@@ -482,16 +442,13 @@ export default function AdManagerPage() {
             </div>
           </div>
 
-          {/* CREATE / EDIT FORM */}
+          {/* ── CREATE / EDIT FORM ─────────────────────────────────────────────── */}
           {showForm && (
             <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-white/5">
                 <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-white">
-                  {selectedAd ? 'Edit Ad' : 'Create New Ad (Admin — Auto-Approved)'}
+                  {selectedAd ? 'Edit Ad' : 'Create New Ad'}
                 </h2>
-                <p className="text-[11px] text-white/40 mt-1">
-                  Ads created here bypass review and go live immediately. Self-service submissions land in the Pending Review queue.
-                </p>
               </div>
 
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -634,6 +591,7 @@ export default function AdManagerPage() {
                     </div>
                   </div>
 
+                  {/* BILLING SUMMARY */}
                   {form.starts_at && (
                     <div className="mt-4 bg-[#080B12] border border-white/5 rounded-sm p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
@@ -673,24 +631,17 @@ export default function AdManagerPage() {
             </div>
           )}
 
-          {/* ADS TABLE */}
+          {/* ── ADS TABLE ─────────────────────────────────────────────────────── */}
           <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between flex-wrap gap-3">
+            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
               <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-white">
                 All Ads <span className="text-white/30">({filtered.length})</span>
               </h2>
-              <div className="flex gap-2 flex-wrap">
-                {[
-                  { id: 'pending_review', label: `Pending Review (${pendingCount})`, accent: 'bg-[#F59E0B] text-black' },
-                  { id: 'active',         label: 'Active',     accent: 'bg-[#10B981] text-white' },
-                  { id: 'paused',         label: 'Paused',     accent: 'bg-[#E63946] text-white' },
-                  { id: 'rejected',       label: 'Rejected',   accent: 'bg-red-700 text-white' },
-                  { id: 'expired',        label: 'Expired',    accent: 'bg-white/10 text-white' },
-                  { id: 'all',            label: 'All',        accent: 'bg-[#E63946] text-white' },
-                ].map(s => (
-                  <button key={s.id} onClick={() => setFilterStatus(s.id)}
-                    className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-sm transition-all ${filterStatus === s.id ? s.accent : 'bg-white/5 text-white/40 hover:text-white'}`}>
-                    {s.label}
+              <div className="flex gap-2">
+                {['all', 'active', 'paused', 'expired'].map(s => (
+                  <button key={s} onClick={() => setFilterStatus(s)}
+                    className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-sm transition-all ${filterStatus === s ? 'bg-[#E63946] text-white' : 'bg-white/5 text-white/40 hover:text-white'}`}>
+                    {s}
                   </button>
                 ))}
               </div>
@@ -699,7 +650,7 @@ export default function AdManagerPage() {
             {filtered.length === 0 ? (
               <div className="px-6 py-16 text-center">
                 <div className="text-5xl mb-4">📢</div>
-                <p className="text-white/30 text-sm uppercase tracking-widest">No ads in this status</p>
+                <p className="text-white/30 text-sm uppercase tracking-widest">No ads found</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -717,9 +668,8 @@ export default function AdManagerPage() {
                       const isExpiringSoon = !isExpired && new Date(ad.expires_at) < new Date(Date.now() + 3 * 86400000);
                       const ctr            = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '0.0';
                       const pageLabel      = PAGE_OPTIONS.find(p => p.value === ad.page)?.label || ad.page;
-                      const isPending      = ad.status === 'pending_review';
                       return (
-                        <tr key={ad.id} className={`hover:bg-white/[0.02] transition-all ${isPending ? 'bg-[#F59E0B]/5' : ''}`}>
+                        <tr key={ad.id} className="hover:bg-white/[0.02] transition-all">
                           <td className="px-4 py-4">
                             <p className="text-[13px] font-bold text-white">{ad.client_name}</p>
                             <p className="text-[10px] text-white/30">{ad.client_email}</p>
@@ -749,35 +699,21 @@ export default function AdManagerPage() {
                           </td>
                           <td className="px-4 py-4">
                             <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-sm border ${
-                              ad.status === 'active'         ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20' :
-                              ad.status === 'pending_review' ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30 animate-pulse' :
-                              ad.status === 'paused'         ? 'bg-[#E63946]/10 text-[#E63946] border-[#E63946]/20' :
-                              ad.status === 'rejected'       ? 'bg-red-700/10 text-red-400 border-red-700/30' :
+                              ad.status === 'active' ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20' :
+                              ad.status === 'paused' ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20' :
                               'bg-white/5 text-white/30 border-white/10'
-                            }`}>{(ad.status || 'unknown').replace('_', ' ')}</span>
-                            {ad.review_notes && (
-                              <p className="text-[9px] text-red-400 mt-1 italic">{ad.review_notes}</p>
-                            )}
+                            }`}>{ad.status}</span>
                           </td>
                           <td className="px-4 py-4">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {isPending ? (
-                                <button onClick={() => setReviewingAd(ad)}
-                                  className="text-[10px] font-black uppercase px-3 py-1 border border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20 rounded-sm transition-all">
-                                  🛡️ Review
-                                </button>
-                              ) : (
-                                <>
-                                  <button onClick={() => handleEdit(ad)}
-                                    className="text-[10px] font-black uppercase px-2 py-1 border border-white/10 text-white/40 hover:text-white hover:border-white/30 rounded-sm transition-all">
-                                    Edit
-                                  </button>
-                                  <button onClick={() => handlePause(ad)}
-                                    className={`text-[10px] font-black uppercase px-2 py-1 rounded-sm border transition-all ${ad.status === 'active' ? 'border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/10' : 'border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10'}`}>
-                                    {ad.status === 'active' ? 'Pause' : 'Resume'}
-                                  </button>
-                                </>
-                              )}
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => handleEdit(ad)}
+                                className="text-[10px] font-black uppercase px-2 py-1 border border-white/10 text-white/40 hover:text-white hover:border-white/30 rounded-sm transition-all">
+                                Edit
+                              </button>
+                              <button onClick={() => handlePause(ad)}
+                                className={`text-[10px] font-black uppercase px-2 py-1 rounded-sm border transition-all ${ad.status === 'active' ? 'border-[#F59E0B]/30 text-[#F59E0B] hover:bg-[#F59E0B]/10' : 'border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10'}`}>
+                                {ad.status === 'active' ? 'Pause' : 'Resume'}
+                              </button>
                               <button onClick={() => handleDelete(ad.id)}
                                 className="text-[10px] font-black uppercase px-2 py-1 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-sm transition-all">
                                 Del
@@ -794,133 +730,6 @@ export default function AdManagerPage() {
           </div>
         </div>
       </main>
-
-      {/* ── REVIEW MODAL ─────────────────────────────────────────────────────── */}
-      {reviewingAd && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setReviewingAd(null)}>
-          <div className="bg-[#0D1420] border border-white/10 rounded-sm max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-
-            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#0D1420] z-10">
-              <div>
-                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase text-white">
-                  Review Submission
-                </h3>
-                <p className="text-[11px] text-white/40 mt-0.5">Verify content meets platform standards before approving</p>
-              </div>
-              <button onClick={() => { setReviewingAd(null); setRejectReason(''); }}
-                className="w-10 h-10 flex items-center justify-center text-white/50 hover:text-white text-xl">×</button>
-            </div>
-
-            <div className="p-6 space-y-5">
-
-              {/* CLIENT */}
-              <div className="bg-[#080B12] border border-white/5 rounded-sm p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">Submitted by</p>
-                <p className="text-[15px] font-bold text-white">{reviewingAd.client_name}</p>
-                <p className="text-[12px] text-[#C9922A]">{reviewingAd.client_company || '—'}</p>
-                <p className="text-[12px] text-white/60 mt-1">{reviewingAd.client_email} · {reviewingAd.client_phone || '—'}</p>
-              </div>
-
-              {/* CAMPAIGN */}
-              <div className="bg-[#080B12] border border-white/5 rounded-sm p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">Campaign</p>
-                <p className="text-[16px] font-black text-white mb-3">{reviewingAd.title}</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-[12px]">
-                  <div>
-                    <p className="text-white/40 text-[10px] uppercase font-bold">Slot</p>
-                    <p className="text-white/80 capitalize">{reviewingAd.slot?.replace(/_/g, ' ')}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 text-[10px] uppercase font-bold">Page</p>
-                    <p className="text-white/80">{PAGE_OPTIONS.find(p => p.value === reviewingAd.page)?.label || reviewingAd.page}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 text-[10px] uppercase font-bold">Format</p>
-                    <p className="text-white/80 uppercase">{reviewingAd.ad_type}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 text-[10px] uppercase font-bold">Schedule</p>
-                    <p className="text-white/80">{fmtDate(reviewingAd.starts_at)} → {fmtDate(reviewingAd.expires_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 text-[10px] uppercase font-bold">Amount Paid</p>
-                    <p className="text-[#10B981] font-black">R{(reviewingAd.amount_paid || 0).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/40 text-[10px] uppercase font-bold">Click URL</p>
-                    {reviewingAd.click_url ? (
-                      <a href={reviewingAd.click_url} target="_blank" rel="noopener noreferrer"
-                        className="text-[#4CC9F0] hover:underline truncate block">{reviewingAd.click_url}</a>
-                    ) : <p className="text-white/40">—</p>}
-                  </div>
-                </div>
-                {reviewingAd.notes && (
-                  <div className="mt-3 pt-3 border-t border-white/5">
-                    <p className="text-white/40 text-[10px] uppercase font-bold mb-1">Advertiser Notes</p>
-                    <p className="text-[12px] text-white/70 italic">{reviewingAd.notes}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* CREATIVE PREVIEW */}
-              <div className="bg-[#080B12] border border-white/5 rounded-sm p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Creative Preview</p>
-                <div className="bg-[#0D0F13] border border-white/10 rounded-sm p-4 flex items-center justify-center min-h-[200px]">
-                  {reviewingAd.file_url ? (
-                    reviewingAd.ad_type === 'video' ? (
-                      <video src={reviewingAd.file_url} controls autoPlay muted loop playsInline className="max-w-full max-h-[400px]" />
-                    ) : (
-                      <img src={reviewingAd.file_url} alt={reviewingAd.title} className="max-w-full max-h-[400px] object-contain" />
-                    )
-                  ) : (
-                    <p className="text-white/30 italic">No creative uploaded</p>
-                  )}
-                </div>
-              </div>
-
-              {/* REVIEW CHECKLIST */}
-              <div className="bg-[#080B12] border border-[#F59E0B]/20 rounded-sm p-4">
-                <p className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B] mb-3">📋 Pre-Approval Checklist</p>
-                <ul className="space-y-2 text-[12px] text-white/70">
-                  <li>✓ Creative is appropriate for a firearms-focused platform</li>
-                  <li>✓ No sexual, pornographic, or violent content</li>
-                  <li>✓ No competitor platforms or scams</li>
-                  <li>✓ Click URL points to a legitimate, related business</li>
-                  <li>✓ Branding and messaging align with FCA / POPI compliance</li>
-                  <li>✓ Image quality is acceptable for the slot dimensions</li>
-                </ul>
-              </div>
-
-              {/* REJECT REASON */}
-              <div>
-                <label className={labelClass}>Rejection Reason (only required if rejecting)</label>
-                <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-                  className={`${inputClass} min-h-[80px]`}
-                  placeholder="e.g. Creative contains adult content / Click URL is broken / Competitor platform" />
-              </div>
-
-              {/* ACTION BUTTONS */}
-              <div className="flex gap-3 pt-2 border-t border-white/5">
-                <button onClick={() => handleApprove(reviewingAd)}
-                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="flex-1 bg-[#10B981] text-white font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 transition-all">
-                  ✓ Approve & Go Live
-                </button>
-                <button onClick={() => handleReject(reviewingAd)}
-                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="flex-1 bg-red-700 text-white font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  disabled={!rejectReason.trim()}>
-                  ✕ Reject
-                </button>
-                <button onClick={() => { setReviewingAd(null); setRejectReason(''); }}
-                  className="border border-white/10 text-white/50 font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
