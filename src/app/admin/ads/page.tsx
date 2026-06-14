@@ -482,6 +482,54 @@ export default function AdManagerPage() {
             </div>
           </div>
 
+          {/* ── BOOKED INVENTORY — only slot+page combos with active ads ──────── */}
+          <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase text-white">
+                Booked Inventory
+              </h3>
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">
+                {ads.filter(a => a.status === 'active').length} active placement{ads.filter(a => a.status === 'active').length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {ads.filter(a => a.status === 'active').length === 0 ? (
+              <div className="border border-dashed border-white/10 rounded-sm p-8 text-center">
+                <div className="text-3xl mb-2 opacity-30">📭</div>
+                <p className="text-white/40 text-[12px] uppercase tracking-widest font-bold">No slots booked yet</p>
+                <p className="text-white/30 text-[11px] mt-1">Booked slot + page combinations will appear here as ads go live.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {ads
+                  .filter(a => a.status === 'active')
+                  .sort((a, b) => (a.slot || '').localeCompare(b.slot || '') || (a.page || '').localeCompare(b.page || ''))
+                  .map(ad => {
+                    const slotInfo  = AD_SLOTS.find(s => s.id === ad.slot);
+                    const pageLabel = PAGE_OPTIONS.find(p => p.value === ad.page)?.label || ad.page;
+                    const daysLeft  = Math.ceil((new Date(ad.expires_at).getTime() - Date.now()) / 86400000);
+                    return (
+                      <div key={ad.id} className="border border-[#10B981]/20 bg-[#10B981]/5 rounded-sm p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] font-black text-white uppercase tracking-wide">
+                            {slotInfo?.label || ad.slot?.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-sm bg-[#10B981]/10 text-[#10B981]">
+                            {daysLeft > 0 ? `${daysLeft}d left` : 'ending'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#4CC9F0] font-bold mb-1.5 truncate">📄 {pageLabel}</p>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-white/5">
+                          <span className="text-[11px] text-white/60 truncate max-w-[120px]">{ad.client_company || ad.client_name}</span>
+                          <span className="text-[11px] font-black text-[#C9922A]">{slotInfo ? `R${slotInfo.rate.toLocaleString()}` : ''}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
           {/* CREATE / EDIT FORM */}
           {showForm && (
             <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
