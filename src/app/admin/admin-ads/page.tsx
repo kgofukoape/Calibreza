@@ -206,14 +206,42 @@ export default function AdManagerPage() {
   // ─── REVIEW HANDLERS — admin-created ads bypass review (already trusted) ───
   // Self-service submissions land as pending_review and require approval here.
   const handleApprove = async (ad: any) => {
-    if (!confirm(`Approve "${ad.title}" by ${ad.client_company || ad.client_name}? Ad will go live immediately.`)) return;
+    if (!confirm(`Approve "${ad.title}" by ${ad.client_company || ad.client_name}?\n\nThis opens a 24-hour payment window. The advertiser must pay within 24h or the slot is auto-released. The ad does NOT go live until you mark it paid.`)) return;
+    const approvedAt = new Date();
+    const dueAt      = new Date(approvedAt.getTime() + 24 * 60 * 60 * 1000);
     const { error } = await supabase.from('ads').update({
-      status: 'active',
-      reviewed_at: new Date().toISOString(),
+      status: 'approved_awaiting_payment',
+      reviewed_at: approvedAt.toISOString(),
+      approved_at: approvedAt.toISOString(),
+      payment_due_at: dueAt.toISOString(),
+      payment_reminder_sent: false,
       review_notes: null,
     }).eq('id', ad.id);
     if (error) { alert('Approve failed: ' + error.message); return; }
+
+    // Notify advertiser their ad is approved + payment due (best-effort)
+    try {
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'ad_approved_pay',
+          data: { email: ad.client_email, name: ad.client_name, title: ad.title, amount: ad.amount_paid, dueAt: dueAt.toISOString() },
+        }),
+      });
+    } catch { /* non-blocking */ }
+
     setReviewingAd(null);
+    fetchAds();
+  };
+
+  // Mark an approved+awaiting-payment ad as PAID → goes live
+  const handleMarkPaid = async (ad: any) => {
+    if (!confirm(`Confirm payment received for "${ad.title}"? The ad will go LIVE.`)) return;
+    const { error } = await supabase.from('ads').update({
+      status: 'active',
+    }).eq('id', ad.id);
+    if (error) { alert('Failed: ' + error.message); return; }
     fetchAds();
   };
 
@@ -343,6 +371,7 @@ export default function AdManagerPage() {
   const filtered         = ads.filter(a => filterStatus === 'all' || a.status === filterStatus);
   const now              = new Date();
   const pendingCount     = ads.filter(a => a.status === 'pending_review').length;
+  const awaitingPaymentCount = ads.filter(a => a.status === 'approved_awaiting_payment').length;
   const expiringSoon     = ads.filter(a => a.status === 'active' && new Date(a.expires_at) < new Date(Date.now() + 3 * 86400000) && new Date(a.expires_at) > now);
   const totalRevenue     = ads.filter(a => a.status === 'active').reduce((s, a) => s + (a.amount_paid || 0), 0);
   const activeAds        = ads.filter(a => a.status === 'active').length;
@@ -729,12 +758,13 @@ export default function AdManagerPage() {
               </h2>
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { id: 'pending_review', label: `Pending Review (${pendingCount})`, accent: 'bg-[#F59E0B] text-black' },
-                  { id: 'active',         label: 'Active',     accent: 'bg-[#10B981] text-white' },
-                  { id: 'paused',         label: 'Paused',     accent: 'bg-[#E63946] text-white' },
-                  { id: 'rejected',       label: 'Rejected',   accent: 'bg-red-700 text-white' },
-                  { id: 'expired',        label: 'Expired',    accent: 'bg-white/10 text-white' },
-                  { id: 'all',            label: 'All',        accent: 'bg-[#E63946] text-white' },
+                  { id: 'pending_review',            label: `Pending Review (${pendingCount})`,       accent: 'bg-[#F59E0B] text-black' },
+                  { id: 'approved_awaiting_payment', label: `Awaiting Payment (${awaitingPaymentCount})`, accent: 'bg-[#4CC9F0] text-black' },
+                  { id: 'active',                    label: 'Active',     accent: 'bg-[#10B981] text-white' },
+                  { id: 'paused',                    label: 'Paused',     accent: 'bg-[#E63946] text-white' },
+                  { id: 'rejected',                  label: 'Rejected',   accent: 'bg-red-700 text-white' },
+                  { id: 'expired',                   label: 'Expired',    accent: 'bg-white/10 text-white' },
+                  { id: 'all',                       label: 'All',        accent: 'bg-[#E63946] text-white' },
                 ].map(s => (
                   <button key={s.id} onClick={() => setFilterStatus(s.id)}
                     className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-sm transition-all ${filterStatus === s.id ? s.accent : 'bg-white/5 text-white/40 hover:text-white'}`}>
@@ -797,12 +827,18 @@ export default function AdManagerPage() {
                           </td>
                           <td className="px-4 py-4">
                             <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-sm border ${
-                              ad.status === 'active'         ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20' :
-                              ad.status === 'pending_review' ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30 animate-pulse' :
-                              ad.status === 'paused'         ? 'bg-[#E63946]/10 text-[#E63946] border-[#E63946]/20' :
-                              ad.status === 'rejected'       ? 'bg-red-700/10 text-red-400 border-red-700/30' :
+                              ad.status === 'active'                    ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20' :
+                              ad.status === 'pending_review'            ? 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30 animate-pulse' :
+                              ad.status === 'approved_awaiting_payment' ? 'bg-[#4CC9F0]/10 text-[#4CC9F0] border-[#4CC9F0]/30' :
+                              ad.status === 'paused'                    ? 'bg-[#E63946]/10 text-[#E63946] border-[#E63946]/20' :
+                              ad.status === 'rejected'                  ? 'bg-red-700/10 text-red-400 border-red-700/30' :
                               'bg-white/5 text-white/30 border-white/10'
-                            }`}>{(ad.status || 'unknown').replace('_', ' ')}</span>
+                            }`}>{(ad.status || 'unknown').replace(/_/g, ' ')}</span>
+                            {ad.status === 'approved_awaiting_payment' && ad.payment_due_at && (
+                              <p className="text-[9px] text-[#4CC9F0] mt-1 font-bold">
+                                Pay by {new Date(ad.payment_due_at).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            )}
                             {ad.review_notes && (
                               <p className="text-[9px] text-red-400 mt-1 italic">{ad.review_notes}</p>
                             )}
@@ -813,6 +849,11 @@ export default function AdManagerPage() {
                                 <button onClick={() => setReviewingAd(ad)}
                                   className="text-[10px] font-black uppercase px-3 py-1 border border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20 rounded-sm transition-all">
                                   🛡️ Review
+                                </button>
+                              ) : ad.status === 'approved_awaiting_payment' ? (
+                                <button onClick={() => handleMarkPaid(ad)}
+                                  className="text-[10px] font-black uppercase px-3 py-1 border border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20 rounded-sm transition-all">
+                                  💰 Mark Paid → Go Live
                                 </button>
                               ) : (
                                 <>
@@ -952,7 +993,7 @@ export default function AdManagerPage() {
                 <button onClick={() => handleApprove(reviewingAd)}
                   style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
                   className="flex-1 bg-[#10B981] text-white font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 transition-all">
-                  ✓ Approve & Go Live
+                  ✓ Approve → Open 24h Payment Window
                 </button>
                 <button onClick={() => handleReject(reviewingAd)}
                   style={{ fontFamily: "'Barlow Condensed', sans-serif" }}

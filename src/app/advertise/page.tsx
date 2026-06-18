@@ -7,322 +7,490 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
 
-interface AdZone {
-  id: string;
-  code: string;
-  label: string;
-  dimensions: string;
-  dimensionsMobile?: string;
-  rate: string;
-  rateRaw: number;
-  placement: string;
-  pages: string[];
-  audience: string;
-  badge?: string;
-}
+// ─── LOCKED RATE CARD — must match admin/ads/page.tsx exactly ────────────────
+const SLOT_RATES: Record<string, number> = {
+  leaderboard_top: 1500,
+  leaderboard_mid: 1200,
+  sidebar_left:    800,
+  sidebar_right:   800,
+  square_card:     500,
+};
 
-const AD_ZONES: AdZone[] = [
-  {
-    id: 'zone-alpha',
-    code: 'ZONE A',
-    label: 'Leaderboard Top',
-    dimensions: '970 × 90 px',
-    dimensionsMobile: '320 × 50 px (mobile)',
-    rate: 'R 1,500',
-    rateRaw: 1500,
-    placement: 'Absolute top of page — visible before any scroll on every primary marketplace page and browse category.',
-    pages: ['Homepage', 'All browse pages', 'Listing detail', 'Dealers directory'],
-    audience: 'National importers, firearm brands, and tier-one distributors seeking maximum platform authority.',
-    badge: 'Highest Impact',
-  },
-  {
-    id: 'zone-bravo',
-    code: 'ZONE B',
-    label: 'Leaderboard Mid',
-    dimensions: '728 × 90 px',
-    rate: 'R 1,200',
-    rateRaw: 1200,
-    placement: 'Injected inline between listing rows mid-page — captures buyers actively scanning inventory.',
-    pages: ['Homepage', 'Browse categories'],
-    audience: 'Ammunition distributors, optics brands, and dealers targeting active inventory browsers.',
-  },
-  {
-    id: 'zone-charlie',
-    code: 'ZONE C',
-    label: 'Sidebar (Left / Right)',
-    dimensions: '160 × 600 px',
-    rate: 'R 800',
-    rateRaw: 800,
-    placement: 'Fixed alongside listing grids and item detail pages — persistent visibility throughout the browse session.',
-    pages: ['Browse pages', 'Listing detail', 'Dealers directory'],
-    audience: 'Custom holster manufacturers, localized accessory retailers, and regional ammunition suppliers.',
-  },
-  {
-    id: 'zone-delta',
-    code: 'ZONE D',
-    label: 'Square Card',
-    dimensions: '300 × 250 px',
-    rate: 'R 500',
-    rateRaw: 500,
-    placement: 'Embedded in sidebar blocks and mobile feed positions — broad reach across all device types.',
-    pages: ['Sidebar positions', 'Mobile feed', 'Club & services pages'],
-    audience: 'Shooting clubs, training ranges, gunsmiths, and motivation writers targeting first-time applicants.',
-  },
+const AD_SLOTS = [
+  { id: 'leaderboard_top', label: 'Leaderboard Top',  size: '970 × 90',  rate: SLOT_RATES.leaderboard_top, desc: 'Top of page, maximum visibility' },
+  { id: 'leaderboard_mid', label: 'Leaderboard Mid',  size: '728 × 90',  rate: SLOT_RATES.leaderboard_mid, desc: 'Mid-page, inline with content' },
+  { id: 'sidebar_left',    label: 'Sidebar Left',     size: '160 × 600', rate: SLOT_RATES.sidebar_left,    desc: 'Tall skyscraper, left column' },
+  { id: 'sidebar_right',   label: 'Sidebar Right',    size: '160 × 600', rate: SLOT_RATES.sidebar_right,   desc: 'Tall skyscraper, right column' },
+  { id: 'square_card',     label: 'Square Card',      size: '300 × 250', rate: SLOT_RATES.square_card,     desc: 'Compact block, broad reach' },
 ];
 
-export default function AdvertisePage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+const PAGE_OPTIONS = [
+  { value: 'all',                  label: 'All Pages (Sitewide)' },
+  { value: 'home',                 label: 'Homepage' },
+  { value: 'browse_pistols',       label: 'Browse — Pistols' },
+  { value: 'browse_rifles',        label: 'Browse — Rifles' },
+  { value: 'browse_shotguns',      label: 'Browse — Shotguns' },
+  { value: 'browse_revolvers',     label: 'Browse — Revolvers' },
+  { value: 'browse_ammunition',    label: 'Browse — Ammunition' },
+  { value: 'browse_optics',        label: 'Browse — Optics' },
+  { value: 'browse_accessories',   label: 'Browse — Accessories' },
+  { value: 'browse_holsters',      label: 'Browse — Holsters' },
+  { value: 'browse_air_guns',      label: 'Browse — Air Guns' },
+  { value: 'browse_airsoft',       label: 'Browse — Airsoft' },
+  { value: 'browse_magazines',     label: 'Browse — Magazines' },
+  { value: 'browse_reloading',     label: 'Browse — Reloading' },
+  { value: 'browse_knives',        label: 'Browse — Knives' },
+  { value: 'listings_detail',      label: 'Listing Detail Page' },
+  { value: 'dealers_directory',    label: 'Dealers Directory' },
+  { value: 'dealers_profile',      label: 'Dealer Profile' },
+  { value: 'clubs_directory',      label: 'Clubs & Ranges Directory' },
+  { value: 'clubs_profile',        label: 'Club / Range Profile' },
+  { value: 'services_directory',   label: 'Services Directory' },
+  { value: 'services_profile',     label: 'Service Provider Profile' },
+  { value: 'jobs_board',           label: 'Jobs Board' },
+  { value: 'jobs_detail',          label: 'Job Detail Page' },
+  { value: 'wanted',               label: 'Wanted Ads' },
+  { value: 'search',               label: 'Search Results' },
+  { value: 'advisor',              label: 'FCA Match Advisor' },
+  { value: 'sell',                 label: 'Sell / Post Ad' },
+  { value: 'faqs',                 label: 'FAQs' },
+  { value: 'firearm_ownership',    label: 'Firearm Ownership Guide' },
+  { value: 'about',                label: 'About Page' },
+];
 
+const DURATION_OPTIONS = [
+  { value: 1, label: '1 Month' },
+  { value: 2, label: '2 Months' },
+  { value: 3, label: '3 Months (Max)' },
+];
+
+const AD_FORMATS = {
+  image: { label: 'Static Image', accept: 'image/jpeg,image/png,image/webp', tip: 'JPG, PNG or WebP — up to 50MB.' },
+  gif:   { label: 'Animated GIF', accept: 'image/gif',                       tip: 'GIF — up to 30MB. Keep under 15 seconds.' },
+  video: { label: 'Video',        accept: 'video/mp4,video/webm',            tip: 'MP4 or WebM — up to 50MB, max 30 seconds.' },
+};
+
+function addMonths(dateStr: string, months: number): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+export default function AdvertiseBookPage() {
+  const router = useRouter();
+  const [user, setUser]           = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [step, setStep]           = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]         = useState('');
+  const [success, setSuccess]     = useState(false);
+  const [availabilityNote, setAvailabilityNote] = useState('');
+
+  // form state
+  const [slot, setSlot]           = useState('leaderboard_top');
+  const [page, setPage]           = useState('all');
+  const [duration, setDuration]   = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [adType, setAdType]       = useState('image');
+  const [clickUrl, setClickUrl]   = useState('');
+  const [file, setFile]           = useState<File | null>(null);
+  const [preview, setPreview]     = useState('');
+  const [title, setTitle]         = useState('');
+  const [clientName, setClientName]       = useState('');
+  const [clientCompany, setClientCompany] = useState('');
+  const [clientPhone, setClientPhone]     = useState('');
+  const [consented, setConsented]         = useState(false);
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    const checkAuth = async () => {
+    const check = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/dealer/login?redirect=/advertise/book');
+        return;
+      }
       setUser(user);
       setAuthChecked(true);
     };
-    checkAuth();
-  }, []);
+    check();
+  }, [router]);
 
-  const handleBookingClick = () => {
-    if (!user) {
-      router.push('/dealer/login?redirect=/advertise/book');
-    } else {
-      router.push('/advertise/book');
-    }
+  // ── Availability check (soft — admin makes final call) ───────────────────────
+  useEffect(() => {
+    if (!startDate || !slot || !page) { setAvailabilityNote(''); return; }
+    const checkAvail = async () => {
+      const starts = new Date(startDate).toISOString();
+      const expires = addMonths(startDate, duration);
+      const { data } = await supabase
+        .from('ads')
+        .select('id, expires_at')
+        .eq('slot', slot)
+        .eq('page', page)
+        .eq('status', 'active')
+        .lt('starts_at', expires)
+        .gt('expires_at', starts);
+      if (data && data.length > 0) {
+        const until = new Date(data[0].expires_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+        setAvailabilityNote(`⚠️ This slot is currently booked until ${until}. You can still submit — our team will confirm the earliest available date with you.`);
+      } else {
+        setAvailabilityNote('✓ This slot looks available for your selected dates.');
+      }
+    };
+    checkAvail();
+  }, [slot, page, startDate, duration]);
+
+  const slotInfo   = AD_SLOTS.find(s => s.id === slot);
+  const monthlyRate = slotInfo?.rate || 0;
+  const totalCost  = monthlyRate * duration;
+  const pageLabel  = PAGE_OPTIONS.find(p => p.value === page)?.label || page;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) { setError('File is larger than 50MB. Please compress and try again.'); return; }
+    setError('');
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
   };
 
+  const canProceedStep1 = slot && page && duration && startDate;
+  const canProceedStep2 = file && clickUrl && title;
+  const canSubmit       = clientName && user?.email && consented;
+
+  const handleSubmit = async () => {
+    if (!file) { setError('Please upload your ad creative.'); return; }
+    setSubmitting(true);
+    setError('');
+
+    // 1. Upload creative to the images bucket
+    const ext  = file.name.split('.').pop();
+    const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('images').upload(path, file);
+    if (upErr) { setError('Upload failed: ' + upErr.message); setSubmitting(false); return; }
+    const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(path);
+
+    // 2. Insert booking as pending_review
+    const startsIso  = new Date(startDate).toISOString();
+    const expiresIso = addMonths(startDate, duration);
+
+    const { error: insErr } = await supabase.from('ads').insert({
+      client_name:    clientName,
+      client_email:   user.email,
+      client_phone:   clientPhone,
+      client_company: clientCompany,
+      title,
+      slot,
+      page,
+      ad_type:        adType,
+      file_url:       publicUrl,
+      click_url:      clickUrl,
+      starts_at:      startsIso,
+      expires_at:     expiresIso,
+      amount_paid:    totalCost,
+      rate_per_day:   Math.round(monthlyRate / 30),
+      status:         'pending_review',
+      consent_at:     new Date().toISOString(),
+      policy_version: '1.0',
+      notes:          `Self-service booking · ${duration} month(s) · submitted by ${user.email}`,
+    });
+
+    if (insErr) { setError('Submission failed: ' + insErr.message); setSubmitting(false); return; }
+
+    // 3. Notify admin (best-effort, non-blocking)
+    try {
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'ad_submitted',
+          data: { title, slot, page: pageLabel, company: clientCompany || clientName, total: totalCost },
+        }),
+      });
+    } catch { /* email failure shouldn't block the booking */ }
+
+    setSubmitting(false);
+    setSuccess(true);
+  };
+
+  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[14px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50 transition-colors";
+  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-2";
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // ── SUCCESS STATE ────────────────────────────────────────────────────────────
+  if (success) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-20">
+          <div className="max-w-lg text-center">
+            <div className="text-6xl mb-6">✅</div>
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase tracking-tight mb-4">
+              Booking <span className="text-[#C9922A]">Submitted</span>
+            </h1>
+            <p className="text-[#8A8E99] mb-2 leading-relaxed">
+              Your ad has been submitted for review. Our team checks every submission to keep the platform brand-safe — this usually takes under 24 hours.
+            </p>
+            <p className="text-[#8A8E99] mb-8 leading-relaxed">
+              We'll email <span className="text-[#C9922A] font-bold">{user.email}</span> with payment details and confirmation once it's approved.
+            </p>
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 mb-8 text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">Summary</p>
+              <div className="space-y-1.5 text-[13px]">
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
+                <p className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5"><span className="text-[#8A8E99]">Total</span><span className="font-black text-[#C9922A]">R{totalCost.toLocaleString()}</span></p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/advertise" className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
+                Back to Advertise
+              </Link>
+              <Link href="/" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
+                Return Home
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // ── BOOKING FLOW ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      {/* HERO */}
-      <section className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-12 md:py-20">
-        <div className="max-w-[1280px] mx-auto">
-          <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-3 flex items-center gap-2">
-            <Link href="/" className="hover:text-[#C9922A]">Home</Link>
-            <span>/</span>
-            <span className="text-[#F0EDE8]">Advertise</span>
-          </div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-5xl md:text-7xl font-black uppercase tracking-tight leading-none mb-4">
-            Advertise on <span className="text-[#C9922A]">Gun X</span>
-          </h1>
-          <p className="text-[16px] md:text-[18px] text-[#F0EDE8] max-w-2xl leading-relaxed mb-6">
-            Premium ad placements on South Africa's cleanest firearms classifieds platform. Reach licensed firearm owners, dealers, clubs, and ranges across the country.
-          </p>
-          <div className="flex flex-wrap gap-6 text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">
-            <span>🇿🇦 National Reach</span>
-            <span>🎯 FCA-Verified Audience</span>
-            <span>📊 Live Performance Tracking</span>
-          </div>
+      <div className="flex-1 max-w-[800px] mx-auto w-full px-4 md:px-6 py-8 md:py-12">
+
+        {/* Breadcrumb */}
+        <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Link href="/" className="hover:text-[#C9922A]">Home</Link><span>/</span>
+          <Link href="/advertise" className="hover:text-[#C9922A]">Advertise</Link><span>/</span>
+          <span className="text-[#F0EDE8]">Book a Slot</span>
         </div>
-      </section>
 
-      {/* WHY ADVERTISE */}
-      <section className="px-4 md:px-6 py-12 md:py-16">
-        <div className="max-w-[1280px] mx-auto">
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-8 text-center">
-            Why <span className="text-[#C9922A]">Gun X</span>
-          </h2>
+        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-2">
+          Book Your <span className="text-[#C9922A]">Ad Slot</span>
+        </h1>
+        <p className="text-[#8A8E99] text-sm mb-8">Signed in as {user.email}</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {[
-              {
-                icon: '🎯',
-                title: 'Qualified Audience',
-                body: 'Every visitor is here for one reason: firearms. No tyre-kickers, no irrelevant traffic. Direct access to buyers, dealers, club members, and security professionals.',
-              },
-              {
-                icon: '📈',
-                title: 'Real Performance Tracking',
-                body: 'Every ad logs impressions and clicks in real time. See exactly how your campaign performs through the advertiser dashboard.',
-              },
-              {
-                icon: '🛡️',
-                title: 'Industry-Aligned',
-                body: 'Gun X is South Africa\'s premier firearms community marketplace. Your brand sits alongside trusted dealers and verified clubs — not in a noisy general classifieds.',
-              },
-            ].map((card, i) => (
-              <div key={i} className="bg-[#13151A] border border-white/5 rounded-sm p-6 hover:border-[#C9922A]/20 transition-all">
-                <div className="text-4xl mb-3">{card.icon}</div>
-                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="text-xl font-black uppercase tracking-tight mb-2 text-[#C9922A]">
-                  {card.title}
-                </h3>
-                <p className="text-[13px] text-[#8A8E99] leading-relaxed">{card.body}</p>
+        {/* STEP INDICATOR */}
+        <div className="flex items-center gap-2 mb-8">
+          {[1, 2, 3].map(n => (
+            <React.Fragment key={n}>
+              <div className={`flex items-center justify-center w-9 h-9 rounded-sm font-black text-[13px] flex-shrink-0 ${
+                step === n ? 'bg-[#C9922A] text-black' : step > n ? 'bg-[#C9922A]/20 text-[#C9922A]' : 'bg-[#13151A] border border-white/10 text-[#8A8E99]'
+              }`}>
+                {step > n ? '✓' : n}
               </div>
-            ))}
-          </div>
+              {n < 3 && <div className={`flex-1 h-[2px] ${step > n ? 'bg-[#C9922A]/40' : 'bg-white/5'}`} />}
+            </React.Fragment>
+          ))}
         </div>
-      </section>
 
-      {/* RATE CARD */}
-      <section className="bg-[#0A0C10] border-y border-white/5 px-4 md:px-6 py-12 md:py-16">
-        <div className="max-w-[1280px] mx-auto">
-          <div className="text-center mb-10">
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-3">
-              Rate Card — <span className="text-[#C9922A]">Per Month</span>
-            </h2>
-            <p className="text-[14px] text-[#8A8E99] max-w-xl mx-auto">
-              Flat monthly rates per slot. Book 1, 2, or 3 months in a single booking. No surge pricing. No bidding wars.
-            </p>
-          </div>
+        {error && <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-3 text-red-400 text-sm font-bold mb-6">{error}</div>}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {AD_ZONES.map(zone => (
-              <div key={zone.id}
-                className={`bg-[#13151A] border rounded-sm overflow-hidden flex flex-col ${
-                  zone.badge ? 'border-[#C9922A]/40' : 'border-white/5'
-                }`}>
-
-                <div className="p-6 flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/30 bg-[#C9922A]/5 px-2 py-1 rounded-sm">
-                        {zone.code}
-                      </span>
-                      {zone.badge && (
-                        <span className="text-[10px] font-black uppercase tracking-widest text-black bg-[#C9922A] px-2 py-1 rounded-sm">
-                          {zone.badge}
-                        </span>
-                      )}
+        {/* ── STEP 1: SLOT, PAGE, DURATION ───────────────────────────────────── */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <div>
+              <label className={labelClass}>Choose Your Slot</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {AD_SLOTS.map(s => (
+                  <button key={s.id} onClick={() => setSlot(s.id)}
+                    className={`text-left p-4 rounded-sm border transition-all ${slot === s.id ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10 bg-[#13151A] hover:border-white/20'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-[14px] uppercase tracking-wide">{s.label}</span>
+                      <span className="text-[#C9922A] font-black text-[15px]">R{s.rate.toLocaleString()}</span>
                     </div>
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-2xl font-black uppercase tracking-tight leading-tight mb-1">
-                      {zone.label}
-                    </h3>
-                    <p className="text-[12px] text-[#8A8E99] font-mono">{zone.dimensions}</p>
-                    {zone.dimensionsMobile && (
-                      <p className="text-[11px] text-[#8A8E99]/70 font-mono">{zone.dimensionsMobile}</p>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                      className="text-3xl md:text-4xl font-black text-[#C9922A] leading-none">
-                      {zone.rate}
-                    </p>
-                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest mt-1 font-bold">per month</p>
-                  </div>
-                </div>
-
-                <div className="px-6 pb-6 flex-1 flex flex-col gap-4 border-t border-white/5 pt-4">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Placement</p>
-                    <p className="text-[13px] text-[#F0EDE8] leading-relaxed">{zone.placement}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Live On</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {zone.pages.map(p => (
-                        <span key={p} className="text-[10px] bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider">
-                          {p}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Best For</p>
-                    <p className="text-[12px] text-[#8A8E99] leading-relaxed italic">{zone.audience}</p>
-                  </div>
-                </div>
+                    <p className="text-[11px] text-[#8A8E99] font-mono mb-1">{s.size} px</p>
+                    <p className="text-[11px] text-[#8A8E99]">{s.desc}</p>
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
 
-          <div className="mt-6 bg-[#13151A] border border-white/5 rounded-sm p-5 text-center">
-            <p className="text-[13px] text-[#F0EDE8]">
-              <strong className="text-[#C9922A]">Book 1, 2, or 3 months</strong> in a single booking · End date auto-calculated · Locked rates · No surge pricing
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="px-4 md:px-6 py-12 md:py-16">
-        <div className="max-w-[1280px] mx-auto">
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-8 text-center">
-            How <span className="text-[#C9922A]">It Works</span>
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[
-              { step: '01', title: 'Choose Slot & Page', body: 'Pick a zone and a page (or all pages). View live availability before booking.' },
-              { step: '02', title: 'Upload Creative', body: 'Static image, animated GIF, or video. JPG, PNG, WebP, GIF, MP4 supported.' },
-              { step: '03', title: 'Pay & Submit for Review', body: 'Pay via PayFast or EFT. All ads are reviewed by our team before going live to keep the platform brand-safe.' },
-              { step: '04', title: 'Track Performance', body: 'Once approved your ad goes live. Live impressions and clicks visible in the advertiser dashboard 24/7.' },
-            ].map((item, i) => (
-              <div key={i} className="bg-[#13151A] border border-white/5 rounded-sm p-5">
-                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="text-3xl font-black text-[#C9922A]/30 mb-2 leading-none">
-                  {item.step}
-                </p>
-                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  className="text-lg font-black uppercase tracking-tight mb-2">
-                  {item.title}
-                </h3>
-                <p className="text-[12px] text-[#8A8E99] leading-relaxed">{item.body}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Show On Page</label>
+                <select value={page} onChange={e => setPage(e.target.value)} className={inputClass}>
+                  {PAGE_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
               </div>
-            ))}
-          </div>
+              <div>
+                <label className={labelClass}>Duration</label>
+                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className={inputClass}>
+                  {DURATION_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                </select>
+              </div>
+            </div>
 
-          {/* Content policy note */}
-          <div className="mt-8 bg-[#13151A] border border-white/5 rounded-sm p-5">
-            <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-2">📋 Content Standards</p>
-            <p className="text-[13px] text-[#8A8E99] leading-relaxed">
-              Gun X reviews every ad before publication. We accept brands, products, and services aligned with the licensed firearms community — dealers, manufacturers, accessories, training, legal services, insurance, hunting, security, and adjacent industries. We reserve the right to decline ads that conflict with platform values, FCA compliance, POPI Act, or general community standards. Reviews typically take under 24 hours.
-            </p>
-          </div>
-        </div>
-      </section>
+            <div>
+              <label className={labelClass}>Preferred Start Date</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} min={new Date().toISOString().split('T')[0]} />
+            </div>
 
-      {/* CTA — GATED */}
-      <section className="bg-[#13151A] border-t border-white/5 px-4 md:px-6 py-12 md:py-16">
-        <div className="max-w-[800px] mx-auto text-center">
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">
-            Ready to <span className="text-[#C9922A]">Launch</span>?
-          </h2>
+            {availabilityNote && (
+              <div className={`rounded-sm p-3 text-[13px] ${availabilityNote.startsWith('✓') ? 'bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981]' : 'bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B]'}`}>
+                {availabilityNote}
+              </div>
+            )}
 
-          {authChecked && !user && (
-            <p className="text-[14px] text-[#8A8E99] mb-6">
-              Sign in or register to book an ad slot. Open to registered members, dealers, clubs, ranges, and service providers.
-            </p>
-          )}
+            {/* Cost preview */}
+            <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-5 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Total Cost</p>
+                <p className="text-[13px] text-[#8A8E99]">{slotInfo?.label} · {duration} month{duration > 1 ? 's' : ''}</p>
+              </div>
+              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">R{totalCost.toLocaleString()}</p>
+            </div>
 
-          {authChecked && user && (
-            <p className="text-[14px] text-[#8A8E99] mb-6">
-              Signed in as <span className="text-[#C9922A] font-bold">{user.email}</span> — book your slot below.
-            </p>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
-            <button onClick={handleBookingClick}
-              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
-              {authChecked && user ? 'Book a Slot →' : 'Sign In to Book →'}
+            <button onClick={() => setStep(2)} disabled={!canProceedStep1}
+              className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              Continue to Creative →
             </button>
-            <a href="mailto:pewpew@gunx.co.za?subject=Advertising Enquiry"
-              className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all inline-block text-center">
-              ✉ Email Sales
-            </a>
           </div>
+        )}
 
-          <div className="border-t border-white/5 pt-6 text-[12px] text-[#8A8E99]">
-            <p className="mb-2">
-              <strong className="text-[#F0EDE8]">Booking requires a free Gun X account.</strong> Available to:
-            </p>
-            <p className="text-[#8A8E99]/80">
-              Private members · Dealers · Distributors · Wholesalers · Clubs · Ranges · Security Officers · Service Providers
-            </p>
+        {/* ── STEP 2: CREATIVE + CLICK URL ───────────────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div>
+              <label className={labelClass}>Campaign Name</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="e.g. Winter Promo 2026" />
+            </div>
+
+            <div>
+              <label className={labelClass}>Ad Format</label>
+              <div className="grid grid-cols-3 gap-3">
+                {Object.entries(AD_FORMATS).map(([id, f]) => (
+                  <button key={id} onClick={() => { setAdType(id); setFile(null); setPreview(''); }}
+                    className={`p-3 rounded-sm border text-center transition-all ${adType === id ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10 bg-[#13151A] hover:border-white/20'}`}>
+                    <p className="font-black text-[12px] uppercase">{f.label}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-[#8A8E99] mt-2">{AD_FORMATS[adType as keyof typeof AD_FORMATS].tip}</p>
+            </div>
+
+            <div>
+              <label className={labelClass}>Upload Creative — {slotInfo?.size} px</label>
+              <label className="flex flex-col items-center justify-center w-full h-[140px] bg-[#13151A] border-2 border-dashed border-white/20 rounded-sm cursor-pointer hover:border-[#C9922A]/50 transition-all">
+                <span className="text-3xl mb-2">📁</span>
+                <span className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest">{file ? file.name : 'Click to upload'}</span>
+                <input type="file" accept={AD_FORMATS[adType as keyof typeof AD_FORMATS].accept} onChange={handleFileChange} className="hidden" />
+              </label>
+            </div>
+
+            {preview && (
+              <div>
+                <label className={labelClass}>Preview</label>
+                <div className="w-full bg-[#13151A] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center p-4" style={{ minHeight: '120px' }}>
+                  {adType === 'video'
+                    ? <video src={preview} autoPlay muted loop playsInline className="max-w-full max-h-[300px]" />
+                    : <img src={preview} alt="Preview" className="max-w-full max-h-[300px] object-contain" />}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className={labelClass}>Click-Through URL</label>
+              <input value={clickUrl} onChange={e => setClickUrl(e.target.value)} className={inputClass} placeholder="https://your-website.co.za" />
+              <p className="text-[11px] text-[#8A8E99] mt-1.5">Where people go when they click your ad.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(1)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                ← Back
+              </button>
+              <button onClick={() => setStep(3)} disabled={!canProceedStep2}
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                Continue to Details →
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        )}
+
+        {/* ── STEP 3: CONTACT + REVIEW ───────────────────────────────────────── */}
+        {step === 3 && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Your Name *</label>
+                <input value={clientName} onChange={e => setClientName(e.target.value)} className={inputClass} placeholder="Full name" />
+              </div>
+              <div>
+                <label className={labelClass}>Company</label>
+                <input value={clientCompany} onChange={e => setClientCompany(e.target.value)} className={inputClass} placeholder="Company name (optional)" />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input value={user.email} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} />
+              </div>
+              <div>
+                <label className={labelClass}>Phone</label>
+                <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={inputClass} placeholder="082 123 4567" />
+              </div>
+            </div>
+
+            {/* Final review */}
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-5">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-4">Review Your Booking</p>
+              <div className="space-y-2 text-[13px]">
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Campaign</span><span className="font-bold">{title || '—'}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label} ({slotInfo?.size})</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Start</span><span className="font-bold">{startDate ? new Date(startDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span></p>
+                <p className="flex justify-between border-t border-white/10 pt-2 mt-2"><span className="text-[#8A8E99] font-black uppercase tracking-widest text-[11px] self-center">Total</span><span className="font-black text-[#C9922A] text-xl">R{totalCost.toLocaleString()}</span></p>
+              </div>
+            </div>
+
+            <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
+              <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                Your ad enters our review queue. We check every submission against our advertising standards before approval — usually within 24 hours. <strong className="text-[#F0EDE8]">No payment is taken now.</strong> If approved, we'll email you an invoice and you'll have <strong className="text-[#F0EDE8]">24 hours to pay</strong> before the slot is released. A reminder is sent before the window closes.
+              </p>
+            </div>
+
+            {/* POPIA-compliant consent — unticked by default, links to full policy */}
+            <label className="flex items-start gap-3 cursor-pointer bg-[#13151A] border border-white/10 rounded-sm p-4 hover:border-[#C9922A]/30 transition-all">
+              <input
+                type="checkbox"
+                checked={consented}
+                onChange={e => setConsented(e.target.checked)}
+                className="w-5 h-5 accent-[#C9922A] flex-shrink-0 mt-0.5"
+              />
+              <span className="text-[12px] text-[#8A8E99] leading-relaxed">
+                I confirm my ad complies with the{' '}
+                <Link href="/advertising-policy" target="_blank" className="text-[#C9922A] hover:brightness-125 underline">
+                  Gun X Advertising Policy
+                </Link>
+                . I understand that ads are reviewed before going live, that payment is due within 24 hours of approval or the slot is released, and that ads which violate the policy may be removed.
+              </span>
+            </label>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(2)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                ← Back
+              </button>
+              <button onClick={handleSubmit} disabled={!canSubmit || submitting}
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                {submitting ? 'Submitting...' : 'Submit for Review →'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <Footer />
     </div>
