@@ -2,15 +2,15 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // ─── SECRET ADMIN ENTRY ──────────────────────────────────────────────────────
-// The admin console lives at /admin/* internally, but /admin is a dead end (404)
-// for anyone who hasn't passed through the secret entry path first.
+// Admin console lives at /admin/* internally. It's a dead end (404) for anyone
+// who hasn't first visited the secret entry path.
 //
 // Flow:
-//   1. You visit  /sejamagoma         → sets a gate cookie, forwards to /admin
-//   2. Middleware allows /admin/*      only if that cookie is present
-//   3. Scanners hitting /admin direct  → 404 (no cookie)
+//   1. Visit  /sejamagoma   → sets gate cookie, redirects to /admin
+//   2. /admin/* loads only if the gate cookie is present
+//   3. /admin direct (no cookie) → 404
 //
-// To change the secret path, edit ADMIN_SECRET_PATH below. Keep it private.
+// Change ADMIN_SECRET_PATH to rename the secret door. Keep it private.
 const ADMIN_SECRET_PATH = '/sejamagoma'
 const ADMIN_GATE_COOKIE  = 'gx_gate'
 const ADMIN_GATE_VALUE   = 'open'
@@ -18,29 +18,28 @@ const ADMIN_GATE_VALUE   = 'open'
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // ── 1. Secret entry: set the gate cookie, then forward into the console ──────
+  // ── 1. Secret entry: set the gate cookie, then send the user to /admin ───────
   if (pathname === ADMIN_SECRET_PATH) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/admin'
-    const res = NextResponse.redirect(url)
-    res.cookies.set(ADMIN_GATE_COOKIE, ADMIN_GATE_VALUE, {
+    const res = NextResponse.redirect(new URL('/admin', request.url))
+    res.cookies.set({
+      name: ADMIN_GATE_COOKIE,
+      value: ADMIN_GATE_VALUE,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 12, // 12 hours, then re-enter via the secret path
+      maxAge: 60 * 60 * 12, // 12 hours
     })
     return res
   }
 
-  // ── 2. Guard /admin/* : require the gate cookie, else 404 ────────────────────
+  // ── 2. Guard /admin/* : allow only if gate cookie present, else 404 ──────────
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-    const hasGate = request.cookies.get(ADMIN_GATE_COOKIE)?.value === ADMIN_GATE_VALUE
-    if (!hasGate) {
-      // Rewrite to the framework 404 — looks like the route simply doesn't exist
-      return NextResponse.rewrite(new URL('/404', request.url))
+    const gate = request.cookies.get(ADMIN_GATE_COOKIE)
+    if (!gate || gate.value !== ADMIN_GATE_VALUE) {
+      // Serve the 404 page while keeping the URL — looks like nothing's here
+      return NextResponse.rewrite(new URL('/not-found-gx', request.url))
     }
-    // Cookie present → let the admin pages load normally
     return NextResponse.next()
   }
 
@@ -58,7 +57,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           response = NextResponse.next({
             request: { headers: request.headers },
           })
@@ -73,14 +72,12 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user && pathname.startsWith('/sell')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return response
 }
 
 export const config = {
-  matcher: ['/sell', '/admin', '/admin/:path*', '/sejamagoma'],
+  matcher: ['/sell/:path*', '/sell', '/admin/:path*', '/admin', '/sejamagoma'],
 }
