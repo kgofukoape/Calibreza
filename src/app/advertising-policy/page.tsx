@@ -6,10 +6,11 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 
 // ─── POLICY VERSION ──────────────────────────────────────────────────────────
-// Bump this whenever the policy wording changes. The booking flow stores this
-// value as `policy_version` alongside the consent timestamp, so you always know
-// which version each advertiser agreed to (POPIA evidence requirement).
-export const ADVERTISING_POLICY_VERSION = '1.0';
+// Bump this whenever the policy wording changes. The booking flow uses the same
+// value as `policy_version` so you always know which version each advertiser
+// agreed to (POPIA evidence requirement). Kept as a local const (not exported)
+// because Next.js page files may only export the component + metadata.
+const ADVERTISING_POLICY_VERSION = '1.0';
 
 export default function AdvertisingPolicyPage() {
   return (
