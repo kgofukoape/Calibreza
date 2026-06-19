@@ -103,11 +103,14 @@ export default function AdvertiseBookPage() {
   const [consented, setConsented]         = useState(false);
 
   // ── Auth gate ──────────────────────────────────────────────────────────────
+  // Self-service booking is for signed-in account holders (dealers, clubs,
+  // ranges, service providers). Logged-out visitors and outside companies are
+  // sent to /advertise, where they see the rate card + contact-sales path.
   useEffect(() => {
     const check = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        router.push('/dealer/login?redirect=/advertise/book');
+        router.push('/advertise');
         return;
       }
       setUser(user);

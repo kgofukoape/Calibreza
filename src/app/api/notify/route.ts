@@ -146,6 +146,88 @@ export async function POST(req: NextRequest) {
         );
         break;
 
+      // ── New self-service ad submission → alert admin ──────────────────────
+      case 'ad_submitted':
+        await sendEmail(
+          ADMIN_EMAIL,
+          `📢 New Ad Submission — ${body.data?.company || body.data?.title || 'Advertiser'}`,
+          adminAlert(
+            'Ad Submission',
+            body.data?.title || 'Untitled campaign',
+            `${body.data?.slot || ''} on ${body.data?.page || ''} · R${(body.data?.total || 0).toLocaleString()} · awaiting review`,
+            `${BASE_URL}/admin/ads`
+          )
+        );
+        break;
+
+      // ── Ad approved → tell advertiser to pay within 24h ───────────────────
+      case 'ad_approved_pay':
+        if (body.data?.email) {
+          const dueStr = body.data?.dueAt
+            ? new Date(body.data.dueAt).toLocaleString('en-ZA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+            : 'within 24 hours';
+          await sendEmail(
+            body.data.email,
+            `✓ Your Gun X Ad is Approved — Payment Due Within 24 Hours`,
+            approvedTemplate(
+              'Ad Approved ✓ — Payment Due',
+              `Hi ${body.data.name || 'there'}, your ad "${body.data.title}" has been approved. To secure your slot, please complete payment of R${(body.data.amount || 0).toLocaleString()} by ${dueStr}. If payment isn't received within 24 hours, the slot is automatically released.`,
+              'Complete Payment →',
+              `${BASE_URL}/advertise`
+            )
+          );
+        }
+        break;
+
+      // ── 2-hour payment reminder ───────────────────────────────────────────
+      case 'ad_payment_reminder':
+        if (body.data?.email) {
+          const dueStr = body.data?.dueAt
+            ? new Date(body.data.dueAt).toLocaleString('en-ZA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+            : 'soon';
+          await sendEmail(
+            body.data.email,
+            `⏳ Reminder: Pay for Your Gun X Ad Before You Lose the Slot`,
+            approvedTemplate(
+              'Payment Reminder ⏳',
+              `Hi ${body.data.name || 'there'}, this is a reminder that payment of R${(body.data.amount || 0).toLocaleString()} for your ad "${body.data.title}" is due by ${dueStr}. If we don't receive payment, your reserved slot will be released to other advertisers.`,
+              'Pay Now →',
+              `${BASE_URL}/advertise`
+            )
+          );
+        }
+        break;
+
+      // ── Slot released after non-payment ───────────────────────────────────
+      case 'ad_slot_released':
+        if (body.data?.email) {
+          await sendEmail(
+            body.data.email,
+            `Your Gun X Ad Slot Has Been Released`,
+            approvedTemplate(
+              'Slot Released',
+              `Hi ${body.data.name || 'there'}, the payment window for your ad "${body.data.title}" has closed and the slot has been released. You're welcome to rebook anytime, subject to availability.`,
+              'Book Again →',
+              `${BASE_URL}/advertise`
+            )
+          );
+        }
+        break;
+
+      // ── Outside-company advertising enquiry → alert admin ─────────────────
+      case 'advertiser_enquiry':
+        await sendEmail(
+          ADMIN_EMAIL,
+          `📢 Advertising Enquiry — ${body.data?.company || body.data?.name || 'New Advertiser'}`,
+          adminAlert(
+            'Advertising Enquiry',
+            body.data?.company || body.data?.name || 'New advertiser',
+            `Contact: ${body.data?.name || ''} · ${body.data?.email || ''} · ${body.data?.phone || ''} · Preferred: ${body.data?.preference || 'not specified'}${body.data?.message ? ` · "${String(body.data.message).slice(0, 140)}"` : ''}`,
+            `${BASE_URL}/admin/ads`
+          )
+        );
+        break;
+
       default:
         return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 });
     }
