@@ -100,6 +100,7 @@ export default function AdvertiseBookPage() {
   const [clientName, setClientName]       = useState('');
   const [clientCompany, setClientCompany] = useState('');
   const [clientPhone, setClientPhone]     = useState('');
+  const [consented, setConsented]         = useState(false);
 
   // ── Auth gate ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -155,7 +156,7 @@ export default function AdvertiseBookPage() {
 
   const canProceedStep1 = slot && page && duration && startDate;
   const canProceedStep2 = file && clickUrl && title;
-  const canSubmit       = clientName && user?.email;
+  const canSubmit       = clientName && user?.email && consented;
 
   const handleSubmit = async () => {
     if (!file) { setError('Please upload your ad creative.'); return; }
@@ -189,6 +190,8 @@ export default function AdvertiseBookPage() {
       amount_paid:    totalCost,
       rate_per_day:   Math.round(monthlyRate / 30),
       status:         'pending_review',
+      consent_at:     new Date().toISOString(),
+      policy_version: '1.0',
       notes:          `Self-service booking · ${duration} month(s) · submitted by ${user.email}`,
     });
 
@@ -455,9 +458,26 @@ export default function AdvertiseBookPage() {
 
             <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
               <p className="text-[12px] text-[#8A8E99] leading-relaxed">
-                By submitting, your ad enters our review queue. We check every submission for brand-safety and FCA / POPI alignment before it goes live — usually within 24 hours. <strong className="text-[#F0EDE8]">No payment is taken now</strong> — we'll email you payment details once your ad is approved.
+                Your ad enters our review queue. We check every submission against our advertising standards before approval — usually within 24 hours. <strong className="text-[#F0EDE8]">No payment is taken now.</strong> If approved, we'll email you an invoice and you'll have <strong className="text-[#F0EDE8]">24 hours to pay</strong> before the slot is released. A reminder is sent before the window closes.
               </p>
             </div>
+
+            {/* POPIA-compliant consent — unticked by default, links to full policy */}
+            <label className="flex items-start gap-3 cursor-pointer bg-[#13151A] border border-white/10 rounded-sm p-4 hover:border-[#C9922A]/30 transition-all">
+              <input
+                type="checkbox"
+                checked={consented}
+                onChange={e => setConsented(e.target.checked)}
+                className="w-5 h-5 accent-[#C9922A] flex-shrink-0 mt-0.5"
+              />
+              <span className="text-[12px] text-[#8A8E99] leading-relaxed">
+                I agree to the Gun X{' '}
+                <Link href="/advertising-policy" target="_blank" className="text-[#C9922A] hover:brightness-125 underline">
+                  Advertising Terms and Guidelines
+                </Link>
+                . I understand that ads are reviewed before going live, that payment is due within 24 hours of approval or the slot is released, and that ads which violate the policy may be removed.
+              </span>
+            </label>
 
             <div className="flex gap-3">
               <button onClick={() => setStep(2)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
