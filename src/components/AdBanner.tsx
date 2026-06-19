@@ -149,23 +149,76 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
     );
   }
 
-  // ── NO ACTIVE AD — show placeholder (only visible in dev/staging) ───────
+  // ── NO ACTIVE AD — show a self-promoting house ad (pure CSS, no images) ──
   if (!ad) {
+    // Tall slots (sidebars) get a vertical layout; wide/short slots a horizontal one
+    const isTall  = dims.h >= 400;            // sidebar skyscrapers
+    const isWide  = dims.w >= 700;            // leaderboards
+    const isSquare = !isTall && !isWide;      // square_card / leaderboard_mid-ish
+
     return (
-      <div
-        className={`bg-[#12141a] border border-dashed border-white/10 flex flex-col items-center justify-center flex-shrink-0 ${className}`}
+      <a
+        href="/advertise"
+        className={`group relative block flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#15171d] to-[#0D0F13] border border-[#C9922A]/20 hover:border-[#C9922A]/50 transition-all duration-300 ${className}`}
         style={{ width: dims.w, maxWidth: '100%', height: dims.h }}
+        aria-label="Advertise on Gun X"
       >
-        <span className="text-[9px] text-[#3A3E49] font-black uppercase tracking-widest block">
-          Ad Space — {dims.label}
+        {/* faint copper glow on hover */}
+        <span className="absolute inset-0 bg-[#C9922A]/0 group-hover:bg-[#C9922A]/5 transition-colors duration-300" />
+
+        {/* corner tag */}
+        <span className="absolute top-0 left-0 z-10 bg-[#C9922A]/10 text-[#C9922A] text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 leading-none">
+          Your Ad Here
         </span>
-        <a
-          href="/advertise"
-          className="text-[8px] text-[#C9922A]/50 hover:text-[#C9922A] transition-colors mt-1 uppercase tracking-widest font-bold"
-        >
-          Advertise here →
-        </a>
-      </div>
+
+        {isTall ? (
+          /* ── SKYSCRAPER 160×600 — vertical stack ── */
+          <div className="h-full flex flex-col items-center justify-center text-center px-2 py-6 gap-3 relative z-[1]">
+            <span className="text-2xl">📢</span>
+            <div style={{ writingMode: 'vertical-rl' }} className="rotate-180 flex items-center gap-3">
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[#F0EDE8] font-black uppercase tracking-widest text-lg leading-none">
+                Advertise on Gun X
+              </span>
+            </div>
+            <span className="text-[9px] text-[#8A8E99] uppercase tracking-widest font-bold">From R500/mo</span>
+            <span className="mt-1 text-[8px] text-[#C9922A] font-black uppercase tracking-widest border border-[#C9922A]/30 px-2 py-1 group-hover:bg-[#C9922A] group-hover:text-black transition-all">
+              Book →
+            </span>
+          </div>
+        ) : isWide ? (
+          /* ── LEADERBOARD 970×90 / 728×90 — horizontal row ── */
+          <div className="h-full flex items-center justify-between px-6 relative z-[1]">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📢</span>
+              <div>
+                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[#F0EDE8] font-black uppercase tracking-tight text-lg leading-none">
+                  Advertise on <span className="text-[#C9922A]">Gun X</span>
+                </p>
+                <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold mt-0.5">
+                  Reach SA's licensed firearm community · From R500/mo
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] text-[#C9922A] font-black uppercase tracking-widest border border-[#C9922A]/40 px-4 py-2 group-hover:bg-[#C9922A] group-hover:text-black transition-all whitespace-nowrap">
+              View Rate Card →
+            </span>
+          </div>
+        ) : (
+          /* ── SQUARE 300×250 — centred block ── */
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 gap-2 relative z-[1]">
+            <span className="text-3xl mb-1">📢</span>
+            <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[#F0EDE8] font-black uppercase tracking-tight text-xl leading-none">
+              Advertise on <span className="text-[#C9922A]">Gun X</span>
+            </p>
+            <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">
+              From R500 / month
+            </p>
+            <span className="mt-2 text-[9px] text-[#C9922A] font-black uppercase tracking-widest border border-[#C9922A]/40 px-4 py-2 group-hover:bg-[#C9922A] group-hover:text-black transition-all">
+              View Rate Card →
+            </span>
+          </div>
+        )}
+      </a>
     );
   }
 
