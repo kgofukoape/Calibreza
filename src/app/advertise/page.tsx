@@ -109,11 +109,11 @@ export default function AdvertisePage() {
             Advertise on <span className="text-[#C9922A]">Gun X</span>
           </h1>
           <p className="text-[16px] md:text-[18px] text-[#F0EDE8] max-w-2xl leading-relaxed mb-6">
-            Premium ad placements on South Africa's cleanest firearms classifieds platform. Reach licensed firearm owners, dealers, clubs, and ranges across the country.
+            Premium ad placements on South Africa's cleanest firearms classifieds platform. A focused home for brands that want to reach the local shooting and firearms community.
           </p>
           <div className="flex flex-wrap gap-6 text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">
-            <span>🇿🇦 National Reach</span>
-            <span>🎯 FCA-Verified Audience</span>
+            <span>🇿🇦 South Africa Focused</span>
+            <span>🎯 Firearms-Focused Audience</span>
             <span>📊 Live Performance Tracking</span>
           </div>
         </div>
