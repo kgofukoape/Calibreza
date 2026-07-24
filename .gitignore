@@ -10,3 +10,5 @@ gunx-code.zip
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+.vercel
+.env*

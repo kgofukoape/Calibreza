@@ -194,7 +194,7 @@ export default function AdvertiseBookPage() {
       rate_per_day:   Math.round(monthlyRate / 30),
       status:         'pending_review',
       consent_at:     new Date().toISOString(),
-      policy_version: '1.0',
+      policy_version: '1.1',
       notes:          `Self-service booking · ${duration} month(s) · submitted by ${user.email}`,
     });
 

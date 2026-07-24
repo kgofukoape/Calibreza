@@ -10,7 +10,7 @@ import Footer from '@/components/layout/Footer';
 // stores the same value as `policy_version`, so you always know which version
 // each advertiser agreed to (POPIA evidence requirement). Local const, not
 // exported — Next.js page files may only export the component + metadata.
-const ADVERTISING_POLICY_VERSION = '1.0';
+const ADVERTISING_POLICY_VERSION = '1.1';
 
 export default function AdvertisingPolicyPage() {
   return (
@@ -30,7 +30,7 @@ export default function AdvertisingPolicyPage() {
           Advertising <span className="text-[#C9922A]">Policy</span>
         </h1>
         <p className="text-[#8A8E99] text-sm mb-2">GX SA (Pty) Ltd · Version {ADVERTISING_POLICY_VERSION}</p>
-        <p className="text-[#8A8E99] text-[12px] mb-8 italic">Effective date to be confirmed on publication.</p>
+        <p className="text-[#8A8E99] text-[12px] mb-8 italic">Effective date: 29 July 2026</p>
 
         {/* Jump links */}
         <div className="flex flex-wrap gap-3 mb-10 pb-6 border-b border-white/5">
@@ -152,7 +152,7 @@ export default function AdvertisingPolicyPage() {
           </Term>
 
           <Term n="11" title="Your Information (POPIA)">
-            <p>When you book, we process your name, contact details, company name, and submission contents to administer your booking, contact you, and meet our legal duties. We use trusted service providers (for hosting, email, and messaging), some of which may process data outside South Africa, under appropriate safeguards. We record your acceptance of these Terms (date, time, version) as proof of agreement. Full detail, your rights, and our Information Officer's contact are in our Privacy / POPIA Notice.</p>
+            <p>When you book, we process your name, contact details, company name, and submission contents to administer your booking, contact you, and meet our legal duties. We use trusted service providers (for hosting, email, and messaging), some of which may process data outside South Africa, under appropriate safeguards. We record your acceptance of these Terms (date, time, version) as proof of agreement. Our Information Officer is the company's head of operations, contactable at <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>. Full detail and your rights as a data subject are set out in our Privacy / POPIA Notice.</p>
           </Term>
 
           <Term n="12" title="Changes">
@@ -160,12 +160,17 @@ export default function AdvertisingPolicyPage() {
           </Term>
 
           <Term n="13" title="Governing Law and Disputes">
-            <p>These Terms are governed by South African law. Disputes are subject to [the jurisdiction of the South African courts]. The rest of these Terms stay in force even if one part is found unenforceable (severability). These Terms, the Guidelines, and the documents they reference are the whole agreement on advertising. You may not cede your rights under them without our consent.</p>
+            <p>These Terms are governed by South African law. Disputes are subject to the jurisdiction of the South African courts. The rest of these Terms stay in force even if one part is found unenforceable (severability). These Terms, the Guidelines, and the documents they reference are the whole agreement on advertising. You may not cede your rights under them without our consent.</p>
           </Term>
 
           <Term n="14" title="Contact">
-            <p>GX SA (Pty) Ltd · <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a><br />
-            [Registered address · CIPC registration number · Information Officer contact to be inserted]</p>
+            <p>
+              <strong className="text-[#F0EDE8]">GX SA (Pty) Ltd</strong><br />
+              Registration number: 2025/830094/07<br />
+              Registered office: 11 Howe Street, Observatory, Western Cape, 7925<br />
+              General &amp; advertising enquiries: <a href="mailto:pewpew@gunx.co.za" className="text-[#C9922A] hover:brightness-125">pewpew@gunx.co.za</a><br />
+              Support &amp; Information Officer: <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>
+            </p>
           </Term>
         </section>
 
