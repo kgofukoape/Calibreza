@@ -108,6 +108,8 @@ src/
       payfast/
         notify/
           route.ts
+      ping/
+        route.ts
       rsvp/
         confirm/
           route.ts
@@ -11369,6 +11371,442 @@ export async function POST(req: NextRequest) {
 }
 </file>
 
+<file path="src/app/browse/accessories/page.tsx">
+'use client';
+
+import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import Navbar from '@/components/layout/Navbar';
+import ListingCard from '@/components/listings/ListingCard';
+import { supabase } from '@/lib/supabase';
+
+const ITEMS_PER_PAGE = 12;
+
+const PROVINCES = [
+  'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
+  'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
+];
+
+const ACCESSORY_SUBCATEGORIES = [
+  'Optics & Sights',
+  'Holsters & Carry',
+  'Magazines & Speed Loaders',
+  'Stocks, Grips & Furniture',
+  'Barrels & Suppressors',
+  'Triggers & Actions',
+  'Rails, Mounts & Rings',
+  'Lights & Lasers',
+  'Slings & Cases',
+  'Cleaning & Maintenance',
+  'Reloading Equipment',
+  'Safety & Storage',
+  'Clothing & PPE',
+  'Training Equipment',
+  'Other',
+];
+
+const ACCESSORY_BRANDS = [
+  'Adaptive Tactical', 'Aero Precision', 'Aimpoint', 'Altamont', 'Archangel',
+  'ATI', 'BCM', 'Boyds Hardwood Gunstocks', 'Burris', 'Bushnell', 'Caldwell',
+  'Choate', 'Crimson Trace', 'Daniel Defense', 'EOTech', 'Ergo', 'FAB Defense',
+  'Foundation Stocks', 'G-Code', 'Geissele', 'GRS Gunstocks', 'Hawke',
+  'HF Stocks', 'Hogue', "Hoppe's", 'Holosun', 'HS Precision', 'Kick-EEZ',
+  'Knights Armament', 'LaRue Tactical', 'Leupold', 'Limbsaver', 'Lucid Optics',
+  'Magnum Arms', 'Magpul', 'Manners Composite Stocks', 'MDT', 'Meopta',
+  'Midwest Industries', 'Musgrave', 'Nightforce', 'Noveske', 'Olight',
+  'Oryx / MDT', 'Pachmayr', 'Pearce Grip', 'Pelican', 'Plano', 'Primary Arms',
+  'ProMag', 'Pulsar', 'RCBS', 'Real Avid', 'SABI Rifles', 'Safariland',
+  'Samson Manufacturing', 'Schmidt & Bender', 'Sig Sauer Optics', 'SilencerCo',
+  'Sims Vibration Lab', 'Spuhr', 'Stark Equipment', 'Streamlight', 'Strike Industries',
+  'SureFire', 'Swarovski', 'Talon Grips', 'Trijicon', 'Troy Industries',
+  'US Optics', 'UTG', 'Vortex', 'VZ Grips', 'Weaver', 'Yankee Hill Machine', 'Zeiss',
+];
+
+function AccessoriesBrowseInner() {
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get('type');
+
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const [conditions, setConditions] = useState<any[]>([]);
+
+  const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [selectedSellerTypes, setSelectedSellerTypes] = useState<string[]>([]);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+
+  const [activeSubcats, setActiveSubcats] = useState<string[]>([]);
+  const [activeBrands, setActiveBrands] = useState<string[]>([]);
+  const [activeProvinces, setActiveProvinces] = useState<string[]>([]);
+  const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [activeSellerTypes, setActiveSellerTypes] = useState<string[]>([]);
+  const [activeMinPrice, setActiveMinPrice] = useState('');
+  const [activeMaxPrice, setActiveMaxPrice] = useState('');
+
+  const [sortBy, setSortBy] = useState('newest');
+  const [makes, setMakes] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadConditions();
+    loadMakes();
+  }, []);
+
+  useEffect(() => {
+    fetchListings();
+  }, [currentPage, activeSubcats, activeBrands, activeProvinces, activeConditions, activeSellerTypes, activeMinPrice, activeMaxPrice, sortBy]);
+
+  useEffect(() => {
+    if (filtersOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [filtersOpen]);
+
+  const loadConditions = async () => {
+    const { data } = await supabase.from('conditions').select('id, name').order('name');
+    setConditions(data || []);
+  };
+
+  const loadMakes = async () => {
+    const { data } = await supabase
+      .from('makes').select('id, name')
+      .contains('categories', ['accessories'])
+      .order('name');
+    setMakes(data || []);
+  };
+
+  const fetchListings = async () => {
+    setLoading(true);
+    let query = supabase
+      .from('listings')
+      .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
+      .eq('status', 'active')
+      .eq('category_id', 'accessories');
+
+    if (activeConditions.length > 0) query = query.in('condition_id', activeConditions);
+    if (activeProvinces.length > 0) query = query.in('city', activeProvinces);
+    if (activeMinPrice) query = query.gte('price', parseFloat(activeMinPrice));
+    if (activeMaxPrice) query = query.lte('price', parseFloat(activeMaxPrice));
+    if (activeSellerTypes.length > 0) query = query.in('listing_type', activeSellerTypes);
+
+    query = query.order('is_featured', { ascending: false });
+    switch (sortBy) {
+      case 'price_asc':  query = query.order('price', { ascending: true }); break;
+      case 'price_desc': query = query.order('price', { ascending: false }); break;
+      default:           query = query.order('created_at', { ascending: false });
+    }
+
+    const from = (currentPage - 1) * ITEMS_PER_PAGE;
+    query = query.range(from, from + ITEMS_PER_PAGE - 1);
+
+    const { data, count } = await query;
+    setListings(data || []);
+    setTotalCount(count || 0);
+    setLoading(false);
+  };
+
+  const applyFilters = () => {
+    setActiveSubcats(selectedSubcats);
+    setActiveBrands(selectedBrands);
+    setActiveProvinces(selectedProvinces);
+    setActiveConditions(selectedConditions);
+    setActiveSellerTypes(selectedSellerTypes);
+    setActiveMinPrice(minPrice);
+    setActiveMaxPrice(maxPrice);
+    setCurrentPage(1);
+    setFiltersOpen(false);
+  };
+
+  const clearAllFilters = () => {
+    setSelectedSubcats([]); setSelectedBrands([]); setSelectedProvinces([]);
+    setSelectedConditions([]); setSelectedSellerTypes([]); setMinPrice(''); setMaxPrice('');
+    setActiveSubcats([]); setActiveBrands([]); setActiveProvinces([]);
+    setActiveConditions([]); setActiveSellerTypes([]); setActiveMinPrice(''); setActiveMaxPrice('');
+    setCurrentPage(1);
+  };
+
+  const toggle = (id: string, list: string[], setter: (v: string[]) => void) => {
+    setter(list.includes(id) ? list.filter(i => i !== id) : [...list, id]);
+  };
+
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+  const activeFilterCount = activeSubcats.length + activeBrands.length + activeProvinces.length + activeConditions.length + activeSellerTypes.length + (activeMinPrice ? 1 : 0) + (activeMaxPrice ? 1 : 0);
+
+  const CheckboxItem = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
+    <label className="flex items-center gap-3 cursor-pointer group">
+      <input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 flex-shrink-0 accent-[#C9922A]" />
+      <span className="text-[13px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{label}</span>
+    </label>
+  );
+
+  const FilterPanel = () => (
+    <div className="bg-[#13151A] border border-white/5 rounded-sm p-4 flex flex-col gap-4">
+      <div className="flex items-center justify-between pb-3 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-lg uppercase tracking-widest text-[#F0EDE8]">Filters</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-[#C9922A] text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">{activeFilterCount}</span>
+          )}
+        </div>
+        {activeFilterCount > 0 && (
+          <button onClick={clearAllFilters} className="text-[11px] text-[#C9922A] font-bold uppercase tracking-wider hover:brightness-125">Clear All</button>
+        )}
+      </div>
+
+      {/* Accessory Sub-Category */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Category</span>
+        <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
+          {ACCESSORY_SUBCATEGORIES.map(sub => (
+            <CheckboxItem key={sub} label={sub} checked={selectedSubcats.includes(sub)} onChange={() => toggle(sub, selectedSubcats, setSelectedSubcats)} />
+          ))}
+        </div>
+      </div>
+
+      {/* Brand */}
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Brand</span>
+        <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
+          {(makes.length > 0 ? makes.map(m => m.name) : ACCESSORY_BRANDS).map(brand => (
+            <CheckboxItem key={brand} label={brand} checked={selectedBrands.includes(brand)} onChange={() => toggle(brand, selectedBrands, setSelectedBrands)} />
+          ))}
+        </div>
+      </div>
+
+      {/* Condition */}
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Condition</span>
+        <div className="flex flex-col gap-2">
+          {conditions.map(c => (
+            <CheckboxItem key={c.id} label={c.name} checked={selectedConditions.includes(c.id)} onChange={() => toggle(c.id, selectedConditions, setSelectedConditions)} />
+          ))}
+        </div>
+      </div>
+
+      {/* Province */}
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province</span>
+        <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
+          {PROVINCES.map(p => (
+            <CheckboxItem key={p} label={p} checked={selectedProvinces.includes(p)} onChange={() => toggle(p, selectedProvinces, setSelectedProvinces)} />
+          ))}
+        </div>
+      </div>
+
+      {/* Price */}
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Price Range (R)</span>
+        <div className="flex items-center gap-2">
+          <input type="number" placeholder="Min" value={minPrice} onChange={e => setMinPrice(e.target.value)}
+            className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
+          <span className="text-[#8A8E99] flex-shrink-0">—</span>
+          <input type="number" placeholder="Max" value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
+            className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
+        </div>
+      </div>
+
+      {/* Seller Type */}
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
+        <div className="flex flex-col gap-2">
+          <CheckboxItem label="🏪 Dealer Stock" checked={selectedSellerTypes.includes('dealer')} onChange={() => toggle('dealer', selectedSellerTypes, setSelectedSellerTypes)} />
+          <CheckboxItem label="👤 Private Seller" checked={selectedSellerTypes.includes('private')} onChange={() => toggle('private', selectedSellerTypes, setSelectedSellerTypes)} />
+        </div>
+      </div>
+
+      <button onClick={applyFilters} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+        className="w-full bg-[#C9922A] text-black font-black py-3 rounded-sm uppercase tracking-widest text-[14px] hover:brightness-110 transition-all">
+        Apply Filters
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+
+      {/* PAGE HEADER */}
+      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-5 md:py-8">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
+            <Link href="/" className="hover:text-[#C9922A] transition-colors">Home</Link>
+            <span>/</span>
+            <Link href="/browse" className="hover:text-[#C9922A] transition-colors">Browse</Link>
+            <span>/</span>
+            <span className="text-[#F0EDE8]">Accessories & Parts</span>
+          </div>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight">
+            Browse <span className="text-[#C9922A]">Accessories & Parts</span>
+          </h1>
+          <p className="text-[#8A8E99] text-sm mt-1 uppercase tracking-widest font-bold">
+            Optics, stocks, grips, suppressors, lights, slings, cleaning & more
+          </p>
+
+          {/* Sub-category quick links */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            {['Optics & Sights', 'Stocks, Grips & Furniture', 'Barrels & Suppressors', 'Lights & Lasers', 'Triggers & Actions', 'Rails, Mounts & Rings', 'Cleaning & Maintenance'].map(sub => (
+              <Link key={sub} href={`/browse/accessories?type=${sub.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-')}`}
+                className="text-[11px] font-black uppercase tracking-widest border border-white/10 px-3 py-1.5 rounded-sm text-[#8A8E99] hover:border-[#C9922A]/50 hover:text-[#C9922A] transition-all">
+                {sub}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* AD */}
+      <div className="w-full flex justify-center py-3 px-4 md:px-6 bg-[#0D0F13]">
+        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
+          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
+          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
+        </div>
+      </div>
+
+      {/* MOBILE FILTER TOGGLE */}
+      <div className="lg:hidden sticky top-[68px] z-40 bg-[#0D0F13] border-b border-white/5 px-4 py-2.5 flex items-center justify-between">
+        <button onClick={() => setFiltersOpen(true)}
+          className="flex items-center gap-2 bg-[#13151A] border border-white/10 px-4 py-2 rounded-sm text-[12px] font-black uppercase tracking-widest text-[#F0EDE8] hover:border-[#C9922A]/40 transition-all">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+          Filters {activeFilterCount > 0 && <span className="bg-[#C9922A] text-black text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{activeFilterCount}</span>}
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Sort:</span>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            className="bg-[#13151A] border border-white/10 text-[#F0EDE8] text-[11px] px-2 py-1.5 rounded-sm focus:outline-none appearance-none">
+            <option value="newest">Newest</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+          </select>
+        </div>
+      </div>
+
+      {/* MOBILE DRAWER */}
+      {filtersOpen && (
+        <div className="lg:hidden fixed inset-0 z-[150] flex">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setFiltersOpen(false)} />
+          <div className="relative w-[85%] max-w-[320px] bg-[#0D0F13] h-full overflow-y-auto border-r border-white/10 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest">Filters</span>
+              <button onClick={() => setFiltersOpen(false)} className="w-8 h-8 flex items-center justify-center text-[#8A8E99] hover:text-white">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <FilterPanel />
+          </div>
+        </div>
+      )}
+
+      {/* MAIN */}
+      <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
+
+        <aside className="hidden lg:block w-[260px] flex-shrink-0">
+          <div className="sticky top-6"><FilterPanel /></div>
+        </aside>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-4">
+
+          <div className="hidden lg:flex items-center justify-between bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
+            <span className="text-[13px] text-[#8A8E99]">
+              {loading ? 'Loading...' : (
+                <><strong className="text-[#F0EDE8]">{totalCount}</strong> listings in <span className="text-[#C9922A] font-bold">Accessories & Parts</span>
+                  {activeFilterCount > 0 && <span> · {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} active</span>}
+                </>
+              )}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Sort:</span>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[12px] px-3 py-2 rounded-sm focus:outline-none appearance-none">
+                <option value="newest">Newest First</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+                <span className="text-[#8A8E99] text-xs uppercase tracking-widest font-bold">Loading listings...</span>
+              </div>
+            </div>
+          ) : listings.length === 0 ? (
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-12 text-center">
+              <div className="text-5xl mb-4">🔧</div>
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No listings found</h3>
+              <p className="text-[#8A8E99] text-sm mb-6">{activeFilterCount > 0 ? 'Try adjusting your filters' : 'No Accessories listings yet'}</p>
+              {activeFilterCount > 0 && (
+                <button onClick={clearAllFilters} className="text-[#C9922A] font-bold text-sm uppercase tracking-widest hover:brightness-125">Clear All Filters</button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {listings.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  id={listing.id}
+                  title={listing.title}
+                  make={listing.makes?.name || ''}
+                  calibre={listing.calibres?.name || ''}
+                  price={listing.price}
+                  province={listing.city || ''}
+                  condition={listing.conditions?.name || ''}
+                  category={listing.category_id}
+                  listingType={listing.listing_type}
+                  sellerName={listing.dealers?.business_name || 'Private Seller'}
+                  images={listing.images}
+                  featured={listing.is_featured}
+                />
+              ))}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">‹</button>
+              {[...Array(Math.min(totalPages, 7))].map((_, i) => (
+                <button key={i + 1} onClick={() => setCurrentPage(i + 1)}
+                  className={`w-9 h-9 flex items-center justify-center border rounded-sm font-bold text-sm transition-all ${
+                    currentPage === i + 1 ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]' : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
+                  }`}>{i + 1}</button>
+              ))}
+              {totalPages > 7 && <span className="text-[#8A8E99]">...</span>}
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">›</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AccessoriesBrowsePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <AccessoriesBrowseInner />
+    </Suspense>
+  );
+}
+</file>
+
 <file path="src/app/clubs/pricing/page.tsx">
 'use client';
 
@@ -15485,23 +15923,6 @@ test.describe('Navigation & Key Pages', () => {
   });
 
 });
-</file>
-
-<file path=".gitignore">
-node_modules
-.env.local
-.next/
-gunx-code.zip
-.claude/
-
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
-.vercel
-.env*
 </file>
 
 <file path="playwright.config.ts">
@@ -66156,439 +66577,60 @@ export async function POST(req: NextRequest) {
 }
 </file>
 
-<file path="src/app/browse/accessories/page.tsx">
-'use client';
+<file path="src/app/api/ping/route.ts">
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-import React, { useState, useEffect, Suspense } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import Navbar from '@/components/layout/Navbar';
-import ListingCard from '@/components/listings/ListingCard';
-import { supabase } from '@/lib/supabase';
+// ─── SUPABASE KEEPALIVE PING ─────────────────────────────────────────────────
+// Supabase's free tier pauses a project after ~7 days with no database activity.
+// This route runs one tiny read against a small, always-present reference table
+// (provinces — 9 rows) so the project registers activity and never pauses.
+//
+// Schedule it on cron-job.org to run once a day (or every few hours). It is
+// lightweight and safe to hit often. No secret is strictly required — it only
+// performs a harmless count — but it accepts the same CRON_SECRET as the other
+// cron route if you want to lock it down.
 
-const ITEMS_PER_PAGE = 12;
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
-const PROVINCES = [
-  'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
-  'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
-];
+export async function GET(req: NextRequest) {
+  // Optional auth — only enforced if a CRON_SECRET is set AND a token is passed.
+  // Leaving it open is fine for a harmless keepalive; lock it down if you prefer.
+  const secret = process.env.CRON_SECRET;
+  const token  = req.nextUrl.searchParams.get('token');
+  const header = req.headers.get('x-cron-secret');
+  if (secret && (token || header) && token !== secret && header !== secret) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
 
-const ACCESSORY_SUBCATEGORIES = [
-  'Optics & Sights',
-  'Holsters & Carry',
-  'Magazines & Speed Loaders',
-  'Stocks, Grips & Furniture',
-  'Barrels & Suppressors',
-  'Triggers & Actions',
-  'Rails, Mounts & Rings',
-  'Lights & Lasers',
-  'Slings & Cases',
-  'Cleaning & Maintenance',
-  'Reloading Equipment',
-  'Safety & Storage',
-  'Clothing & PPE',
-  'Training Equipment',
-  'Other',
-];
+  try {
+    // Minimal read: count rows on a tiny reference table. Registers DB activity
+    // without loading anything. `head: true` fetches no rows, just the count.
+    const { count, error } = await supabaseAdmin
+      .from('provinces')
+      .select('*', { count: 'exact', head: true });
 
-const ACCESSORY_BRANDS = [
-  'Adaptive Tactical', 'Aero Precision', 'Aimpoint', 'Altamont', 'Archangel',
-  'ATI', 'BCM', 'Boyds Hardwood Gunstocks', 'Burris', 'Bushnell', 'Caldwell',
-  'Choate', 'Crimson Trace', 'Daniel Defense', 'EOTech', 'Ergo', 'FAB Defense',
-  'Foundation Stocks', 'G-Code', 'Geissele', 'GRS Gunstocks', 'Hawke',
-  'HF Stocks', 'Hogue', "Hoppe's", 'Holosun', 'HS Precision', 'Kick-EEZ',
-  'Knights Armament', 'LaRue Tactical', 'Leupold', 'Limbsaver', 'Lucid Optics',
-  'Magnum Arms', 'Magpul', 'Manners Composite Stocks', 'MDT', 'Meopta',
-  'Midwest Industries', 'Musgrave', 'Nightforce', 'Noveske', 'Olight',
-  'Oryx / MDT', 'Pachmayr', 'Pearce Grip', 'Pelican', 'Plano', 'Primary Arms',
-  'ProMag', 'Pulsar', 'RCBS', 'Real Avid', 'SABI Rifles', 'Safariland',
-  'Samson Manufacturing', 'Schmidt & Bender', 'Sig Sauer Optics', 'SilencerCo',
-  'Sims Vibration Lab', 'Spuhr', 'Stark Equipment', 'Streamlight', 'Strike Industries',
-  'SureFire', 'Swarovski', 'Talon Grips', 'Trijicon', 'Troy Industries',
-  'US Optics', 'UTG', 'Vortex', 'VZ Grips', 'Weaver', 'Yankee Hill Machine', 'Zeiss',
-];
-
-function AccessoriesBrowseInner() {
-  const searchParams = useSearchParams();
-  const typeParam = searchParams.get('type');
-
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-
-  const [conditions, setConditions] = useState<any[]>([]);
-
-  const [selectedSubcats, setSelectedSubcats] = useState<string[]>([]);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([]);
-  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
-  const [selectedSellerTypes, setSelectedSellerTypes] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-
-  const [activeSubcats, setActiveSubcats] = useState<string[]>([]);
-  const [activeBrands, setActiveBrands] = useState<string[]>([]);
-  const [activeProvinces, setActiveProvinces] = useState<string[]>([]);
-  const [activeConditions, setActiveConditions] = useState<string[]>([]);
-  const [activeSellerTypes, setActiveSellerTypes] = useState<string[]>([]);
-  const [activeMinPrice, setActiveMinPrice] = useState('');
-  const [activeMaxPrice, setActiveMaxPrice] = useState('');
-
-  const [sortBy, setSortBy] = useState('newest');
-  const [makes, setMakes] = useState<any[]>([]);
-
-  useEffect(() => {
-    loadConditions();
-    loadMakes();
-  }, []);
-
-  useEffect(() => {
-    fetchListings();
-  }, [currentPage, activeSubcats, activeBrands, activeProvinces, activeConditions, activeSellerTypes, activeMinPrice, activeMaxPrice, sortBy]);
-
-  useEffect(() => {
-    if (filtersOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
-  }, [filtersOpen]);
-
-  const loadConditions = async () => {
-    const { data } = await supabase.from('conditions').select('id, name').order('name');
-    setConditions(data || []);
-  };
-
-  const loadMakes = async () => {
-    const { data } = await supabase
-      .from('makes').select('id, name')
-      .contains('categories', ['accessories'])
-      .order('name');
-    setMakes(data || []);
-  };
-
-  const fetchListings = async () => {
-    setLoading(true);
-    let query = supabase
-      .from('listings')
-      .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), dealers:dealer_id(business_name, slug)`, { count: 'exact' })
-      .eq('status', 'active')
-      .eq('category_id', 'accessories');
-
-    if (activeConditions.length > 0) query = query.in('condition_id', activeConditions);
-    if (activeProvinces.length > 0) query = query.in('city', activeProvinces);
-    if (activeMinPrice) query = query.gte('price', parseFloat(activeMinPrice));
-    if (activeMaxPrice) query = query.lte('price', parseFloat(activeMaxPrice));
-    if (activeSellerTypes.length > 0) query = query.in('listing_type', activeSellerTypes);
-
-    query = query.order('is_featured', { ascending: false });
-    switch (sortBy) {
-      case 'price_asc':  query = query.order('price', { ascending: true }); break;
-      case 'price_desc': query = query.order('price', { ascending: false }); break;
-      default:           query = query.order('created_at', { ascending: false });
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: error.message, pinged_at: new Date().toISOString() },
+        { status: 500 },
+      );
     }
 
-    const from = (currentPage - 1) * ITEMS_PER_PAGE;
-    query = query.range(from, from + ITEMS_PER_PAGE - 1);
-
-    const { data, count } = await query;
-    setListings(data || []);
-    setTotalCount(count || 0);
-    setLoading(false);
-  };
-
-  const applyFilters = () => {
-    setActiveSubcats(selectedSubcats);
-    setActiveBrands(selectedBrands);
-    setActiveProvinces(selectedProvinces);
-    setActiveConditions(selectedConditions);
-    setActiveSellerTypes(selectedSellerTypes);
-    setActiveMinPrice(minPrice);
-    setActiveMaxPrice(maxPrice);
-    setCurrentPage(1);
-    setFiltersOpen(false);
-  };
-
-  const clearAllFilters = () => {
-    setSelectedSubcats([]); setSelectedBrands([]); setSelectedProvinces([]);
-    setSelectedConditions([]); setSelectedSellerTypes([]); setMinPrice(''); setMaxPrice('');
-    setActiveSubcats([]); setActiveBrands([]); setActiveProvinces([]);
-    setActiveConditions([]); setActiveSellerTypes([]); setActiveMinPrice(''); setActiveMaxPrice('');
-    setCurrentPage(1);
-  };
-
-  const toggle = (id: string, list: string[], setter: (v: string[]) => void) => {
-    setter(list.includes(id) ? list.filter(i => i !== id) : [...list, id]);
-  };
-
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
-  const activeFilterCount = activeSubcats.length + activeBrands.length + activeProvinces.length + activeConditions.length + activeSellerTypes.length + (activeMinPrice ? 1 : 0) + (activeMaxPrice ? 1 : 0);
-
-  const CheckboxItem = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => (
-    <label className="flex items-center gap-3 cursor-pointer group">
-      <input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 flex-shrink-0 accent-[#C9922A]" />
-      <span className="text-[13px] text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors truncate">{label}</span>
-    </label>
-  );
-
-  const FilterPanel = () => (
-    <div className="bg-[#13151A] border border-white/5 rounded-sm p-4 flex flex-col gap-4">
-      <div className="flex items-center justify-between pb-3 border-b border-white/5">
-        <div className="flex items-center gap-2">
-          <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-lg uppercase tracking-widest text-[#F0EDE8]">Filters</span>
-          {activeFilterCount > 0 && (
-            <span className="bg-[#C9922A] text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">{activeFilterCount}</span>
-          )}
-        </div>
-        {activeFilterCount > 0 && (
-          <button onClick={clearAllFilters} className="text-[11px] text-[#C9922A] font-bold uppercase tracking-wider hover:brightness-125">Clear All</button>
-        )}
-      </div>
-
-      {/* Accessory Sub-Category */}
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Category</span>
-        <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-          {ACCESSORY_SUBCATEGORIES.map(sub => (
-            <CheckboxItem key={sub} label={sub} checked={selectedSubcats.includes(sub)} onChange={() => toggle(sub, selectedSubcats, setSelectedSubcats)} />
-          ))}
-        </div>
-      </div>
-
-      {/* Brand */}
-      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Brand</span>
-        <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
-          {(makes.length > 0 ? makes.map(m => m.name) : ACCESSORY_BRANDS).map(brand => (
-            <CheckboxItem key={brand} label={brand} checked={selectedBrands.includes(brand)} onChange={() => toggle(brand, selectedBrands, setSelectedBrands)} />
-          ))}
-        </div>
-      </div>
-
-      {/* Condition */}
-      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Condition</span>
-        <div className="flex flex-col gap-2">
-          {conditions.map(c => (
-            <CheckboxItem key={c.id} label={c.name} checked={selectedConditions.includes(c.id)} onChange={() => toggle(c.id, selectedConditions, setSelectedConditions)} />
-          ))}
-        </div>
-      </div>
-
-      {/* Province */}
-      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Province</span>
-        <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-1">
-          {PROVINCES.map(p => (
-            <CheckboxItem key={p} label={p} checked={selectedProvinces.includes(p)} onChange={() => toggle(p, selectedProvinces, setSelectedProvinces)} />
-          ))}
-        </div>
-      </div>
-
-      {/* Price */}
-      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Price Range (R)</span>
-        <div className="flex items-center gap-2">
-          <input type="number" placeholder="Min" value={minPrice} onChange={e => setMinPrice(e.target.value)}
-            className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
-          <span className="text-[#8A8E99] flex-shrink-0">—</span>
-          <input type="number" placeholder="Max" value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
-            className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50" />
-        </div>
-      </div>
-
-      {/* Seller Type */}
-      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Seller Type</span>
-        <div className="flex flex-col gap-2">
-          <CheckboxItem label="🏪 Dealer Stock" checked={selectedSellerTypes.includes('dealer')} onChange={() => toggle('dealer', selectedSellerTypes, setSelectedSellerTypes)} />
-          <CheckboxItem label="👤 Private Seller" checked={selectedSellerTypes.includes('private')} onChange={() => toggle('private', selectedSellerTypes, setSelectedSellerTypes)} />
-        </div>
-      </div>
-
-      <button onClick={applyFilters} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-        className="w-full bg-[#C9922A] text-black font-black py-3 rounded-sm uppercase tracking-widest text-[14px] hover:brightness-110 transition-all">
-        Apply Filters
-      </button>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-      <Navbar />
-
-      {/* PAGE HEADER */}
-      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-5 md:py-8">
-        <div className="max-w-[1400px] mx-auto">
-          <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
-            <Link href="/" className="hover:text-[#C9922A] transition-colors">Home</Link>
-            <span>/</span>
-            <Link href="/browse" className="hover:text-[#C9922A] transition-colors">Browse</Link>
-            <span>/</span>
-            <span className="text-[#F0EDE8]">Accessories & Parts</span>
-          </div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight">
-            Browse <span className="text-[#C9922A]">Accessories & Parts</span>
-          </h1>
-          <p className="text-[#8A8E99] text-sm mt-1 uppercase tracking-widest font-bold">
-            Optics, stocks, grips, suppressors, lights, slings, cleaning & more
-          </p>
-
-          {/* Sub-category quick links */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {['Optics & Sights', 'Stocks, Grips & Furniture', 'Barrels & Suppressors', 'Lights & Lasers', 'Triggers & Actions', 'Rails, Mounts & Rings', 'Cleaning & Maintenance'].map(sub => (
-              <Link key={sub} href={`/browse/accessories?type=${sub.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-')}`}
-                className="text-[11px] font-black uppercase tracking-widest border border-white/10 px-3 py-1.5 rounded-sm text-[#8A8E99] hover:border-[#C9922A]/50 hover:text-[#C9922A] transition-all">
-                {sub}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* AD */}
-      <div className="w-full flex justify-center py-3 px-4 md:px-6 bg-[#0D0F13]">
-        <div className="w-full max-w-[970px] h-[70px] md:h-[90px] bg-[#12141a] border border-white/5 flex items-center justify-center relative">
-          <span className="text-[10px] text-[#5A5E69] uppercase tracking-[0.4em] font-bold">Leaderboard Ad Space</span>
-          <div className="absolute inset-0 border border-dashed border-white/10 opacity-20" />
-        </div>
-      </div>
-
-      {/* MOBILE FILTER TOGGLE */}
-      <div className="lg:hidden sticky top-[68px] z-40 bg-[#0D0F13] border-b border-white/5 px-4 py-2.5 flex items-center justify-between">
-        <button onClick={() => setFiltersOpen(true)}
-          className="flex items-center gap-2 bg-[#13151A] border border-white/10 px-4 py-2 rounded-sm text-[12px] font-black uppercase tracking-widest text-[#F0EDE8] hover:border-[#C9922A]/40 transition-all">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-          Filters {activeFilterCount > 0 && <span className="bg-[#C9922A] text-black text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{activeFilterCount}</span>}
-        </button>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Sort:</span>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            className="bg-[#13151A] border border-white/10 text-[#F0EDE8] text-[11px] px-2 py-1.5 rounded-sm focus:outline-none appearance-none">
-            <option value="newest">Newest</option>
-            <option value="price_asc">Price ↑</option>
-            <option value="price_desc">Price ↓</option>
-          </select>
-        </div>
-      </div>
-
-      {/* MOBILE DRAWER */}
-      {filtersOpen && (
-        <div className="lg:hidden fixed inset-0 z-[150] flex">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setFiltersOpen(false)} />
-          <div className="relative w-[85%] max-w-[320px] bg-[#0D0F13] h-full overflow-y-auto border-r border-white/10 p-4">
-            <div className="flex items-center justify-between mb-4">
-              <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest">Filters</span>
-              <button onClick={() => setFiltersOpen(false)} className="w-8 h-8 flex items-center justify-center text-[#8A8E99] hover:text-white">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <FilterPanel />
-          </div>
-        </div>
-      )}
-
-      {/* MAIN */}
-      <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-5">
-
-        <aside className="hidden lg:block w-[260px] flex-shrink-0">
-          <div className="sticky top-6"><FilterPanel /></div>
-        </aside>
-
-        <div className="flex-1 min-w-0 flex flex-col gap-4">
-
-          <div className="hidden lg:flex items-center justify-between bg-[#13151A] border border-white/5 rounded-sm px-5 py-3">
-            <span className="text-[13px] text-[#8A8E99]">
-              {loading ? 'Loading...' : (
-                <><strong className="text-[#F0EDE8]">{totalCount}</strong> listings in <span className="text-[#C9922A] font-bold">Accessories & Parts</span>
-                  {activeFilterCount > 0 && <span> · {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} active</span>}
-                </>
-              )}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Sort:</span>
-              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-                className="bg-[#0D0F13] border border-white/10 text-[#F0EDE8] text-[12px] px-3 py-2 rounded-sm focus:outline-none appearance-none">
-                <option value="newest">Newest First</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-              </select>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
-                <span className="text-[#8A8E99] text-xs uppercase tracking-widest font-bold">Loading listings...</span>
-              </div>
-            </div>
-          ) : listings.length === 0 ? (
-            <div className="bg-[#13151A] border border-white/5 rounded-sm p-12 text-center">
-              <div className="text-5xl mb-4">🔧</div>
-              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No listings found</h3>
-              <p className="text-[#8A8E99] text-sm mb-6">{activeFilterCount > 0 ? 'Try adjusting your filters' : 'No Accessories listings yet'}</p>
-              {activeFilterCount > 0 && (
-                <button onClick={clearAllFilters} className="text-[#C9922A] font-bold text-sm uppercase tracking-widest hover:brightness-125">Clear All Filters</button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {listings.map(listing => (
-                <ListingCard
-                  key={listing.id}
-                  id={listing.id}
-                  title={listing.title}
-                  make={listing.makes?.name || ''}
-                  calibre={listing.calibres?.name || ''}
-                  price={listing.price}
-                  province={listing.city || ''}
-                  condition={listing.conditions?.name || ''}
-                  category={listing.category_id}
-                  listingType={listing.listing_type}
-                  sellerName={listing.dealers?.business_name || 'Private Seller'}
-                  images={listing.images}
-                  featured={listing.is_featured}
-                />
-              ))}
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">‹</button>
-              {[...Array(Math.min(totalPages, 7))].map((_, i) => (
-                <button key={i + 1} onClick={() => setCurrentPage(i + 1)}
-                  className={`w-9 h-9 flex items-center justify-center border rounded-sm font-bold text-sm transition-all ${
-                    currentPage === i + 1 ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#C9922A]' : 'border-white/10 text-[#8A8E99] hover:bg-white/5 hover:text-white'
-                  }`}>{i + 1}</button>
-              ))}
-              {totalPages > 7 && <span className="text-[#8A8E99]">...</span>}
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                className="w-9 h-9 flex items-center justify-center border border-white/10 rounded-sm text-[#8A8E99] hover:bg-white/5 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">›</button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function AccessoriesBrowsePage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
-      </div>
-    }>
-      <AccessoriesBrowseInner />
-    </Suspense>
-  );
+    return NextResponse.json({
+      ok: true,
+      pinged_at: new Date().toISOString(),
+      provinces_count: count ?? 0,
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e.message, pinged_at: new Date().toISOString() },
+      { status: 500 },
+    );
+  }
 }
 </file>
 
@@ -69864,6 +69906,23 @@ test.describe('Contact Form', () => {
 });
 </file>
 
+<file path=".gitignore">
+node_modules
+.env.local
+.next/
+gunx-code.zip
+.claude/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.vercel
+.env*
+</file>
+
 <file path="package.json">
 {
   "name": "calibreza",
@@ -69896,231 +69955,6 @@ test.describe('Contact Form', () => {
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
-}
-</file>
-
-<file path="src/app/advertising-policy/page.tsx">
-'use client';
-
-import React from 'react';
-import Link from 'next/link';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-
-// ─── POLICY VERSION ──────────────────────────────────────────────────────────
-// Bump this whenever the Terms or Guidelines wording changes. The booking flow
-// stores the same value as `policy_version`, so you always know which version
-// each advertiser agreed to (POPIA evidence requirement). Local const, not
-// exported — Next.js page files may only export the component + metadata.
-const ADVERTISING_POLICY_VERSION = '1.0';
-
-export default function AdvertisingPolicyPage() {
-  return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-      <Navbar />
-
-      <div className="flex-1 max-w-[820px] mx-auto w-full px-4 md:px-6 py-8 md:py-12">
-
-        {/* Breadcrumb */}
-        <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Link href="/" className="hover:text-[#C9922A]">Home</Link><span>/</span>
-          <Link href="/advertise" className="hover:text-[#C9922A]">Advertise</Link><span>/</span>
-          <span className="text-[#F0EDE8]">Advertising Policy</span>
-        </div>
-
-        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-2">
-          Advertising <span className="text-[#C9922A]">Policy</span>
-        </h1>
-        <p className="text-[#8A8E99] text-sm mb-2">GX SA (Pty) Ltd · Version {ADVERTISING_POLICY_VERSION}</p>
-        <p className="text-[#8A8E99] text-[12px] mb-8 italic">Effective date to be confirmed on publication.</p>
-
-        {/* Jump links */}
-        <div className="flex flex-wrap gap-3 mb-10 pb-6 border-b border-white/5">
-          <a href="#guidelines" className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/30 bg-[#C9922A]/5 px-4 py-2 rounded-sm hover:bg-[#C9922A]/10 transition-all">
-            ↓ Guidelines (Plain English)
-          </a>
-          <a href="#terms" className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] border border-white/10 px-4 py-2 rounded-sm hover:text-[#F0EDE8] hover:border-white/20 transition-all">
-            ↓ Full Terms
-          </a>
-        </div>
-
-        {/* ═══════════════════ GUIDELINES ═══════════════════ */}
-        <section id="guidelines" className="mb-16 scroll-mt-6">
-          <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-3 mb-6 inline-block">
-            <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">The 30-Second Version</span>
-          </div>
-
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight mb-3">
-            Advertising <span className="text-[#C9922A]">Guidelines</span>
-          </h2>
-          <p className="text-[14px] text-[#8A8E99] leading-relaxed mb-8">
-            This is the plain-English summary of how advertising works on Gun X. The full legal detail lives in our <a href="#terms" className="text-[#C9922A] hover:brightness-125">Advertising Terms</a> below — by booking an ad, you agree to both.
-          </p>
-
-          <GuideBlock title="What We're About">
-            <p>Gun X serves the lawful, clean South African shooting community and dealer network. Advertisers from any industry are welcome — gun shops, optics and gear, ranges, security firms, power tools, insurance, whatever fits the audience. We just need every ad to stay on the right side of the line.</p>
-          </GuideBlock>
-
-          <GuideBlock title="What Your Ad Can't Contain">
-            <ul className="space-y-2.5">
-              <Pro t="Illegal stuff">no black-market sales, unlicensed firearm transfers, or illegal conversion kits. Anything firearm-related moves through proper dealer / SAPS channels, full stop.</Pro>
-              <Pro t="Adult or exploitative material">no pornographic, explicit, or sexually suggestive creative.</Pro>
-              <Pro t="Hate or harm">no racist content, hate speech, or anything that incites or glorifies real-world violence.</Pro>
-              <Pro t="Scams or deception">no fake listings, financial scams, or seriously misleading claims.</Pro>
-              <Pro t="Direct competitors">no advertising for rival firearm classified platforms.</Pro>
-            </ul>
-          </GuideBlock>
-
-          <GuideBlock title="One Firearm Rule Worth Knowing">
-            <p>Your ad can promote your business and your products all day long. What it <strong className="text-[#F0EDE8]">can't</strong> do is act as the checkout for a specific firearm or ammunition — "buy this rifle, click here." Those link through to your verified dealer listing instead, where the proper checks already happen. Brand and product advertising is wide open; only the direct point-of-sale for a regulated item is off-limits in a banner.</p>
-          </GuideBlock>
-
-          <GuideBlock title="How Booking Works">
-            <ol className="list-decimal pl-5 space-y-2 marker:text-[#C9922A] marker:font-bold">
-              <li><strong className="text-[#F0EDE8]">Submit.</strong> Upload your creative, pick your slot, page, and duration. It goes to our team for a quick review against the rules above. <strong className="text-[#F0EDE8]">No payment is taken yet.</strong></li>
-              <li><strong className="text-[#F0EDE8]">Get cleared.</strong> If it's good, we issue an invoice.</li>
-              <li><strong className="text-[#F0EDE8]">Pay within 24 hours</strong> to lock your slot. Miss the window and the spot simply goes back to the pool for someone else — no penalty, you just rebook when you're ready.</li>
-              <li><strong className="text-[#F0EDE8]">Go live.</strong> Once we've got payment, your ad runs for the booked period.</li>
-            </ol>
-            <p className="mt-3"><strong className="text-[#F0EDE8]">Rejected? It costs you nothing.</strong> We don't take your money before approval, so if your creative doesn't fit, we tell you why, you fix it, and you try again. Zero charge.</p>
-          </GuideBlock>
-
-          <GuideBlock title="The Basics on Responsibility">
-            <ul className="space-y-2">
-              <li className="flex gap-3"><span className="text-[#C9922A] flex-shrink-0">•</span><span>By submitting an ad, you confirm you have the right to use the images and logos in it, and that what you're advertising is real and legal. <strong className="text-[#F0EDE8]">Your ad is your responsibility, not ours.</strong></span></li>
-              <li className="flex gap-3"><span className="text-[#C9922A] flex-shrink-0">•</span><span>We can decline or remove any ad, at our discretion — including pulling something later if it turns out to break the rules.</span></li>
-              <li className="flex gap-3"><span className="text-[#C9922A] flex-shrink-0">•</span><span>If <em>we</em> drop the ball — our server goes down, a technical fault on our end stops your paid ad running — we'll make it right with a replacement slot or a fair pro-rata refund, your choice.</span></li>
-            </ul>
-          </GuideBlock>
-        </section>
-
-        {/* ═══════════════════ TERMS ═══════════════════ */}
-        <section id="terms" className="scroll-mt-6">
-          <div className="bg-[#13151A] border border-white/10 rounded-sm p-3 mb-6 inline-block">
-            <span className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99]">The Binding Detail</span>
-          </div>
-
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight mb-3">
-            Advertising <span className="text-[#C9922A]">Terms</span>
-          </h2>
-          <p className="text-[14px] text-[#8A8E99] leading-relaxed mb-8 bg-[#13151A] border border-white/5 rounded-sm p-4">
-            <strong className="text-[#F0EDE8]">Plain-language note:</strong> these Terms sit behind the Guidelines above. The Guidelines are the short version; these Terms are what you're legally bound to when you book an ad. We've kept them as lean as we sensibly can.
-          </p>
-
-          <Term n="1" title="What These Cover">
-            <p>These Terms govern the submission, approval, payment, and display of advertisements ("Ads") on gunx.co.za and its subdomains (the "Platform"). They apply to anyone who submits an Ad ("you"). Where they conflict with our general Terms of Use on advertising specifically, these Terms win.</p>
-          </Term>
-
-          <Term n="2" title="Who Can Advertise">
-            <p>You must hold a valid Gun X account, be at least 18 (or an authorised representative of a company), and have the authority and the rights to everything you upload. Advertisers from any lawful industry are welcome.</p>
-          </Term>
-
-          <Term n="3" title="How the Agreement Forms">
-            <p>Submitting an Ad is an <strong className="text-[#F0EDE8]">offer</strong> to advertise. We accept it by approving the Ad and issuing an invoice. A <strong className="text-[#F0EDE8]">binding contract forms when we receive your payment</strong>. No payment is taken before approval, so a rejected Ad creates no charge and no contract.</p>
-          </Term>
-
-          <Term n="4" title="Approval and Payment">
-            <ol className="list-decimal pl-5 space-y-2 marker:text-[#C9922A] marker:font-bold">
-              <li>You submit your creative, slot, page, and duration. It enters review.</li>
-              <li>If approved, we invoice you. <strong className="text-[#F0EDE8]">Payment is due within 24 hours.</strong> A reminder is sent before the window closes.</li>
-              <li>If payment isn't received in time, the slot is released back to the pool. There's no penalty — you simply rebook subject to availability. You agreed to this when you booked, so it isn't a surprise.</li>
-              <li>Once paid, your Ad is scheduled and runs for the booked period.</li>
-            </ol>
-          </Term>
-
-          <Term n="5" title="Content Standards">
-            <p>Your Ad must comply with our Guidelines above and South African law. In short, it must not promote anything unlawful, adult / exploitative, hateful or violence-glorifying, scammy or seriously misleading, or a competing firearms platform.</p>
-            <p className="mt-3"><strong className="text-[#F0EDE8]">Firearm-specific:</strong> an Ad may promote your business and products, but it may not act as the direct point-of-sale for a specific firearm or ammunition. Such offers must link to a verified dealer listing on the Platform, where the relevant Firearms Control Act and SAPS / dealer-transfer checks apply.</p>
-          </Term>
-
-          <Term n="6" title="Your Warranties">
-            <p>By submitting an Ad you confirm that: you own or have permission for all creative content (images, logos, copy); what you advertise is real and may lawfully be supplied in South Africa; your claims are true and not misleading; and you have authority to agree to these Terms.</p>
-          </Term>
-
-          <Term n="7" title="Your Responsibility (Indemnity)">
-            <p>Your Ad is your responsibility. You indemnify GX SA (Pty) Ltd, its directors, and staff against any claim, loss, or cost arising from your Ad — including breach of your warranties above, infringement of someone else's rights, or breach of law. This is drawn to your attention because it matters: by booking, you accept it.</p>
-          </Term>
-
-          <Term n="8" title="Our Rights">
-            <p>We may <strong className="text-[#F0EDE8]">decline or remove any Ad at our discretion</strong>, including pulling an Ad later if it turns out to break the rules or the law. We review Ads as a courtesy and a quality check; doing so doesn't make us the author of, or responsible for, advertiser content, and we don't undertake to monitor everything continuously. If you believe an Ad infringes your rights, tell us at <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a> and we'll act on a valid notice.</p>
-          </Term>
-
-          <Term n="9" title="If We're at Fault">
-            <p>If we fail to run a paid, approved, live Ad for a reason on our side (e.g. platform downtime or a server fault), you may choose either an equivalent replacement placement or a fair pro-rata refund of the unused portion. The choice is yours.</p>
-          </Term>
-
-          <Term n="10" title="Liability">
-            <p>To the maximum extent the law allows, our total liability connected to any Ad is limited to the fee you paid for that Ad. Nothing in these Terms excludes liability that can't lawfully be excluded under South African law (including under the Consumer Protection Act where it applies to you).</p>
-          </Term>
-
-          <Term n="11" title="Your Information (POPIA)">
-            <p>When you book, we process your name, contact details, company name, and submission contents to administer your booking, contact you, and meet our legal duties. We use trusted service providers (for hosting, email, and messaging), some of which may process data outside South Africa, under appropriate safeguards. We record your acceptance of these Terms (date, time, version) as proof of agreement. Full detail, your rights, and our Information Officer's contact are in our Privacy / POPIA Notice.</p>
-          </Term>
-
-          <Term n="12" title="Changes">
-            <p>We may update these Terms. The version in force when you book governs that booking. Material changes get a new version number and effective date.</p>
-          </Term>
-
-          <Term n="13" title="Governing Law and Disputes">
-            <p>These Terms are governed by South African law. Disputes are subject to [the jurisdiction of the South African courts]. The rest of these Terms stay in force even if one part is found unenforceable (severability). These Terms, the Guidelines, and the documents they reference are the whole agreement on advertising. You may not cede your rights under them without our consent.</p>
-          </Term>
-
-          <Term n="14" title="Contact">
-            <p>GX SA (Pty) Ltd · <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a><br />
-            [Registered address · CIPC registration number · Information Officer contact to be inserted]</p>
-          </Term>
-        </section>
-
-        {/* CTA */}
-        <div className="mt-12 pt-6 border-t border-white/5 flex flex-col sm:flex-row gap-3">
-          <Link href="/advertise" className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all text-center">
-            ← Back to Advertise
-          </Link>
-          <Link href="/advertise/book" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
-            Book an Ad Slot →
-          </Link>
-        </div>
-      </div>
-
-      <Footer />
-    </div>
-  );
-}
-
-function GuideBlock({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-7">
-      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-tight mb-3 text-[#F0EDE8]">
-        {title}
-      </h3>
-      <div className="text-[14px] text-[#8A8E99] leading-relaxed space-y-3">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Term({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-7">
-      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg md:text-xl font-black uppercase tracking-tight mb-2 flex items-baseline gap-3">
-        <span className="text-[#C9922A]">{n}.</span>
-        <span>{title}</span>
-      </h3>
-      <div className="text-[14px] text-[#8A8E99] leading-relaxed space-y-2 pl-1">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function Pro({ t, children }: { t: string; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span className="text-[#E63946] flex-shrink-0 font-black">✕</span>
-      <span><strong className="text-[#F0EDE8]">{t}</strong> — {children}</span>
-    </li>
-  );
 }
 </file>
 
@@ -75698,506 +75532,232 @@ test.describe('Listings', () => {
 });
 </file>
 
-<file path="src/app/advertise/book/page.tsx">
+<file path="src/app/advertising-policy/page.tsx">
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import { supabase } from '@/lib/supabase';
 
-// ─── LOCKED RATE CARD — must match admin/ads/page.tsx exactly ────────────────
-const SLOT_RATES: Record<string, number> = {
-  leaderboard_top: 1500,
-  leaderboard_mid: 1200,
-  sidebar_left:    800,
-  sidebar_right:   800,
-  square_card:     500,
-};
+// ─── POLICY VERSION ──────────────────────────────────────────────────────────
+// Bump this whenever the Terms or Guidelines wording changes. The booking flow
+// stores the same value as `policy_version`, so you always know which version
+// each advertiser agreed to (POPIA evidence requirement). Local const, not
+// exported — Next.js page files may only export the component + metadata.
+const ADVERTISING_POLICY_VERSION = '1.1';
 
-const AD_SLOTS = [
-  { id: 'leaderboard_top', label: 'Leaderboard Top',  size: '970 × 90',  rate: SLOT_RATES.leaderboard_top, desc: 'Top of page, maximum visibility' },
-  { id: 'leaderboard_mid', label: 'Leaderboard Mid',  size: '728 × 90',  rate: SLOT_RATES.leaderboard_mid, desc: 'Mid-page, inline with content' },
-  { id: 'sidebar_left',    label: 'Sidebar Left',     size: '160 × 600', rate: SLOT_RATES.sidebar_left,    desc: 'Tall skyscraper, left column' },
-  { id: 'sidebar_right',   label: 'Sidebar Right',    size: '160 × 600', rate: SLOT_RATES.sidebar_right,   desc: 'Tall skyscraper, right column' },
-  { id: 'square_card',     label: 'Square Card',      size: '300 × 250', rate: SLOT_RATES.square_card,     desc: 'Compact block, broad reach' },
-];
-
-const PAGE_OPTIONS = [
-  { value: 'all',                  label: 'All Pages (Sitewide)' },
-  { value: 'home',                 label: 'Homepage' },
-  { value: 'browse_pistols',       label: 'Browse — Pistols' },
-  { value: 'browse_rifles',        label: 'Browse — Rifles' },
-  { value: 'browse_shotguns',      label: 'Browse — Shotguns' },
-  { value: 'browse_revolvers',     label: 'Browse — Revolvers' },
-  { value: 'browse_ammunition',    label: 'Browse — Ammunition' },
-  { value: 'browse_optics',        label: 'Browse — Optics' },
-  { value: 'browse_accessories',   label: 'Browse — Accessories' },
-  { value: 'browse_holsters',      label: 'Browse — Holsters' },
-  { value: 'browse_air_guns',      label: 'Browse — Air Guns' },
-  { value: 'browse_airsoft',       label: 'Browse — Airsoft' },
-  { value: 'browse_magazines',     label: 'Browse — Magazines' },
-  { value: 'browse_reloading',     label: 'Browse — Reloading' },
-  { value: 'browse_knives',        label: 'Browse — Knives' },
-  { value: 'listings_detail',      label: 'Listing Detail Page' },
-  { value: 'dealers_directory',    label: 'Dealers Directory' },
-  { value: 'dealers_profile',      label: 'Dealer Profile' },
-  { value: 'clubs_directory',      label: 'Clubs & Ranges Directory' },
-  { value: 'clubs_profile',        label: 'Club / Range Profile' },
-  { value: 'services_directory',   label: 'Services Directory' },
-  { value: 'services_profile',     label: 'Service Provider Profile' },
-  { value: 'jobs_board',           label: 'Jobs Board' },
-  { value: 'jobs_detail',          label: 'Job Detail Page' },
-  { value: 'wanted',               label: 'Wanted Ads' },
-  { value: 'search',               label: 'Search Results' },
-  { value: 'advisor',              label: 'FCA Match Advisor' },
-  { value: 'sell',                 label: 'Sell / Post Ad' },
-  { value: 'faqs',                 label: 'FAQs' },
-  { value: 'firearm_ownership',    label: 'Firearm Ownership Guide' },
-  { value: 'about',                label: 'About Page' },
-];
-
-const DURATION_OPTIONS = [
-  { value: 1, label: '1 Month' },
-  { value: 2, label: '2 Months' },
-  { value: 3, label: '3 Months (Max)' },
-];
-
-const AD_FORMATS = {
-  image: { label: 'Static Image', accept: 'image/jpeg,image/png,image/webp', tip: 'JPG, PNG or WebP — up to 50MB.' },
-  gif:   { label: 'Animated GIF', accept: 'image/gif',                       tip: 'GIF — up to 30MB. Keep under 15 seconds.' },
-  video: { label: 'Video',        accept: 'video/mp4,video/webm',            tip: 'MP4 or WebM — up to 50MB, max 30 seconds.' },
-};
-
-function addMonths(dateStr: string, months: number): string {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString();
-}
-
-export default function AdvertiseBookPage() {
-  const router = useRouter();
-  const [user, setUser]           = useState<any>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [step, setStep]           = useState(1);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError]         = useState('');
-  const [success, setSuccess]     = useState(false);
-  const [availabilityNote, setAvailabilityNote] = useState('');
-
-  // form state
-  const [slot, setSlot]           = useState('leaderboard_top');
-  const [page, setPage]           = useState('all');
-  const [duration, setDuration]   = useState(1);
-  const [startDate, setStartDate] = useState('');
-  const [adType, setAdType]       = useState('image');
-  const [clickUrl, setClickUrl]   = useState('');
-  const [file, setFile]           = useState<File | null>(null);
-  const [preview, setPreview]     = useState('');
-  const [title, setTitle]         = useState('');
-  const [clientName, setClientName]       = useState('');
-  const [clientCompany, setClientCompany] = useState('');
-  const [clientPhone, setClientPhone]     = useState('');
-  const [consented, setConsented]         = useState(false);
-
-  // ── Auth gate ──────────────────────────────────────────────────────────────
-  // Self-service booking is for signed-in account holders (dealers, clubs,
-  // ranges, service providers). Logged-out visitors and outside companies are
-  // sent to /advertise, where they see the rate card + contact-sales path.
-  useEffect(() => {
-    const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/advertise');
-        return;
-      }
-      setUser(user);
-      setAuthChecked(true);
-    };
-    check();
-  }, [router]);
-
-  // ── Availability check (soft — admin makes final call) ───────────────────────
-  useEffect(() => {
-    if (!startDate || !slot || !page) { setAvailabilityNote(''); return; }
-    const checkAvail = async () => {
-      const starts = new Date(startDate).toISOString();
-      const expires = addMonths(startDate, duration);
-      const { data } = await supabase
-        .from('ads')
-        .select('id, expires_at')
-        .eq('slot', slot)
-        .eq('page', page)
-        .eq('status', 'active')
-        .lt('starts_at', expires)
-        .gt('expires_at', starts);
-      if (data && data.length > 0) {
-        const until = new Date(data[0].expires_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
-        setAvailabilityNote(`⚠️ This slot is currently booked until ${until}. You can still submit — our team will confirm the earliest available date with you.`);
-      } else {
-        setAvailabilityNote('✓ This slot looks available for your selected dates.');
-      }
-    };
-    checkAvail();
-  }, [slot, page, startDate, duration]);
-
-  const slotInfo   = AD_SLOTS.find(s => s.id === slot);
-  const monthlyRate = slotInfo?.rate || 0;
-  const totalCost  = monthlyRate * duration;
-  const pageLabel  = PAGE_OPTIONS.find(p => p.value === page)?.label || page;
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 50 * 1024 * 1024) { setError('File is larger than 50MB. Please compress and try again.'); return; }
-    setError('');
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-  };
-
-  const canProceedStep1 = slot && page && duration && startDate;
-  const canProceedStep2 = file && clickUrl && title;
-  const canSubmit       = clientName && user?.email && consented;
-
-  const handleSubmit = async () => {
-    if (!file) { setError('Please upload your ad creative.'); return; }
-    setSubmitting(true);
-    setError('');
-
-    // 1. Upload creative to the images bucket
-    const ext  = file.name.split('.').pop();
-    const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error: upErr } = await supabase.storage.from('images').upload(path, file);
-    if (upErr) { setError('Upload failed: ' + upErr.message); setSubmitting(false); return; }
-    const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(path);
-
-    // 2. Insert booking as pending_review
-    const startsIso  = new Date(startDate).toISOString();
-    const expiresIso = addMonths(startDate, duration);
-
-    const { error: insErr } = await supabase.from('ads').insert({
-      client_name:    clientName,
-      client_email:   user.email,
-      client_phone:   clientPhone,
-      client_company: clientCompany,
-      title,
-      slot,
-      page,
-      ad_type:        adType,
-      file_url:       publicUrl,
-      click_url:      clickUrl,
-      starts_at:      startsIso,
-      expires_at:     expiresIso,
-      amount_paid:    totalCost,
-      rate_per_day:   Math.round(monthlyRate / 30),
-      status:         'pending_review',
-      consent_at:     new Date().toISOString(),
-      policy_version: '1.0',
-      notes:          `Self-service booking · ${duration} month(s) · submitted by ${user.email}`,
-    });
-
-    if (insErr) { setError('Submission failed: ' + insErr.message); setSubmitting(false); return; }
-
-    // 3. Notify admin (best-effort, non-blocking)
-    try {
-      await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'ad_submitted',
-          data: { title, slot, page: pageLabel, company: clientCompany || clientName, total: totalCost },
-        }),
-      });
-    } catch { /* email failure shouldn't block the booking */ }
-
-    setSubmitting(false);
-    setSuccess(true);
-  };
-
-  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[14px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50 transition-colors";
-  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-2";
-
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // ── SUCCESS STATE ────────────────────────────────────────────────────────────
-  if (success) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4 py-20">
-          <div className="max-w-lg text-center">
-            <div className="text-6xl mb-6">✅</div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase tracking-tight mb-4">
-              Booking <span className="text-[#C9922A]">Submitted</span>
-            </h1>
-            <p className="text-[#8A8E99] mb-2 leading-relaxed">
-              Your ad has been submitted for review. Our team checks every submission to keep the platform brand-safe — this usually takes under 24 hours.
-            </p>
-            <p className="text-[#8A8E99] mb-8 leading-relaxed">
-              We'll email <span className="text-[#C9922A] font-bold">{user.email}</span> with payment details and confirmation once it's approved.
-            </p>
-            <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 mb-8 text-left">
-              <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">Summary</p>
-              <div className="space-y-1.5 text-[13px]">
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label}</span></p>
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
-                <p className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5"><span className="text-[#8A8E99]">Total</span><span className="font-black text-[#C9922A]">R{totalCost.toLocaleString()}</span></p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/advertise" className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
-                Back to Advertise
-              </Link>
-              <Link href="/" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
-                Return Home
-              </Link>
-            </div>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  // ── BOOKING FLOW ─────────────────────────────────────────────────────────────
+export default function AdvertisingPolicyPage() {
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      <div className="flex-1 max-w-[800px] mx-auto w-full px-4 md:px-6 py-8 md:py-12">
+      <div className="flex-1 max-w-[820px] mx-auto w-full px-4 md:px-6 py-8 md:py-12">
 
         {/* Breadcrumb */}
         <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-4 flex items-center gap-2">
           <Link href="/" className="hover:text-[#C9922A]">Home</Link><span>/</span>
           <Link href="/advertise" className="hover:text-[#C9922A]">Advertise</Link><span>/</span>
-          <span className="text-[#F0EDE8]">Book a Slot</span>
+          <span className="text-[#F0EDE8]">Advertising Policy</span>
         </div>
 
         <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-2">
-          Book Your <span className="text-[#C9922A]">Ad Slot</span>
+          Advertising <span className="text-[#C9922A]">Policy</span>
         </h1>
-        <p className="text-[#8A8E99] text-sm mb-8">Signed in as {user.email}</p>
+        <p className="text-[#8A8E99] text-sm mb-2">GX SA (Pty) Ltd · Version {ADVERTISING_POLICY_VERSION}</p>
+        <p className="text-[#8A8E99] text-[12px] mb-8 italic">Effective date: 29 July 2026</p>
 
-        {/* STEP INDICATOR */}
-        <div className="flex items-center gap-2 mb-8">
-          {[1, 2, 3].map(n => (
-            <React.Fragment key={n}>
-              <div className={`flex items-center justify-center w-9 h-9 rounded-sm font-black text-[13px] flex-shrink-0 ${
-                step === n ? 'bg-[#C9922A] text-black' : step > n ? 'bg-[#C9922A]/20 text-[#C9922A]' : 'bg-[#13151A] border border-white/10 text-[#8A8E99]'
-              }`}>
-                {step > n ? '✓' : n}
-              </div>
-              {n < 3 && <div className={`flex-1 h-[2px] ${step > n ? 'bg-[#C9922A]/40' : 'bg-white/5'}`} />}
-            </React.Fragment>
-          ))}
+        {/* Jump links */}
+        <div className="flex flex-wrap gap-3 mb-10 pb-6 border-b border-white/5">
+          <a href="#guidelines" className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/30 bg-[#C9922A]/5 px-4 py-2 rounded-sm hover:bg-[#C9922A]/10 transition-all">
+            ↓ Guidelines (Plain English)
+          </a>
+          <a href="#terms" className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] border border-white/10 px-4 py-2 rounded-sm hover:text-[#F0EDE8] hover:border-white/20 transition-all">
+            ↓ Full Terms
+          </a>
         </div>
 
-        {error && <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-3 text-red-400 text-sm font-bold mb-6">{error}</div>}
-
-        {/* ── STEP 1: SLOT, PAGE, DURATION ───────────────────────────────────── */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div>
-              <label className={labelClass}>Choose Your Slot</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {AD_SLOTS.map(s => (
-                  <button key={s.id} onClick={() => setSlot(s.id)}
-                    className={`text-left p-4 rounded-sm border transition-all ${slot === s.id ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10 bg-[#13151A] hover:border-white/20'}`}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-[14px] uppercase tracking-wide">{s.label}</span>
-                      <span className="text-[#C9922A] font-black text-[15px]">R{s.rate.toLocaleString()}</span>
-                    </div>
-                    <p className="text-[11px] text-[#8A8E99] font-mono mb-1">{s.size} px</p>
-                    <p className="text-[11px] text-[#8A8E99]">{s.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Show On Page</label>
-                <select value={page} onChange={e => setPage(e.target.value)} className={inputClass}>
-                  {PAGE_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Duration</label>
-                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className={inputClass}>
-                  {DURATION_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className={labelClass}>Preferred Start Date</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} min={new Date().toISOString().split('T')[0]} />
-            </div>
-
-            {availabilityNote && (
-              <div className={`rounded-sm p-3 text-[13px] ${availabilityNote.startsWith('✓') ? 'bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981]' : 'bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B]'}`}>
-                {availabilityNote}
-              </div>
-            )}
-
-            {/* Cost preview */}
-            <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-5 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Total Cost</p>
-                <p className="text-[13px] text-[#8A8E99]">{slotInfo?.label} · {duration} month{duration > 1 ? 's' : ''}</p>
-              </div>
-              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">R{totalCost.toLocaleString()}</p>
-            </div>
-
-            <button onClick={() => setStep(2)} disabled={!canProceedStep1}
-              className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              Continue to Creative →
-            </button>
+        {/* ═══════════════════ GUIDELINES ═══════════════════ */}
+        <section id="guidelines" className="mb-16 scroll-mt-6">
+          <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-3 mb-6 inline-block">
+            <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">The 30-Second Version</span>
           </div>
-        )}
 
-        {/* ── STEP 2: CREATIVE + CLICK URL ───────────────────────────────────── */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div>
-              <label className={labelClass}>Campaign Name</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="e.g. Winter Promo 2026" />
-            </div>
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight mb-3">
+            Advertising <span className="text-[#C9922A]">Guidelines</span>
+          </h2>
+          <p className="text-[14px] text-[#8A8E99] leading-relaxed mb-8">
+            This is the plain-English summary of how advertising works on Gun X. The full legal detail lives in our <a href="#terms" className="text-[#C9922A] hover:brightness-125">Advertising Terms</a> below — by booking an ad, you agree to both.
+          </p>
 
-            <div>
-              <label className={labelClass}>Ad Format</label>
-              <div className="grid grid-cols-3 gap-3">
-                {Object.entries(AD_FORMATS).map(([id, f]) => (
-                  <button key={id} onClick={() => { setAdType(id); setFile(null); setPreview(''); }}
-                    className={`p-3 rounded-sm border text-center transition-all ${adType === id ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10 bg-[#13151A] hover:border-white/20'}`}>
-                    <p className="font-black text-[12px] uppercase">{f.label}</p>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-[#8A8E99] mt-2">{AD_FORMATS[adType as keyof typeof AD_FORMATS].tip}</p>
-            </div>
+          <GuideBlock title="What We're About">
+            <p>Gun X serves the lawful, clean South African shooting community and dealer network. Advertisers from any industry are welcome — gun shops, optics and gear, ranges, security firms, power tools, insurance, whatever fits the audience. We just need every ad to stay on the right side of the line.</p>
+          </GuideBlock>
 
-            <div>
-              <label className={labelClass}>Upload Creative — {slotInfo?.size} px</label>
-              <label className="flex flex-col items-center justify-center w-full h-[140px] bg-[#13151A] border-2 border-dashed border-white/20 rounded-sm cursor-pointer hover:border-[#C9922A]/50 transition-all">
-                <span className="text-3xl mb-2">📁</span>
-                <span className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest">{file ? file.name : 'Click to upload'}</span>
-                <input type="file" accept={AD_FORMATS[adType as keyof typeof AD_FORMATS].accept} onChange={handleFileChange} className="hidden" />
-              </label>
-            </div>
+          <GuideBlock title="What Your Ad Can't Contain">
+            <ul className="space-y-2.5">
+              <Pro t="Illegal stuff">no black-market sales, unlicensed firearm transfers, or illegal conversion kits. Anything firearm-related moves through proper dealer / SAPS channels, full stop.</Pro>
+              <Pro t="Adult or exploitative material">no pornographic, explicit, or sexually suggestive creative.</Pro>
+              <Pro t="Hate or harm">no racist content, hate speech, or anything that incites or glorifies real-world violence.</Pro>
+              <Pro t="Scams or deception">no fake listings, financial scams, or seriously misleading claims.</Pro>
+              <Pro t="Direct competitors">no advertising for rival firearm classified platforms.</Pro>
+            </ul>
+          </GuideBlock>
 
-            {preview && (
-              <div>
-                <label className={labelClass}>Preview</label>
-                <div className="w-full bg-[#13151A] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center p-4" style={{ minHeight: '120px' }}>
-                  {adType === 'video'
-                    ? <video src={preview} autoPlay muted loop playsInline className="max-w-full max-h-[300px]" />
-                    : <img src={preview} alt="Preview" className="max-w-full max-h-[300px] object-contain" />}
-                </div>
-              </div>
-            )}
+          <GuideBlock title="One Firearm Rule Worth Knowing">
+            <p>Your ad can promote your business and your products all day long. What it <strong className="text-[#F0EDE8]">can't</strong> do is act as the checkout for a specific firearm or ammunition — "buy this rifle, click here." Those link through to your verified dealer listing instead, where the proper checks already happen. Brand and product advertising is wide open; only the direct point-of-sale for a regulated item is off-limits in a banner.</p>
+          </GuideBlock>
 
-            <div>
-              <label className={labelClass}>Click-Through URL</label>
-              <input value={clickUrl} onChange={e => setClickUrl(e.target.value)} className={inputClass} placeholder="https://your-website.co.za" />
-              <p className="text-[11px] text-[#8A8E99] mt-1.5">Where people go when they click your ad.</p>
-            </div>
+          <GuideBlock title="How Booking Works">
+            <ol className="list-decimal pl-5 space-y-2 marker:text-[#C9922A] marker:font-bold">
+              <li><strong className="text-[#F0EDE8]">Submit.</strong> Upload your creative, pick your slot, page, and duration. It goes to our team for a quick review against the rules above. <strong className="text-[#F0EDE8]">No payment is taken yet.</strong></li>
+              <li><strong className="text-[#F0EDE8]">Get cleared.</strong> If it's good, we issue an invoice.</li>
+              <li><strong className="text-[#F0EDE8]">Pay within 24 hours</strong> to lock your slot. Miss the window and the spot simply goes back to the pool for someone else — no penalty, you just rebook when you're ready.</li>
+              <li><strong className="text-[#F0EDE8]">Go live.</strong> Once we've got payment, your ad runs for the booked period.</li>
+            </ol>
+            <p className="mt-3"><strong className="text-[#F0EDE8]">Rejected? It costs you nothing.</strong> We don't take your money before approval, so if your creative doesn't fit, we tell you why, you fix it, and you try again. Zero charge.</p>
+          </GuideBlock>
 
-            <div className="flex gap-3">
-              <button onClick={() => setStep(1)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
-                ← Back
-              </button>
-              <button onClick={() => setStep(3)} disabled={!canProceedStep2}
-                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                Continue to Details →
-              </button>
-            </div>
+          <GuideBlock title="The Basics on Responsibility">
+            <ul className="space-y-2">
+              <li className="flex gap-3"><span className="text-[#C9922A] flex-shrink-0">•</span><span>By submitting an ad, you confirm you have the right to use the images and logos in it, and that what you're advertising is real and legal. <strong className="text-[#F0EDE8]">Your ad is your responsibility, not ours.</strong></span></li>
+              <li className="flex gap-3"><span className="text-[#C9922A] flex-shrink-0">•</span><span>We can decline or remove any ad, at our discretion — including pulling something later if it turns out to break the rules.</span></li>
+              <li className="flex gap-3"><span className="text-[#C9922A] flex-shrink-0">•</span><span>If <em>we</em> drop the ball — our server goes down, a technical fault on our end stops your paid ad running — we'll make it right with a replacement slot or a fair pro-rata refund, your choice.</span></li>
+            </ul>
+          </GuideBlock>
+        </section>
+
+        {/* ═══════════════════ TERMS ═══════════════════ */}
+        <section id="terms" className="scroll-mt-6">
+          <div className="bg-[#13151A] border border-white/10 rounded-sm p-3 mb-6 inline-block">
+            <span className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99]">The Binding Detail</span>
           </div>
-        )}
 
-        {/* ── STEP 3: CONTACT + REVIEW ───────────────────────────────────────── */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Your Name *</label>
-                <input value={clientName} onChange={e => setClientName(e.target.value)} className={inputClass} placeholder="Full name" />
-              </div>
-              <div>
-                <label className={labelClass}>Company</label>
-                <input value={clientCompany} onChange={e => setClientCompany(e.target.value)} className={inputClass} placeholder="Company name (optional)" />
-              </div>
-              <div>
-                <label className={labelClass}>Email</label>
-                <input value={user.email} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} />
-              </div>
-              <div>
-                <label className={labelClass}>Phone</label>
-                <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={inputClass} placeholder="082 123 4567" />
-              </div>
-            </div>
+          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight mb-3">
+            Advertising <span className="text-[#C9922A]">Terms</span>
+          </h2>
+          <p className="text-[14px] text-[#8A8E99] leading-relaxed mb-8 bg-[#13151A] border border-white/5 rounded-sm p-4">
+            <strong className="text-[#F0EDE8]">Plain-language note:</strong> these Terms sit behind the Guidelines above. The Guidelines are the short version; these Terms are what you're legally bound to when you book an ad. We've kept them as lean as we sensibly can.
+          </p>
 
-            {/* Final review */}
-            <div className="bg-[#13151A] border border-white/5 rounded-sm p-5">
-              <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-4">Review Your Booking</p>
-              <div className="space-y-2 text-[13px]">
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Campaign</span><span className="font-bold">{title || '—'}</span></p>
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label} ({slotInfo?.size})</span></p>
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
-                <p className="flex justify-between"><span className="text-[#8A8E99]">Start</span><span className="font-bold">{startDate ? new Date(startDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span></p>
-                <p className="flex justify-between border-t border-white/10 pt-2 mt-2"><span className="text-[#8A8E99] font-black uppercase tracking-widest text-[11px] self-center">Total</span><span className="font-black text-[#C9922A] text-xl">R{totalCost.toLocaleString()}</span></p>
-              </div>
-            </div>
+          <Term n="1" title="What These Cover">
+            <p>These Terms govern the submission, approval, payment, and display of advertisements ("Ads") on gunx.co.za and its subdomains (the "Platform"). They apply to anyone who submits an Ad ("you"). Where they conflict with our general Terms of Use on advertising specifically, these Terms win.</p>
+          </Term>
 
-            <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
-              <p className="text-[12px] text-[#8A8E99] leading-relaxed">
-                Your ad enters our review queue. We check every submission against our advertising standards before approval — usually within 24 hours. <strong className="text-[#F0EDE8]">No payment is taken now.</strong> If approved, we'll email you an invoice and you'll have <strong className="text-[#F0EDE8]">24 hours to pay</strong> before the slot is released. A reminder is sent before the window closes.
-              </p>
-            </div>
+          <Term n="2" title="Who Can Advertise">
+            <p>You must hold a valid Gun X account, be at least 18 (or an authorised representative of a company), and have the authority and the rights to everything you upload. Advertisers from any lawful industry are welcome.</p>
+          </Term>
 
-            {/* POPIA-compliant consent — unticked by default, links to full policy */}
-            <label className="flex items-start gap-3 cursor-pointer bg-[#13151A] border border-white/10 rounded-sm p-4 hover:border-[#C9922A]/30 transition-all">
-              <input
-                type="checkbox"
-                checked={consented}
-                onChange={e => setConsented(e.target.checked)}
-                className="w-5 h-5 accent-[#C9922A] flex-shrink-0 mt-0.5"
-              />
-              <span className="text-[12px] text-[#8A8E99] leading-relaxed">
-                I agree to the Gun X{' '}
-                <Link href="/advertising-policy" target="_blank" className="text-[#C9922A] hover:brightness-125 underline">
-                  Advertising Terms and Guidelines
-                </Link>
-                . I understand that ads are reviewed before going live, that payment is due within 24 hours of approval or the slot is released, and that ads which violate the policy may be removed.
-              </span>
-            </label>
+          <Term n="3" title="How the Agreement Forms">
+            <p>Submitting an Ad is an <strong className="text-[#F0EDE8]">offer</strong> to advertise. We accept it by approving the Ad and issuing an invoice. A <strong className="text-[#F0EDE8]">binding contract forms when we receive your payment</strong>. No payment is taken before approval, so a rejected Ad creates no charge and no contract.</p>
+          </Term>
 
-            <div className="flex gap-3">
-              <button onClick={() => setStep(2)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
-                ← Back
-              </button>
-              <button onClick={handleSubmit} disabled={!canSubmit || submitting}
-                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                {submitting ? 'Submitting...' : 'Submit for Review →'}
-              </button>
-            </div>
-          </div>
-        )}
+          <Term n="4" title="Approval and Payment">
+            <ol className="list-decimal pl-5 space-y-2 marker:text-[#C9922A] marker:font-bold">
+              <li>You submit your creative, slot, page, and duration. It enters review.</li>
+              <li>If approved, we invoice you. <strong className="text-[#F0EDE8]">Payment is due within 24 hours.</strong> A reminder is sent before the window closes.</li>
+              <li>If payment isn't received in time, the slot is released back to the pool. There's no penalty — you simply rebook subject to availability. You agreed to this when you booked, so it isn't a surprise.</li>
+              <li>Once paid, your Ad is scheduled and runs for the booked period.</li>
+            </ol>
+          </Term>
+
+          <Term n="5" title="Content Standards">
+            <p>Your Ad must comply with our Guidelines above and South African law. In short, it must not promote anything unlawful, adult / exploitative, hateful or violence-glorifying, scammy or seriously misleading, or a competing firearms platform.</p>
+            <p className="mt-3"><strong className="text-[#F0EDE8]">Firearm-specific:</strong> an Ad may promote your business and products, but it may not act as the direct point-of-sale for a specific firearm or ammunition. Such offers must link to a verified dealer listing on the Platform, where the relevant Firearms Control Act and SAPS / dealer-transfer checks apply.</p>
+          </Term>
+
+          <Term n="6" title="Your Warranties">
+            <p>By submitting an Ad you confirm that: you own or have permission for all creative content (images, logos, copy); what you advertise is real and may lawfully be supplied in South Africa; your claims are true and not misleading; and you have authority to agree to these Terms.</p>
+          </Term>
+
+          <Term n="7" title="Your Responsibility (Indemnity)">
+            <p>Your Ad is your responsibility. You indemnify GX SA (Pty) Ltd, its directors, and staff against any claim, loss, or cost arising from your Ad — including breach of your warranties above, infringement of someone else's rights, or breach of law. This is drawn to your attention because it matters: by booking, you accept it.</p>
+          </Term>
+
+          <Term n="8" title="Our Rights">
+            <p>We may <strong className="text-[#F0EDE8]">decline or remove any Ad at our discretion</strong>, including pulling an Ad later if it turns out to break the rules or the law. We review Ads as a courtesy and a quality check; doing so doesn't make us the author of, or responsible for, advertiser content, and we don't undertake to monitor everything continuously. If you believe an Ad infringes your rights, tell us at <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a> and we'll act on a valid notice.</p>
+          </Term>
+
+          <Term n="9" title="If We're at Fault">
+            <p>If we fail to run a paid, approved, live Ad for a reason on our side (e.g. platform downtime or a server fault), you may choose either an equivalent replacement placement or a fair pro-rata refund of the unused portion. The choice is yours.</p>
+          </Term>
+
+          <Term n="10" title="Liability">
+            <p>To the maximum extent the law allows, our total liability connected to any Ad is limited to the fee you paid for that Ad. Nothing in these Terms excludes liability that can't lawfully be excluded under South African law (including under the Consumer Protection Act where it applies to you).</p>
+          </Term>
+
+          <Term n="11" title="Your Information (POPIA)">
+            <p>When you book, we process your name, contact details, company name, and submission contents to administer your booking, contact you, and meet our legal duties. We use trusted service providers (for hosting, email, and messaging), some of which may process data outside South Africa, under appropriate safeguards. We record your acceptance of these Terms (date, time, version) as proof of agreement. Our Information Officer is the company's head of operations, contactable at <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>. Full detail and your rights as a data subject are set out in our Privacy / POPIA Notice.</p>
+          </Term>
+
+          <Term n="12" title="Changes">
+            <p>We may update these Terms. The version in force when you book governs that booking. Material changes get a new version number and effective date.</p>
+          </Term>
+
+          <Term n="13" title="Governing Law and Disputes">
+            <p>These Terms are governed by South African law. Disputes are subject to the jurisdiction of the South African courts. The rest of these Terms stay in force even if one part is found unenforceable (severability). These Terms, the Guidelines, and the documents they reference are the whole agreement on advertising. You may not cede your rights under them without our consent.</p>
+          </Term>
+
+          <Term n="14" title="Contact">
+            <p>
+              <strong className="text-[#F0EDE8]">GX SA (Pty) Ltd</strong><br />
+              Registration number: 2025/830094/07<br />
+              Registered office: 11 Howe Street, Observatory, Western Cape, 7925<br />
+              General &amp; advertising enquiries: <a href="mailto:pewpew@gunx.co.za" className="text-[#C9922A] hover:brightness-125">pewpew@gunx.co.za</a><br />
+              Support &amp; Information Officer: <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>
+            </p>
+          </Term>
+        </section>
+
+        {/* CTA */}
+        <div className="mt-12 pt-6 border-t border-white/5 flex flex-col sm:flex-row gap-3">
+          <Link href="/advertise" className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all text-center">
+            ← Back to Advertise
+          </Link>
+          <Link href="/advertise/book" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
+            Book an Ad Slot →
+          </Link>
+        </div>
       </div>
 
       <Footer />
     </div>
+  );
+}
+
+function GuideBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-7">
+      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-tight mb-3 text-[#F0EDE8]">
+        {title}
+      </h3>
+      <div className="text-[14px] text-[#8A8E99] leading-relaxed space-y-3">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Term({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+  return (
+    <section className="mb-7">
+      <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg md:text-xl font-black uppercase tracking-tight mb-2 flex items-baseline gap-3">
+        <span className="text-[#C9922A]">{n}.</span>
+        <span>{title}</span>
+      </h3>
+      <div className="text-[14px] text-[#8A8E99] leading-relaxed space-y-2 pl-1">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function Pro({ t, children }: { t: string; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <span className="text-[#E63946] flex-shrink-0 font-black">✕</span>
+      <span><strong className="text-[#F0EDE8]">{t}</strong> — {children}</span>
+    </li>
   );
 }
 </file>
@@ -76727,6 +76287,412 @@ export default function ClubApplyPage() {
     }>
       <ClubApplyInner />
     </Suspense>
+  );
+}
+</file>
+
+<file path="src/app/dashboard/listings/edit/[id]/page.tsx">
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Navbar from '@/components/layout/Navbar';
+import { supabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
+
+export default function EditListingPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [makes, setMakes] = useState<any[]>([]);
+  const [calibres, setCalibres] = useState<any[]>([]);
+  const [conditions, setConditions] = useState<any[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [newImages, setNewImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [currentStatus, setCurrentStatus] = useState('active');
+
+  const [formData, setFormData] = useState({
+    title: '',
+    make_id: '',
+    calibre_id: '',
+    condition_id: '',
+    price: '',
+    category_id: '',
+    city: '',
+    description: '',
+    model: '',
+    action_type: '',
+    barrel_length: '',
+    capacity: '',
+  });
+
+  useEffect(() => { loadData(); }, [params.id]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) { router.push('/login'); return; }
+      setUser(currentUser);
+
+      const [listingRes, calibresRes, conditionsRes] = await Promise.all([
+        supabase.from('listings').select('*').eq('id', params.id).single(),
+        supabase.from('calibres').select('*').order('name'),
+        supabase.from('conditions').select('*').order('name'),
+      ]);
+
+      if (listingRes.error) throw listingRes.error;
+      const listing = listingRes.data;
+
+      if (listing.seller_id !== currentUser.id) {
+        alert('You do not have permission to edit this listing');
+        router.push('/dashboard');
+        return;
+      }
+
+      // Load makes filtered by this listing's category
+      const { data: makesData } = await supabase
+        .from('makes')
+        .select('*')
+        .contains('categories', [listing.category_id || 'pistols'])
+        .order('name');
+
+      setFormData({
+        title: listing.title || '',
+        make_id: listing.make_id || '',
+        calibre_id: listing.calibre_id || '',
+        condition_id: listing.condition_id || '',
+        price: listing.price?.toString() || '',
+        category_id: listing.category_id || '',
+        city: listing.city || '',
+        description: listing.description || '',
+        model: listing.model || '',
+        action_type: listing.action_type || '',
+        barrel_length: listing.barrel_length || '',
+        capacity: listing.capacity || '',
+      });
+
+      setCurrentStatus(listing.status || 'active');
+      setExistingImages(listing.images || []);
+      setMakes(makesData || []);
+      setCalibres(calibresRes.data || []);
+      setConditions(conditionsRes.data || []);
+    } catch (error) {
+      console.error('Error loading listing:', error);
+      alert('Failed to load listing');
+      router.push('/dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMakesForCategory = async (categoryId: string) => {
+    const { data } = await supabase
+      .from('makes')
+      .select('*')
+      .contains('categories', [categoryId])
+      .order('name');
+    setMakes(data || []);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name === 'category_id') {
+      setFormData(prev => ({ ...prev, category_id: value, make_id: '' }));
+      loadMakesForCategory(value);
+      return;
+    }
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const total = existingImages.length + newImages.length + files.length;
+    if (total > 5) { alert('Maximum 5 images allowed'); return; }
+    setNewImages(prev => [...prev, ...files]);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreviews(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const uploadImages = async () => {
+    if (newImages.length === 0) return [];
+    const uploadedUrls: string[] = [];
+    for (const file of newImages) {
+      const ext = file.name.split('.').pop();
+      const filePath = `listings/${user.id}/${Math.random().toString(36).substring(2)}.${ext}`;
+      const { error } = await supabase.storage.from('images').upload(filePath, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+      uploadedUrls.push(publicUrl);
+    }
+    return uploadedUrls;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const newUrls = await uploadImages();
+      const { error } = await supabase.from('listings').update({
+        title: formData.title,
+        make_id: formData.make_id || null,
+        calibre_id: formData.calibre_id || null,
+        condition_id: formData.condition_id || null,
+        price: parseFloat(formData.price),
+        category_id: formData.category_id,
+        city: formData.city,
+        description: formData.description,
+        model: formData.model,
+        action_type: formData.action_type || null,
+        barrel_length: formData.barrel_length || null,
+        capacity: formData.capacity || null,
+        images: [...existingImages, ...newUrls],
+        status: currentStatus,
+      }).eq('id', params.id);
+
+      if (error) throw error;
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Error updating listing:', error);
+      alert('Failed to update listing. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this listing permanently?')) return;
+    try {
+      await supabase.from('listings').delete().eq('id', params.id);
+      router.push('/dashboard');
+    } catch (error) {
+      alert('Failed to delete listing');
+    }
+  };
+
+  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 transition-colors";
+  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5";
+  const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6";
+
+  const CATEGORIES = [
+    { value: 'pistols', label: 'Pistols' },
+    { value: 'revolvers', label: 'Revolvers' },
+    { value: 'rifles', label: 'Rifles' },
+    { value: 'shotguns', label: 'Shotguns' },
+    { value: 'air-guns', label: 'Air Guns' },
+    { value: 'airsoft', label: 'Airsoft' },
+    { value: 'ammunition', label: 'Ammunition' },
+    { value: 'holsters', label: 'Holsters & Carry' },
+    { value: 'magazines', label: 'Magazines' },
+    { value: 'optics', label: 'Optics & Sights' },
+    { value: 'reloading', label: 'Reloading' },
+    { value: 'knives', label: 'Knives & Blades' },
+    { value: 'accessories', label: 'Accessories & Parts' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-[#8A8E99]">Loading listing...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+
+      <main className="flex-1 max-w-[900px] mx-auto w-full px-4 md:px-6 py-6 md:py-10">
+
+        {/* Header */}
+        <div className="mb-6">
+          <div className="text-[11px] text-[#8A8E99] uppercase tracking-widest mb-2 flex items-center gap-2">
+            <Link href="/dashboard" className="hover:text-[#C9922A]">Dashboard</Link>
+            <span>/</span>
+            <Link href="/dashboard/listings" className="hover:text-[#C9922A]">My Listings</Link>
+            <span>/</span>
+            <span className="text-[#F0EDE8]">Edit</span>
+          </div>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl md:text-4xl font-black uppercase mb-1">
+            Edit <span className="text-[#C9922A]">Listing</span>
+          </h1>
+          <p className="text-[13px] text-[#8A8E99]">Update your listing details below</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+          {/* Status */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Listing Status
+            </h2>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { id: 'active', label: 'Active', color: 'bg-[#2A9C6E] text-white' },
+                { id: 'under_offer', label: 'Under Offer', color: 'bg-[#C9922A] text-black' },
+                { id: 'sold', label: 'Sold', color: 'bg-red-500 text-white' },
+              ].map(s => (
+                <button key={s.id} type="button" onClick={() => setCurrentStatus(s.id)}
+                  className={`px-5 py-2.5 rounded-sm font-black text-[13px] uppercase tracking-widest transition-all ${
+                    currentStatus === s.id ? s.color : 'border border-white/20 text-[#8A8E99] hover:bg-white/5'
+                  }`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Basic Info */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Basic Information
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className={labelClass}>Title <span className="text-red-400">*</span></label>
+                <input name="title" value={formData.title} onChange={handleChange} required className={inputClass} placeholder="e.g., Glock 19 Gen 5 9mm" />
+              </div>
+              <div>
+                <label className={labelClass}>Category <span className="text-red-400">*</span></label>
+                <select name="category_id" value={formData.category_id} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select category...</option>
+                  {CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Price (R) <span className="text-red-400">*</span></label>
+                <input type="number" name="price" value={formData.price} onChange={handleChange} required className={inputClass} placeholder="12500" />
+              </div>
+              <div>
+                <label className={labelClass}>Make / Brand</label>
+                <select name="make_id" value={formData.make_id} onChange={handleChange} className={inputClass}>
+                  <option value="">Select make...</option>
+                  {makes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Model</label>
+                <input name="model" value={formData.model} onChange={handleChange} className={inputClass} placeholder="e.g., 19 Gen 5" />
+              </div>
+              <div>
+                <label className={labelClass}>Calibre</label>
+                <select name="calibre_id" value={formData.calibre_id} onChange={handleChange} className={inputClass}>
+                  <option value="">Select calibre...</option>
+                  {calibres.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Condition <span className="text-red-400">*</span></label>
+                <select name="condition_id" value={formData.condition_id} onChange={handleChange} required className={inputClass}>
+                  <option value="">Select condition...</option>
+                  {conditions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Action Type</label>
+                <input name="action_type" value={formData.action_type} onChange={handleChange} className={inputClass} placeholder="e.g., Semi-Auto" />
+              </div>
+              <div>
+                <label className={labelClass}>Barrel Length (inches)</label>
+                <input type="number" step="0.1" name="barrel_length" value={formData.barrel_length} onChange={handleChange} className={inputClass} placeholder="4.5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Location
+            </h2>
+            <div>
+              <label className={labelClass}>City / Province <span className="text-red-400">*</span></label>
+              <input name="city" value={formData.city} onChange={handleChange} required className={inputClass} placeholder="e.g., Cape Town, Western Cape" />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Description
+            </h2>
+            <textarea name="description" value={formData.description} onChange={handleChange} rows={5}
+              className={`${inputClass} resize-none`}
+              placeholder="Describe your item — condition, accessories included, reason for selling..." />
+          </div>
+
+          {/* Images */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Photos <span className="text-[#8A8E99] normal-case font-normal text-sm">({existingImages.length + newImages.length}/5)</span>
+            </h2>
+
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-3">
+              {existingImages.map((url, idx) => (
+                <div key={`e-${idx}`} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden group">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  {idx === 0 && <div className="absolute bottom-0 left-0 right-0 bg-[#C9922A] text-black text-[8px] font-black uppercase text-center py-0.5">Cover</div>}
+                  <button type="button" onClick={() => setExistingImages(prev => prev.filter((_, i) => i !== idx))}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    ×
+                  </button>
+                </div>
+              ))}
+              {imagePreviews.map((preview, idx) => (
+                <div key={`n-${idx}`} className="relative aspect-square bg-[#0D0F13] border border-[#C9922A]/30 rounded-sm overflow-hidden group">
+                  <img src={preview} alt="" className="w-full h-full object-cover" />
+                  <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 rounded-sm">New</div>
+                  <button type="button" onClick={() => {
+                    setNewImages(prev => prev.filter((_, i) => i !== idx));
+                    setImagePreviews(prev => prev.filter((_, i) => i !== idx));
+                  }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    ×
+                  </button>
+                </div>
+              ))}
+              {(existingImages.length + newImages.length) < 5 && (
+                <label className="aspect-square bg-[#0D0F13] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center cursor-pointer hover:border-[#C9922A]/50 transition-colors">
+                  <div className="text-center">
+                    <span className="text-2xl text-[#8A8E99]">+</span>
+                  </div>
+                  <input type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button type="submit" disabled={saving}
+              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            <Link href="/dashboard/listings"
+              className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
+              Cancel
+            </Link>
+            <button type="button" onClick={handleDelete}
+              className="sm:w-auto px-6 py-4 bg-red-500/10 border border-red-500/30 text-red-400 font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-red-500/20 transition-all">
+              Delete
+            </button>
+          </div>
+        </form>
+      </main>
+    </div>
   );
 }
 </file>
@@ -78637,407 +78603,505 @@ function PendingSection({ title, color, borderColor, viewAllHref, items, onAppro
 }
 </file>
 
-<file path="src/app/dashboard/listings/edit/[id]/page.tsx">
+<file path="src/app/advertise/book/page.tsx">
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 import { supabase } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/auth';
 
-export default function EditListingPage({ params }: { params: { id: string } }) {
+// ─── LOCKED RATE CARD — must match admin/ads/page.tsx exactly ────────────────
+const SLOT_RATES: Record<string, number> = {
+  leaderboard_top: 1500,
+  leaderboard_mid: 1200,
+  sidebar_left:    800,
+  sidebar_right:   800,
+  square_card:     500,
+};
+
+const AD_SLOTS = [
+  { id: 'leaderboard_top', label: 'Leaderboard Top',  size: '970 × 90',  rate: SLOT_RATES.leaderboard_top, desc: 'Top of page, maximum visibility' },
+  { id: 'leaderboard_mid', label: 'Leaderboard Mid',  size: '728 × 90',  rate: SLOT_RATES.leaderboard_mid, desc: 'Mid-page, inline with content' },
+  { id: 'sidebar_left',    label: 'Sidebar Left',     size: '160 × 600', rate: SLOT_RATES.sidebar_left,    desc: 'Tall skyscraper, left column' },
+  { id: 'sidebar_right',   label: 'Sidebar Right',    size: '160 × 600', rate: SLOT_RATES.sidebar_right,   desc: 'Tall skyscraper, right column' },
+  { id: 'square_card',     label: 'Square Card',      size: '300 × 250', rate: SLOT_RATES.square_card,     desc: 'Compact block, broad reach' },
+];
+
+const PAGE_OPTIONS = [
+  { value: 'all',                  label: 'All Pages (Sitewide)' },
+  { value: 'home',                 label: 'Homepage' },
+  { value: 'browse_pistols',       label: 'Browse — Pistols' },
+  { value: 'browse_rifles',        label: 'Browse — Rifles' },
+  { value: 'browse_shotguns',      label: 'Browse — Shotguns' },
+  { value: 'browse_revolvers',     label: 'Browse — Revolvers' },
+  { value: 'browse_ammunition',    label: 'Browse — Ammunition' },
+  { value: 'browse_optics',        label: 'Browse — Optics' },
+  { value: 'browse_accessories',   label: 'Browse — Accessories' },
+  { value: 'browse_holsters',      label: 'Browse — Holsters' },
+  { value: 'browse_air_guns',      label: 'Browse — Air Guns' },
+  { value: 'browse_airsoft',       label: 'Browse — Airsoft' },
+  { value: 'browse_magazines',     label: 'Browse — Magazines' },
+  { value: 'browse_reloading',     label: 'Browse — Reloading' },
+  { value: 'browse_knives',        label: 'Browse — Knives' },
+  { value: 'listings_detail',      label: 'Listing Detail Page' },
+  { value: 'dealers_directory',    label: 'Dealers Directory' },
+  { value: 'dealers_profile',      label: 'Dealer Profile' },
+  { value: 'clubs_directory',      label: 'Clubs & Ranges Directory' },
+  { value: 'clubs_profile',        label: 'Club / Range Profile' },
+  { value: 'services_directory',   label: 'Services Directory' },
+  { value: 'services_profile',     label: 'Service Provider Profile' },
+  { value: 'jobs_board',           label: 'Jobs Board' },
+  { value: 'jobs_detail',          label: 'Job Detail Page' },
+  { value: 'wanted',               label: 'Wanted Ads' },
+  { value: 'search',               label: 'Search Results' },
+  { value: 'advisor',              label: 'FCA Match Advisor' },
+  { value: 'sell',                 label: 'Sell / Post Ad' },
+  { value: 'faqs',                 label: 'FAQs' },
+  { value: 'firearm_ownership',    label: 'Firearm Ownership Guide' },
+  { value: 'about',                label: 'About Page' },
+];
+
+const DURATION_OPTIONS = [
+  { value: 1, label: '1 Month' },
+  { value: 2, label: '2 Months' },
+  { value: 3, label: '3 Months (Max)' },
+];
+
+const AD_FORMATS = {
+  image: { label: 'Static Image', accept: 'image/jpeg,image/png,image/webp', tip: 'JPG, PNG or WebP — up to 50MB.' },
+  gif:   { label: 'Animated GIF', accept: 'image/gif',                       tip: 'GIF — up to 30MB. Keep under 15 seconds.' },
+  video: { label: 'Video',        accept: 'video/mp4,video/webm',            tip: 'MP4 or WebM — up to 50MB, max 30 seconds.' },
+};
+
+function addMonths(dateStr: string, months: number): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+export default function AdvertiseBookPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [makes, setMakes] = useState<any[]>([]);
-  const [calibres, setCalibres] = useState<any[]>([]);
-  const [conditions, setConditions] = useState<any[]>([]);
-  const [existingImages, setExistingImages] = useState<string[]>([]);
-  const [newImages, setNewImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [currentStatus, setCurrentStatus] = useState('active');
+  const [user, setUser]           = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [step, setStep]           = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]         = useState('');
+  const [success, setSuccess]     = useState(false);
+  const [availabilityNote, setAvailabilityNote] = useState('');
 
-  const [formData, setFormData] = useState({
-    title: '',
-    make_id: '',
-    calibre_id: '',
-    condition_id: '',
-    price: '',
-    category_id: '',
-    city: '',
-    description: '',
-    model: '',
-    action_type: '',
-    barrel_length: '',
-    capacity: '',
-  });
+  // form state
+  const [slot, setSlot]           = useState('leaderboard_top');
+  const [page, setPage]           = useState('all');
+  const [duration, setDuration]   = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [adType, setAdType]       = useState('image');
+  const [clickUrl, setClickUrl]   = useState('');
+  const [file, setFile]           = useState<File | null>(null);
+  const [preview, setPreview]     = useState('');
+  const [title, setTitle]         = useState('');
+  const [clientName, setClientName]       = useState('');
+  const [clientCompany, setClientCompany] = useState('');
+  const [clientPhone, setClientPhone]     = useState('');
+  const [consented, setConsented]         = useState(false);
 
-  useEffect(() => { loadData(); }, [params.id]);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const currentUser = await getCurrentUser();
-      if (!currentUser) { router.push('/login'); return; }
-      setUser(currentUser);
-
-      const [listingRes, calibresRes, conditionsRes] = await Promise.all([
-        supabase.from('listings').select('*').eq('id', params.id).single(),
-        supabase.from('calibres').select('*').order('name'),
-        supabase.from('conditions').select('*').order('name'),
-      ]);
-
-      if (listingRes.error) throw listingRes.error;
-      const listing = listingRes.data;
-
-      if (listing.seller_id !== currentUser.id) {
-        alert('You do not have permission to edit this listing');
-        router.push('/dashboard');
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  // Self-service booking is for signed-in account holders (dealers, clubs,
+  // ranges, service providers). Logged-out visitors and outside companies are
+  // sent to /advertise, where they see the rate card + contact-sales path.
+  useEffect(() => {
+    const check = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/advertise');
         return;
       }
+      setUser(user);
+      setAuthChecked(true);
+    };
+    check();
+  }, [router]);
 
-      // Load makes filtered by this listing's category
-      const { data: makesData } = await supabase
-        .from('makes')
-        .select('*')
-        .contains('categories', [listing.category_id || 'pistols'])
-        .order('name');
+  // ── Availability check (soft — admin makes final call) ───────────────────────
+  useEffect(() => {
+    if (!startDate || !slot || !page) { setAvailabilityNote(''); return; }
+    const checkAvail = async () => {
+      const starts = new Date(startDate).toISOString();
+      const expires = addMonths(startDate, duration);
+      const { data } = await supabase
+        .from('ads')
+        .select('id, expires_at')
+        .eq('slot', slot)
+        .eq('page', page)
+        .eq('status', 'active')
+        .lt('starts_at', expires)
+        .gt('expires_at', starts);
+      if (data && data.length > 0) {
+        const until = new Date(data[0].expires_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+        setAvailabilityNote(`⚠️ This slot is currently booked until ${until}. You can still submit — our team will confirm the earliest available date with you.`);
+      } else {
+        setAvailabilityNote('✓ This slot looks available for your selected dates.');
+      }
+    };
+    checkAvail();
+  }, [slot, page, startDate, duration]);
 
-      setFormData({
-        title: listing.title || '',
-        make_id: listing.make_id || '',
-        calibre_id: listing.calibre_id || '',
-        condition_id: listing.condition_id || '',
-        price: listing.price?.toString() || '',
-        category_id: listing.category_id || '',
-        city: listing.city || '',
-        description: listing.description || '',
-        model: listing.model || '',
-        action_type: listing.action_type || '',
-        barrel_length: listing.barrel_length || '',
-        capacity: listing.capacity || '',
-      });
+  const slotInfo   = AD_SLOTS.find(s => s.id === slot);
+  const monthlyRate = slotInfo?.rate || 0;
+  const totalCost  = monthlyRate * duration;
+  const pageLabel  = PAGE_OPTIONS.find(p => p.value === page)?.label || page;
 
-      setCurrentStatus(listing.status || 'active');
-      setExistingImages(listing.images || []);
-      setMakes(makesData || []);
-      setCalibres(calibresRes.data || []);
-      setConditions(conditionsRes.data || []);
-    } catch (error) {
-      console.error('Error loading listing:', error);
-      alert('Failed to load listing');
-      router.push('/dashboard');
-    } finally {
-      setLoading(false);
-    }
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) { setError('File is larger than 50MB. Please compress and try again.'); return; }
+    setError('');
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
   };
 
-  const loadMakesForCategory = async (categoryId: string) => {
-    const { data } = await supabase
-      .from('makes')
-      .select('*')
-      .contains('categories', [categoryId])
-      .order('name');
-    setMakes(data || []);
-  };
+  const canProceedStep1 = slot && page && duration && startDate;
+  const canProceedStep2 = file && clickUrl && title;
+  const canSubmit       = clientName && user?.email && consented;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    if (name === 'category_id') {
-      setFormData(prev => ({ ...prev, category_id: value, make_id: '' }));
-      loadMakesForCategory(value);
-      return;
-    }
-    setFormData({ ...formData, [name]: value });
-  };
+  const handleSubmit = async () => {
+    if (!file) { setError('Please upload your ad creative.'); return; }
+    setSubmitting(true);
+    setError('');
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const total = existingImages.length + newImages.length + files.length;
-    if (total > 5) { alert('Maximum 5 images allowed'); return; }
-    setNewImages(prev => [...prev, ...files]);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => setImagePreviews(prev => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
+    // 1. Upload creative to the images bucket
+    const ext  = file.name.split('.').pop();
+    const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('images').upload(path, file);
+    if (upErr) { setError('Upload failed: ' + upErr.message); setSubmitting(false); return; }
+    const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(path);
+
+    // 2. Insert booking as pending_review
+    const startsIso  = new Date(startDate).toISOString();
+    const expiresIso = addMonths(startDate, duration);
+
+    const { error: insErr } = await supabase.from('ads').insert({
+      client_name:    clientName,
+      client_email:   user.email,
+      client_phone:   clientPhone,
+      client_company: clientCompany,
+      title,
+      slot,
+      page,
+      ad_type:        adType,
+      file_url:       publicUrl,
+      click_url:      clickUrl,
+      starts_at:      startsIso,
+      expires_at:     expiresIso,
+      amount_paid:    totalCost,
+      rate_per_day:   Math.round(monthlyRate / 30),
+      status:         'pending_review',
+      consent_at:     new Date().toISOString(),
+      policy_version: '1.1',
+      notes:          `Self-service booking · ${duration} month(s) · submitted by ${user.email}`,
     });
-  };
 
-  const uploadImages = async () => {
-    if (newImages.length === 0) return [];
-    const uploadedUrls: string[] = [];
-    for (const file of newImages) {
-      const ext = file.name.split('.').pop();
-      const filePath = `listings/${user.id}/${Math.random().toString(36).substring(2)}.${ext}`;
-      const { error } = await supabase.storage.from('images').upload(filePath, file);
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
-      uploadedUrls.push(publicUrl);
-    }
-    return uploadedUrls;
-  };
+    if (insErr) { setError('Submission failed: ' + insErr.message); setSubmitting(false); return; }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+    // 3. Notify admin (best-effort, non-blocking)
     try {
-      const newUrls = await uploadImages();
-      const { error } = await supabase.from('listings').update({
-        title: formData.title,
-        make_id: formData.make_id || null,
-        calibre_id: formData.calibre_id || null,
-        condition_id: formData.condition_id || null,
-        price: parseFloat(formData.price),
-        category_id: formData.category_id,
-        city: formData.city,
-        description: formData.description,
-        model: formData.model,
-        action_type: formData.action_type || null,
-        barrel_length: formData.barrel_length || null,
-        capacity: formData.capacity || null,
-        images: [...existingImages, ...newUrls],
-        status: currentStatus,
-      }).eq('id', params.id);
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'ad_submitted',
+          data: { title, slot, page: pageLabel, company: clientCompany || clientName, total: totalCost },
+        }),
+      });
+    } catch { /* email failure shouldn't block the booking */ }
 
-      if (error) throw error;
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Error updating listing:', error);
-      alert('Failed to update listing. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    setSubmitting(false);
+    setSuccess(true);
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Delete this listing permanently?')) return;
-    try {
-      await supabase.from('listings').delete().eq('id', params.id);
-      router.push('/dashboard');
-    } catch (error) {
-      alert('Failed to delete listing');
-    }
-  };
+  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[14px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50 transition-colors";
+  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-2";
 
-  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 transition-colors";
-  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5";
-  const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6";
-
-  const CATEGORIES = [
-    { value: 'pistols', label: 'Pistols' },
-    { value: 'revolvers', label: 'Revolvers' },
-    { value: 'rifles', label: 'Rifles' },
-    { value: 'shotguns', label: 'Shotguns' },
-    { value: 'air-guns', label: 'Air Guns' },
-    { value: 'airsoft', label: 'Airsoft' },
-    { value: 'ammunition', label: 'Ammunition' },
-    { value: 'holsters', label: 'Holsters & Carry' },
-    { value: 'magazines', label: 'Magazines' },
-    { value: 'optics', label: 'Optics & Sights' },
-    { value: 'reloading', label: 'Reloading' },
-    { value: 'knives', label: 'Knives & Blades' },
-    { value: 'accessories', label: 'Accessories & Parts' },
-  ];
-
-  if (loading) {
+  if (!authChecked) {
     return (
-      <div className="min-h-screen bg-[#0D0F13] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-[#C9922A] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-[#8A8E99]">Loading listing...</p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  // ── SUCCESS STATE ────────────────────────────────────────────────────────────
+  if (success) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-20">
+          <div className="max-w-lg text-center">
+            <div className="text-6xl mb-6">✅</div>
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase tracking-tight mb-4">
+              Booking <span className="text-[#C9922A]">Submitted</span>
+            </h1>
+            <p className="text-[#8A8E99] mb-2 leading-relaxed">
+              Your ad has been submitted for review. Our team checks every submission to keep the platform brand-safe — this usually takes under 24 hours.
+            </p>
+            <p className="text-[#8A8E99] mb-8 leading-relaxed">
+              We'll email <span className="text-[#C9922A] font-bold">{user.email}</span> with payment details and confirmation once it's approved.
+            </p>
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 mb-8 text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">Summary</p>
+              <div className="space-y-1.5 text-[13px]">
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
+                <p className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5"><span className="text-[#8A8E99]">Total</span><span className="font-black text-[#C9922A]">R{totalCost.toLocaleString()}</span></p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/advertise" className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
+                Back to Advertise
+              </Link>
+              <Link href="/" className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
+                Return Home
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // ── BOOKING FLOW ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-[900px] mx-auto w-full px-4 md:px-6 py-6 md:py-10">
+      <div className="flex-1 max-w-[800px] mx-auto w-full px-4 md:px-6 py-8 md:py-12">
 
-        {/* Header */}
-        <div className="mb-6">
-          <div className="text-[11px] text-[#8A8E99] uppercase tracking-widest mb-2 flex items-center gap-2">
-            <Link href="/dashboard" className="hover:text-[#C9922A]">Dashboard</Link>
-            <span>/</span>
-            <Link href="/dashboard/listings" className="hover:text-[#C9922A]">My Listings</Link>
-            <span>/</span>
-            <span className="text-[#F0EDE8]">Edit</span>
-          </div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl md:text-4xl font-black uppercase mb-1">
-            Edit <span className="text-[#C9922A]">Listing</span>
-          </h1>
-          <p className="text-[13px] text-[#8A8E99]">Update your listing details below</p>
+        {/* Breadcrumb */}
+        <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Link href="/" className="hover:text-[#C9922A]">Home</Link><span>/</span>
+          <Link href="/advertise" className="hover:text-[#C9922A]">Advertise</Link><span>/</span>
+          <span className="text-[#F0EDE8]">Book a Slot</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-2">
+          Book Your <span className="text-[#C9922A]">Ad Slot</span>
+        </h1>
+        <p className="text-[#8A8E99] text-sm mb-8">Signed in as {user.email}</p>
 
-          {/* Status */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Listing Status
-            </h2>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { id: 'active', label: 'Active', color: 'bg-[#2A9C6E] text-white' },
-                { id: 'under_offer', label: 'Under Offer', color: 'bg-[#C9922A] text-black' },
-                { id: 'sold', label: 'Sold', color: 'bg-red-500 text-white' },
-              ].map(s => (
-                <button key={s.id} type="button" onClick={() => setCurrentStatus(s.id)}
-                  className={`px-5 py-2.5 rounded-sm font-black text-[13px] uppercase tracking-widest transition-all ${
-                    currentStatus === s.id ? s.color : 'border border-white/20 text-[#8A8E99] hover:bg-white/5'
-                  }`}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* STEP INDICATOR */}
+        <div className="flex items-center gap-2 mb-8">
+          {[1, 2, 3].map(n => (
+            <React.Fragment key={n}>
+              <div className={`flex items-center justify-center w-9 h-9 rounded-sm font-black text-[13px] flex-shrink-0 ${
+                step === n ? 'bg-[#C9922A] text-black' : step > n ? 'bg-[#C9922A]/20 text-[#C9922A]' : 'bg-[#13151A] border border-white/10 text-[#8A8E99]'
+              }`}>
+                {step > n ? '✓' : n}
+              </div>
+              {n < 3 && <div className={`flex-1 h-[2px] ${step > n ? 'bg-[#C9922A]/40' : 'bg-white/5'}`} />}
+            </React.Fragment>
+          ))}
+        </div>
 
-          {/* Basic Info */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Basic Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className={labelClass}>Title <span className="text-red-400">*</span></label>
-                <input name="title" value={formData.title} onChange={handleChange} required className={inputClass} placeholder="e.g., Glock 19 Gen 5 9mm" />
-              </div>
-              <div>
-                <label className={labelClass}>Category <span className="text-red-400">*</span></label>
-                <select name="category_id" value={formData.category_id} onChange={handleChange} required className={inputClass}>
-                  <option value="">Select category...</option>
-                  {CATEGORIES.map(c => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Price (R) <span className="text-red-400">*</span></label>
-                <input type="number" name="price" value={formData.price} onChange={handleChange} required className={inputClass} placeholder="12500" />
-              </div>
-              <div>
-                <label className={labelClass}>Make / Brand</label>
-                <select name="make_id" value={formData.make_id} onChange={handleChange} className={inputClass}>
-                  <option value="">Select make...</option>
-                  {makes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Model</label>
-                <input name="model" value={formData.model} onChange={handleChange} className={inputClass} placeholder="e.g., 19 Gen 5" />
-              </div>
-              <div>
-                <label className={labelClass}>Calibre</label>
-                <select name="calibre_id" value={formData.calibre_id} onChange={handleChange} className={inputClass}>
-                  <option value="">Select calibre...</option>
-                  {calibres.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Condition <span className="text-red-400">*</span></label>
-                <select name="condition_id" value={formData.condition_id} onChange={handleChange} required className={inputClass}>
-                  <option value="">Select condition...</option>
-                  {conditions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Action Type</label>
-                <input name="action_type" value={formData.action_type} onChange={handleChange} className={inputClass} placeholder="e.g., Semi-Auto" />
-              </div>
-              <div>
-                <label className={labelClass}>Barrel Length (inches)</label>
-                <input type="number" step="0.1" name="barrel_length" value={formData.barrel_length} onChange={handleChange} className={inputClass} placeholder="4.5" />
-              </div>
-            </div>
-          </div>
+        {error && <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-3 text-red-400 text-sm font-bold mb-6">{error}</div>}
 
-          {/* Location */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Location
-            </h2>
+        {/* ── STEP 1: SLOT, PAGE, DURATION ───────────────────────────────────── */}
+        {step === 1 && (
+          <div className="space-y-6">
             <div>
-              <label className={labelClass}>City / Province <span className="text-red-400">*</span></label>
-              <input name="city" value={formData.city} onChange={handleChange} required className={inputClass} placeholder="e.g., Cape Town, Western Cape" />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Description
-            </h2>
-            <textarea name="description" value={formData.description} onChange={handleChange} rows={5}
-              className={`${inputClass} resize-none`}
-              placeholder="Describe your item — condition, accessories included, reason for selling..." />
-          </div>
-
-          {/* Images */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Photos <span className="text-[#8A8E99] normal-case font-normal text-sm">({existingImages.length + newImages.length}/5)</span>
-            </h2>
-
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-3">
-              {existingImages.map((url, idx) => (
-                <div key={`e-${idx}`} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden group">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                  {idx === 0 && <div className="absolute bottom-0 left-0 right-0 bg-[#C9922A] text-black text-[8px] font-black uppercase text-center py-0.5">Cover</div>}
-                  <button type="button" onClick={() => setExistingImages(prev => prev.filter((_, i) => i !== idx))}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
-                    ×
+              <label className={labelClass}>Choose Your Slot</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {AD_SLOTS.map(s => (
+                  <button key={s.id} onClick={() => setSlot(s.id)}
+                    className={`text-left p-4 rounded-sm border transition-all ${slot === s.id ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10 bg-[#13151A] hover:border-white/20'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-[14px] uppercase tracking-wide">{s.label}</span>
+                      <span className="text-[#C9922A] font-black text-[15px]">R{s.rate.toLocaleString()}</span>
+                    </div>
+                    <p className="text-[11px] text-[#8A8E99] font-mono mb-1">{s.size} px</p>
+                    <p className="text-[11px] text-[#8A8E99]">{s.desc}</p>
                   </button>
-                </div>
-              ))}
-              {imagePreviews.map((preview, idx) => (
-                <div key={`n-${idx}`} className="relative aspect-square bg-[#0D0F13] border border-[#C9922A]/30 rounded-sm overflow-hidden group">
-                  <img src={preview} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 rounded-sm">New</div>
-                  <button type="button" onClick={() => {
-                    setNewImages(prev => prev.filter((_, i) => i !== idx));
-                    setImagePreviews(prev => prev.filter((_, i) => i !== idx));
-                  }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
-                    ×
-                  </button>
-                </div>
-              ))}
-              {(existingImages.length + newImages.length) < 5 && (
-                <label className="aspect-square bg-[#0D0F13] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center cursor-pointer hover:border-[#C9922A]/50 transition-colors">
-                  <div className="text-center">
-                    <span className="text-2xl text-[#8A8E99]">+</span>
-                  </div>
-                  <input type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
-                </label>
-              )}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" disabled={saving}
-              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-            <Link href="/dashboard/listings"
-              className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
-              Cancel
-            </Link>
-            <button type="button" onClick={handleDelete}
-              className="sm:w-auto px-6 py-4 bg-red-500/10 border border-red-500/30 text-red-400 font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-red-500/20 transition-all">
-              Delete
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Show On Page</label>
+                <select value={page} onChange={e => setPage(e.target.value)} className={inputClass}>
+                  {PAGE_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Duration</label>
+                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className={inputClass}>
+                  {DURATION_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>Preferred Start Date</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} min={new Date().toISOString().split('T')[0]} />
+            </div>
+
+            {availabilityNote && (
+              <div className={`rounded-sm p-3 text-[13px] ${availabilityNote.startsWith('✓') ? 'bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981]' : 'bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B]'}`}>
+                {availabilityNote}
+              </div>
+            )}
+
+            {/* Cost preview */}
+            <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-5 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Total Cost</p>
+                <p className="text-[13px] text-[#8A8E99]">{slotInfo?.label} · {duration} month{duration > 1 ? 's' : ''}</p>
+              </div>
+              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">R{totalCost.toLocaleString()}</p>
+            </div>
+
+            <button onClick={() => setStep(2)} disabled={!canProceedStep1}
+              className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              Continue to Creative →
             </button>
           </div>
-        </form>
-      </main>
+        )}
+
+        {/* ── STEP 2: CREATIVE + CLICK URL ───────────────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div>
+              <label className={labelClass}>Campaign Name</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="e.g. Winter Promo 2026" />
+            </div>
+
+            <div>
+              <label className={labelClass}>Ad Format</label>
+              <div className="grid grid-cols-3 gap-3">
+                {Object.entries(AD_FORMATS).map(([id, f]) => (
+                  <button key={id} onClick={() => { setAdType(id); setFile(null); setPreview(''); }}
+                    className={`p-3 rounded-sm border text-center transition-all ${adType === id ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10 bg-[#13151A] hover:border-white/20'}`}>
+                    <p className="font-black text-[12px] uppercase">{f.label}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-[#8A8E99] mt-2">{AD_FORMATS[adType as keyof typeof AD_FORMATS].tip}</p>
+            </div>
+
+            <div>
+              <label className={labelClass}>Upload Creative — {slotInfo?.size} px</label>
+              <label className="flex flex-col items-center justify-center w-full h-[140px] bg-[#13151A] border-2 border-dashed border-white/20 rounded-sm cursor-pointer hover:border-[#C9922A]/50 transition-all">
+                <span className="text-3xl mb-2">📁</span>
+                <span className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest">{file ? file.name : 'Click to upload'}</span>
+                <input type="file" accept={AD_FORMATS[adType as keyof typeof AD_FORMATS].accept} onChange={handleFileChange} className="hidden" />
+              </label>
+            </div>
+
+            {preview && (
+              <div>
+                <label className={labelClass}>Preview</label>
+                <div className="w-full bg-[#13151A] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center p-4" style={{ minHeight: '120px' }}>
+                  {adType === 'video'
+                    ? <video src={preview} autoPlay muted loop playsInline className="max-w-full max-h-[300px]" />
+                    : <img src={preview} alt="Preview" className="max-w-full max-h-[300px] object-contain" />}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className={labelClass}>Click-Through URL</label>
+              <input value={clickUrl} onChange={e => setClickUrl(e.target.value)} className={inputClass} placeholder="https://your-website.co.za" />
+              <p className="text-[11px] text-[#8A8E99] mt-1.5">Where people go when they click your ad.</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(1)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                ← Back
+              </button>
+              <button onClick={() => setStep(3)} disabled={!canProceedStep2}
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                Continue to Details →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: CONTACT + REVIEW ───────────────────────────────────────── */}
+        {step === 3 && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Your Name *</label>
+                <input value={clientName} onChange={e => setClientName(e.target.value)} className={inputClass} placeholder="Full name" />
+              </div>
+              <div>
+                <label className={labelClass}>Company</label>
+                <input value={clientCompany} onChange={e => setClientCompany(e.target.value)} className={inputClass} placeholder="Company name (optional)" />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input value={user.email} disabled className={`${inputClass} opacity-60 cursor-not-allowed`} />
+              </div>
+              <div>
+                <label className={labelClass}>Phone</label>
+                <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={inputClass} placeholder="082 123 4567" />
+              </div>
+            </div>
+
+            {/* Final review */}
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-5">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-4">Review Your Booking</p>
+              <div className="space-y-2 text-[13px]">
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Campaign</span><span className="font-bold">{title || '—'}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label} ({slotInfo?.size})</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
+                <p className="flex justify-between"><span className="text-[#8A8E99]">Start</span><span className="font-bold">{startDate ? new Date(startDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span></p>
+                <p className="flex justify-between border-t border-white/10 pt-2 mt-2"><span className="text-[#8A8E99] font-black uppercase tracking-widest text-[11px] self-center">Total</span><span className="font-black text-[#C9922A] text-xl">R{totalCost.toLocaleString()}</span></p>
+              </div>
+            </div>
+
+            <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
+              <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                Your ad enters our review queue. We check every submission against our advertising standards before approval — usually within 24 hours. <strong className="text-[#F0EDE8]">No payment is taken now.</strong> If approved, we'll email you an invoice and you'll have <strong className="text-[#F0EDE8]">24 hours to pay</strong> before the slot is released. A reminder is sent before the window closes.
+              </p>
+            </div>
+
+            {/* POPIA-compliant consent — unticked by default, links to full policy */}
+            <label className="flex items-start gap-3 cursor-pointer bg-[#13151A] border border-white/10 rounded-sm p-4 hover:border-[#C9922A]/30 transition-all">
+              <input
+                type="checkbox"
+                checked={consented}
+                onChange={e => setConsented(e.target.checked)}
+                className="w-5 h-5 accent-[#C9922A] flex-shrink-0 mt-0.5"
+              />
+              <span className="text-[12px] text-[#8A8E99] leading-relaxed">
+                I agree to the Gun X{' '}
+                <Link href="/advertising-policy" target="_blank" className="text-[#C9922A] hover:brightness-125 underline">
+                  Advertising Terms and Guidelines
+                </Link>
+                . I understand that ads are reviewed before going live, that payment is due within 24 hours of approval or the slot is released, and that ads which violate the policy may be removed.
+              </span>
+            </label>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(2)} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                ← Back
+              </button>
+              <button onClick={handleSubmit} disabled={!canSubmit || submitting}
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                {submitting ? 'Submitting...' : 'Submit for Review →'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Footer />
     </div>
   );
 }

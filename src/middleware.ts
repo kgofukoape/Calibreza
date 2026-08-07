@@ -1,14 +1,25 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { verifyAdminSession, ADMIN_SESSION_COOKIE } from '@/lib/adminSession'
 
-// ─── SECRET ADMIN ENTRY ──────────────────────────────────────────────────────
-// Admin console lives at /admin/* internally. It's a dead end (404) for anyone
-// who hasn't first visited the secret entry path.
+// ─── SECRET ADMIN ENTRY + REAL SERVER-SIDE AUTH ──────────────────────────────
+// Two layers guard the admin console:
+//
+//   Layer 1 (obscurity): /admin/* is a 404 for anyone who hasn't first visited
+//                        the secret entry path. Hides the door.
+//   Layer 2 (security):  /admin/* additionally requires a SIGNED session cookie
+//                        issued by /api/admin/login after a server-side password
+//                        check. This is the actual lock.
+//
+// Layer 2 matters because localStorage can be set by anyone in a browser
+// console — it is not, and never was, authentication. The signed httpOnly
+// cookie cannot be read or forged by client JavaScript.
 //
 // Flow:
-//   1. Visit  /sejamagoma   → sets gate cookie, redirects to /admin
-//   2. /admin/* loads only if the gate cookie is present
-//   3. /admin direct (no cookie) → 404
+//   1. Visit /sejamagoma          → sets gate cookie, redirects to /admin
+//   2. No session cookie          → sent to /admin/login
+//   3. Correct password           → /api/admin/login sets signed session cookie
+//   4. /admin/* now loads
 //
 // Change ADMIN_SECRET_PATH to rename the secret door. Keep it private.
 const ADMIN_SECRET_PATH = '/sejamagoma'
@@ -33,13 +44,28 @@ export async function middleware(request: NextRequest) {
     return res
   }
 
-  // ── 2. Guard /admin/* : allow only if gate cookie present, else 404 ──────────
+  // ── 2. Guard /admin/* ────────────────────────────────────────────────────────
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    // 2a. Gate cookie missing → pretend nothing is here
     const gate = request.cookies.get(ADMIN_GATE_COOKIE)
     if (!gate || gate.value !== ADMIN_GATE_VALUE) {
-      // Serve the 404 page while keeping the URL — looks like nothing's here
       return NextResponse.rewrite(new URL('/not-found-gx', request.url))
     }
+
+    // 2b. The login page itself must stay reachable without a session
+    if (pathname === '/admin/login') {
+      return NextResponse.next()
+    }
+
+    // 2c. Everything else requires a valid signed session
+    const secret = process.env.ADMIN_SESSION_SECRET
+    const session = request.cookies.get(ADMIN_SESSION_COOKIE)?.value
+    const valid = await verifyAdminSession(session, secret ?? '')
+
+    if (!valid) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+
     return NextResponse.next()
   }
 

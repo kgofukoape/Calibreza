@@ -1,9 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const ADMIN_PASSWORD = 'GunX@Admin2026!';
+// ─── ADMIN LOGIN ─────────────────────────────────────────────────────────────
+// The password is NOT in this file. It lives server-side in the ADMIN_PASSWORD
+// environment variable and is checked by /api/admin/login, which then issues a
+// signed httpOnly session cookie that the middleware verifies on every /admin
+// request.
+//
+// Anything in a 'use client' file is shipped to the browser and readable by
+// anyone — which is exactly why the old hardcoded password had to go.
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -11,26 +18,33 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // If already logged in as admin redirect to dashboard
-    if (typeof window !== 'undefined') {
-      const adminSession = localStorage.getItem('gunx_admin_session');
-      if (adminSession === 'authenticated') {
-        router.push('/admin');
-      }
-    }
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem('gunx_admin_session', 'authenticated');
-      router.push('/admin');
-    } else {
-      setError('Incorrect password. Try again.');
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
+        // Kept only so the existing admin pages' client-side checks stay happy.
+        // This is a UX convenience, NOT security — the real gate is the signed
+        // httpOnly cookie enforced by middleware.
+        localStorage.setItem('gunx_admin_session', 'authenticated');
+        router.push('/admin');
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || 'Incorrect password. Try again.');
+        setPassword('');
+        setLoading(false);
+      }
+    } catch {
+      setError('Could not reach the server. Try again.');
       setLoading(false);
     }
   };
