@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       const customStr1 = data['custom_str1'] || '';
       const customStr2 = data['custom_str2'] || '';
       const customStr3 = data['custom_str3'] || '';
+      const customStr4 = data['custom_str4'] || '';
       const pfToken = data['token'] || null;
       const promoId = data['m_payment_id'] || '';
       const amountGross = parseFloat(data['amount_gross'] || '0');
@@ -135,25 +136,64 @@ export async function POST(req: NextRequest) {
         const plan = customStr2; // 'pro' or 'premium'
         const dealerId = customStr3;
 
-        // 4. Amount check — never upgrade on an underpayment
+        // 4. Amount check — never upgrade on an underpayment.
+        //    A PRORATED UPGRADE legitimately pays LESS than the full tier price
+        //    on its first payment (the unused portion of the old plan is
+        //    credited), so accept a lower first payment when this ITN is flagged
+        //    as prorated. Subsequent recurring payments are the full amount.
+        const isProrated = customStr4 === 'prorated';
         const expected = DEALER_PLAN_PRICES[plan];
+
         if (expected === undefined) {
           console.warn(`Unknown dealer plan "${plan}" — amount not verified`);
+        } else if (isProrated) {
+          // Must still be a positive payment, and never MORE than the tier price
+          if (amountGross <= 0 || amountGross > expected + 0.01) {
+            console.error(`Prorated upgrade REJECTED — R${amountGross} outside 0 < x <= R${expected}`);
+            return new NextResponse('OK', { status: 200 });
+          }
+          console.log(`Prorated upgrade accepted: R${amountGross} toward ${plan}`);
         } else if (Math.abs(amountGross - expected) > 0.01) {
           console.error(`Dealer subscription REJECTED — expected R${expected}, got R${amountGross}`);
           return new NextResponse('OK', { status: 200 });
         }
 
+        // Set the paid-until date. Without this, proration on a future upgrade
+        // has no period to calculate against (and the dashboard shows "—").
+        const periodEnd = new Date();
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+
         await supabase
           .from('dealers')
           .update({
             subscription_tier: plan,
+            subscription_status: 'active',
             payfast_token: pfToken,
+            current_period_end: periodEnd.toISOString(),
+            subscribed_at: new Date().toISOString(),
+            pending_tier: null,
+            pending_change_type: null,
+            cancellation_requested_at: null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', dealerId);
 
-        console.log(`Dealer subscription activated: ${dealerId} -> ${plan}`);
+        // Audit trail for billing disputes
+        try {
+          await supabase.from('subscription_events').insert({
+            entity_type: 'dealer',
+            entity_id: dealerId,
+            event_type: 'payment_received',
+            to_tier: plan,
+            amount: amountGross,
+            actor: 'payfast',
+            notes: isProrated ? 'Prorated upgrade payment' : 'Subscription payment',
+          });
+        } catch (e) {
+          console.error('subscription_events insert failed:', e);
+        }
+
+        console.log(`Dealer subscription activated: ${dealerId} -> ${plan}, paid until ${periodEnd.toISOString()}`);
       }
 
       // ── CASE B: LISTING BOOST ──

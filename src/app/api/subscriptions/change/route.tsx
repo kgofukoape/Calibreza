@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit, getClientIp, isSameOrigin } from '@/lib/rateLimit';
+import { calculateProration, isUpgrade, PLAN_PRICES } from '@/lib/proration';
 
 // ─── SUBSCRIPTION CHANGES (upgrade / downgrade / cancel / reactivate) ────────
 //
@@ -35,7 +36,7 @@ const supabase = createClient(
 const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, premium: 2 };
 const PAID_PLANS = ['pro', 'premium'];
 
-type Action = 'cancel' | 'downgrade' | 'reactivate' | 'check';
+type Action = 'cancel' | 'downgrade' | 'reactivate' | 'check' | 'upgrade_quote';
 
 async function logEvent(params: {
   entity_type: string;
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
   const action: Action = body?.action;
   const targetTier: string | undefined = body?.targetTier;
 
-  if (!entityId || !['cancel', 'downgrade', 'reactivate', 'check'].includes(action)) {
+  if (!entityId || !['cancel', 'downgrade', 'reactivate', 'check', 'upgrade_quote'].includes(action)) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 
@@ -141,6 +142,34 @@ export async function POST(req: NextRequest) {
       message: hasActivePaid
         ? 'An active subscription already exists. Cancel it before starting a new plan, or contact support to change plans without a billing gap.'
         : 'No active paid subscription.',
+    });
+  }
+
+  // ── UPGRADE QUOTE — prorated cost to move up a tier today ──────────────────
+  // Rather than forcing "cancel, wait out the month, re-subscribe" (friction
+  // that loses upgrades), we credit the unused portion of the current plan and
+  // charge only the difference.
+  if (action === 'upgrade_quote') {
+    if (!targetTier || !(targetTier in PLAN_PRICES)) {
+      return NextResponse.json({ error: 'Invalid target plan' }, { status: 400 });
+    }
+    if (!isUpgrade(currentTier, targetTier)) {
+      return NextResponse.json(
+        { error: 'That is not an upgrade. Use a scheduled downgrade instead.' },
+        { status: 400 },
+      );
+    }
+
+    const quote = calculateProration(currentTier, targetTier, periodEnd);
+
+    return NextResponse.json({
+      ok: true,
+      currentTier,
+      targetTier,
+      ...quote,
+      // Honest about the operational constraint — the old recurring charge at
+      // PayFast must be stopped, or the customer pays twice.
+      requiresOldSubscriptionCancellation: PLAN_PRICES[currentTier] > 0,
     });
   }
 

@@ -108,6 +108,7 @@ export default function SubscriptionPage() {
   const [confirming, setConfirming] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [subInfo, setSubInfo] = useState<any>(null);
+  const [upgradeQuote, setUpgradeQuote] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
@@ -208,20 +209,48 @@ export default function SubscriptionPage() {
     if (planId === dealer?.subscription_tier) return;
     if (planId === 'free' || planId === 'pay_per_ad') return;
 
-    // GUARD: never start a second paid subscription on top of a running one.
-    // PayFast recurring plans cannot be modified in place, so the existing plan
-    // must be cancelled first — otherwise both would bill.
+    // If a paid subscription is already running we do NOT simply start a second
+    // one (that would double-bill). Instead we fetch a prorated upgrade quote:
+    // the unused portion of the current plan is credited against the new one.
     if (subInfo && subInfo.hasActivePaid) {
-      setActionMessage({
-        kind: 'err',
-        text: 'You already have an active subscription. Cancel it first (it runs to the end of your paid period), then start the new plan — this prevents you being billed twice.',
-      });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      requestUpgradeQuote(planId);
       return;
     }
 
     setSelectedPlan(planId);
     setConfirming(true);
+  };
+
+  const requestUpgradeQuote = async (targetTier: string) => {
+    if (!dealer?.id) return;
+    setActionLoading(true);
+    setActionMessage(null);
+    setUpgradeQuote(null);
+    try {
+      const res = await fetch('/api/subscriptions/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: 'dealer',
+          entityId: dealer.id,
+          action: 'upgrade_quote',
+          targetTier,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUpgradeQuote(data);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        // Not an upgrade (i.e. a downgrade) — route to the scheduled path
+        setActionMessage({ kind: 'err', text: data.error || 'Could not calculate an upgrade.' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch {
+      setActionMessage({ kind: 'err', text: 'Could not reach the server. Please try again.' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handlePayFastSubscription = () => {
@@ -458,6 +487,72 @@ export default function SubscriptionPage() {
               </div>
             </div>
           </div>
+
+          {/* ── PRORATED UPGRADE QUOTE ──────────────────────────────────── */}
+          {upgradeQuote && (
+            <div className="bg-[#13151A] border border-[#C9922A]/30 rounded-sm p-6">
+              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="text-2xl font-black uppercase mb-2">
+                Upgrade to <span className="text-[#C9922A]">{upgradeQuote.targetTier}</span>
+              </h2>
+              <p className="text-[13px] text-[#8A8E99] mb-5 leading-relaxed">
+                {upgradeQuote.explanation}
+              </p>
+
+              <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-4 mb-5 space-y-2">
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-[#8A8E99]">{upgradeQuote.targetTier} plan</span>
+                  <span className="text-[#F0EDE8] font-bold">R{Number(upgradeQuote.newPlanPrice).toFixed(2)}</span>
+                </div>
+                {upgradeQuote.canProrate && (
+                  <div className="flex justify-between text-[13px]">
+                    <span className="text-[#8A8E99]">
+                      Credit — {upgradeQuote.unusedDays} unused day{upgradeQuote.unusedDays === 1 ? '' : 's'} of {upgradeQuote.currentTier}
+                    </span>
+                    <span className="text-[#2A9C6E] font-bold">− R{Number(upgradeQuote.creditAmount).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-2 border-t border-white/5">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] self-center">Pay today</span>
+                  <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">
+                    R{Number(upgradeQuote.amountDueToday).toFixed(2)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#8A8E99] pt-1">
+                  Then R{Number(upgradeQuote.recurringAmount).toFixed(2)} per month from next month.
+                </p>
+              </div>
+
+              {upgradeQuote.requiresOldSubscriptionCancellation && (
+                <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4 mb-5">
+                  <p className="text-[12px] text-[#F59E0B] leading-relaxed">
+                    <strong className="uppercase tracking-widest font-black">One step on our side</strong><br />
+                    Your existing {upgradeQuote.currentTier} debit order must be stopped before the new one starts,
+                    so you are never charged twice. Payments are not live on Gun X yet — request the upgrade below
+                    and our team will action it and confirm by email before anything is charged.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={`mailto:support@gunx.co.za?subject=Upgrade%20to%20${encodeURIComponent(upgradeQuote.targetTier)}&body=${encodeURIComponent(
+                    `Please upgrade my account to ${upgradeQuote.targetTier}.\n\n` +
+                    `Business: ${dealer?.business_name || ''}\n` +
+                    `Current plan: ${upgradeQuote.currentTier}\n` +
+                    `Quoted today: R${Number(upgradeQuote.amountDueToday).toFixed(2)}\n` +
+                    `Then: R${Number(upgradeQuote.recurringAmount).toFixed(2)}/month`
+                  )}`}
+                  className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:brightness-110 transition-all">
+                  Request This Upgrade
+                </a>
+                <button onClick={() => setUpgradeQuote(null)}
+                  className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:bg-white/5 transition-all">
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── MANAGE SUBSCRIPTION ─────────────────────────────────────── */}
           {subInfo && (
