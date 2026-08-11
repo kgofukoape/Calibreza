@@ -133,7 +133,19 @@ export default function AdminOverviewPage() {
     setStats(s => ({ ...s, pendingJobs: s.pendingJobs - 1 }));
   };
 
-  const handleLogout = () => { localStorage.removeItem('gunx_admin_session'); router.push('/admin/login'); };
+  const handleLogout = async () => {
+    // Clear the signed httpOnly session cookie server-side. Removing the
+    // localStorage flag alone does NOT end the session — the cookie is what
+    // the middleware actually checks.
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch {
+      /* still clear local state below */
+    }
+    localStorage.removeItem('gunx_admin_session');
+    router.push('/admin/login');
+    router.refresh();
+  };
   const fmt    = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
   const fmtCat = (c: string) => c?.replace(/-/g, ' ').replace(/\b\w/g, x => x.toUpperCase()) || '—';
 
@@ -203,8 +215,8 @@ export default function AdminOverviewPage() {
             <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Quick Links</p>
             <ul className="space-y-1">
               {[
-                ['🌐', 'View Site',     'http://localhost:3000'],
-                ['🔧', 'Services Page', 'http://localhost:3000/services'],
+                ['🌐', 'View Site',     '/'],
+                ['🔧', 'Services Page', '/services'],
                 ['🗄️', 'Supabase',     'https://supabase.com/dashboard/project/xklyirzvbjncedymrjqj'],
               ].map(([icon, label, href]) => (
                 <li key={label}>
@@ -217,7 +229,10 @@ export default function AdminOverviewPage() {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4 border-t border-white/5 space-y-1">
+          <Link href="/" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-[#C9922A] hover:bg-[#C9922A]/10 font-black text-[11px] uppercase tracking-widest transition-all">
+            <span>🏠</span><span>Back to Gun X Home</span>
+          </Link>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-red-400 hover:bg-red-500/10 font-black text-[11px] uppercase tracking-widest transition-all">
             <span>🚪</span><span>Logout</span>
           </button>
