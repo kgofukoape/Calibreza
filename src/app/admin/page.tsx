@@ -15,6 +15,7 @@ const NAV = [
   { href: '/admin/users',     icon: '👥', label: 'Users'                                  },
   { href: '/admin/analytics', icon: '📈', label: 'Analytics'                              },
   { href: '/admin/crm',       icon: '💰', label: 'CRM'                                    },
+  { href: '/admin/subscriptions', icon: '🔄', label: 'Subscriptions'                      },
   { href: '/admin/sentinel',  icon: '👁️', label: 'Tokoloshe'                              },
 ];
 

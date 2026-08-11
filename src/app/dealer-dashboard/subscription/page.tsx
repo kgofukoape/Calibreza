@@ -107,6 +107,9 @@ export default function SubscriptionPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [subInfo, setSubInfo] = useState<any>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
 
   useEffect(() => {
@@ -144,11 +147,79 @@ export default function SubscriptionPage() {
 
     setActiveListings(count || 0);
     setLoading(false);
+
+    // Load subscription state so the UI can prevent double-billing
+    fetchSubInfo(dealerData.id);
   };
+
+  // Ask the server about the current subscription state. Used to block starting
+  // a second paid subscription while one is still running (double-billing).
+  const fetchSubInfo = async (dealerId: string) => {
+    try {
+      const res = await fetch('/api/subscriptions/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'check' }),
+      });
+      if (res.ok) setSubInfo(await res.json());
+    } catch {
+      /* non-blocking */
+    }
+  };
+
+  const runSubAction = async (action: string, targetTier?: string) => {
+    if (!dealer?.id) return;
+    setActionLoading(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch('/api/subscriptions/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealer.id, action, targetTier }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage({ kind: 'ok', text: data.message || 'Done.' });
+        await fetchSubInfo(dealer.id);
+        checkAuth();
+      } else {
+        setActionMessage({ kind: 'err', text: data.error || 'Something went wrong.' });
+      }
+    } catch {
+      setActionMessage({ kind: 'err', text: 'Could not reach the server. Please try again.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (!confirm('Cancel your subscription?\n\nYou keep full access until the end of your current paid period. Nothing is refunded for the period already paid.')) return;
+    runSubAction('cancel');
+  };
+
+  const handleDowngrade = (tier: string) => {
+    if (!confirm(`Downgrade to ${tier}?\n\nThe change takes effect at the end of your current paid period — you keep your current features until then.`)) return;
+    runSubAction('downgrade', tier);
+  };
+
+  const handleReactivate = () => runSubAction('reactivate');
 
   const handleSelectPlan = (planId: string) => {
     if (planId === dealer?.subscription_tier) return;
     if (planId === 'free' || planId === 'pay_per_ad') return;
+
+    // GUARD: never start a second paid subscription on top of a running one.
+    // PayFast recurring plans cannot be modified in place, so the existing plan
+    // must be cancelled first — otherwise both would bill.
+    if (subInfo && subInfo.hasActivePaid) {
+      setActionMessage({
+        kind: 'err',
+        text: 'You already have an active subscription. Cancel it first (it runs to the end of your paid period), then start the new plan — this prevents you being billed twice.',
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     setSelectedPlan(planId);
     setConfirming(true);
   };
@@ -387,6 +458,89 @@ export default function SubscriptionPage() {
               </div>
             </div>
           </div>
+
+          {/* ── MANAGE SUBSCRIPTION ─────────────────────────────────────── */}
+          {subInfo && (
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
+              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="text-2xl font-black uppercase mb-4">
+                Manage <span className="text-[#C9922A]">Subscription</span>
+              </h2>
+
+              {actionMessage && (
+                <div className={`mb-4 p-3 rounded-sm text-[13px] font-bold border ${
+                  actionMessage.kind === 'ok'
+                    ? 'bg-[#2A9C6E]/10 border-[#2A9C6E]/30 text-[#2A9C6E]'
+                    : 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]'
+                }`}>
+                  {actionMessage.text}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Status</p>
+                  <p className="text-sm font-bold uppercase text-[#F0EDE8]">
+                    {(subInfo.status || 'free').replace(/_/g, ' ')}
+                  </p>
+                </div>
+                <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Current Plan</p>
+                  <p className="text-sm font-bold uppercase text-[#C9922A]">{subInfo.currentTier || 'free'}</p>
+                </div>
+                <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Paid Until</p>
+                  <p className="text-sm font-bold text-[#F0EDE8]">
+                    {subInfo.periodEnd
+                      ? new Date(subInfo.periodEnd).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {subInfo.pendingTier && (
+                <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-3 mb-5">
+                  <p className="text-[12px] text-[#F59E0B] leading-relaxed">
+                    <strong className="uppercase tracking-widest font-black">Change scheduled</strong><br />
+                    Your plan changes to <strong>{subInfo.pendingTier}</strong> at the end of your current paid period.
+                    You keep your current features until then.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                {subInfo.status === 'cancelling' ? (
+                  <button onClick={handleReactivate} disabled={actionLoading}
+                    className="bg-[#2A9C6E] text-white font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
+                    {actionLoading ? 'Working...' : 'Keep My Subscription'}
+                  </button>
+                ) : subInfo.hasActivePaid ? (
+                  <>
+                    {subInfo.currentTier === 'premium' && (
+                      <button onClick={() => handleDowngrade('pro')} disabled={actionLoading}
+                        className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:bg-white/5 transition-all disabled:opacity-50">
+                        Downgrade to Pro
+                      </button>
+                    )}
+                    <button onClick={handleCancel} disabled={actionLoading}
+                      className="border border-[#E63946]/40 text-[#E63946] font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:bg-[#E63946]/10 transition-all disabled:opacity-50">
+                      {actionLoading ? 'Working...' : 'Cancel Subscription'}
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-[13px] text-[#8A8E99]">
+                    You are on the free tier. Choose a plan below to subscribe.
+                  </p>
+                )}
+              </div>
+
+              <p className="text-[11px] text-[#8A8E99] mt-4 leading-relaxed">
+                Cancellations and downgrades take effect at the end of your current paid period — you keep what you have
+                paid for. Need something else? Email{' '}
+                <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>.
+              </p>
+            </div>
+          )}
 
           {/* Plan Cards */}
           <div>
