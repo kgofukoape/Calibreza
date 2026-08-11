@@ -122,6 +122,11 @@ export default function LoginPage() {
                   className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[14px] text-[#F0EDE8] outline-none focus:border-[#C9922A] transition-colors"
                   placeholder="••••••••"
                 />
+                <div className="flex justify-end mt-2">
+                  <Link href="/forgot-password" className="text-[11px] font-bold uppercase tracking-widest text-[#C9922A] hover:brightness-125 transition-all">
+                    Forgot password?
+                  </Link>
+                </div>
               </div>
               <button
                 type="submit"

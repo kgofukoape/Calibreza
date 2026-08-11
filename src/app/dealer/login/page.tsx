@@ -151,7 +151,7 @@ export default function DealerLoginPage() {
                 <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10" />
                 <span className="text-[#8A8E99]">Remember me</span>
               </label>
-              <Link href="/dealer/forgot-password" className="text-[#C9922A] hover:brightness-110 transition-all">
+              <Link href="/forgot-password" className="text-[#C9922A] hover:brightness-110 transition-all">
                 Forgot password?
               </Link>
             </div>
