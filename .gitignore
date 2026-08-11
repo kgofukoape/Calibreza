@@ -13,3 +13,6 @@ gunx-code.zip
 .vercel
 .env*
 repomix-output.xml
+
+# Sentry Config File
+.env.sentry-build-plugin
