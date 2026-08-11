@@ -1,4 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp, isSameOrigin } from '@/lib/rateLimit';
+
+// ─── ABUSE PROTECTION ────────────────────────────────────────────────────────
+// This route sends email through our Resend account on our verified domain.
+// Left open, anyone could use it as a spam relay and burn our sender reputation.
+// It cannot require login (public forms call it), so instead:
+//
+//   1. SAME-ORIGIN  — the request must come from our own site. Blocks casual
+//                     cross-site abuse. Forgeable by scripts, hence also:
+//   2. RATE LIMIT   — caps how many emails one IP can trigger.
+//
+// The `switch (type)` below already acts as an allow-list: unknown types 400.
+const NOTIFY_LIMIT = 5;                    // emails...
+const NOTIFY_WINDOW_MS = 10 * 60 * 1000;   // ...per 10 minutes per IP
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const ADMIN_EMAIL    = 'pewpew@gunx.co.za';
@@ -53,6 +67,21 @@ const approvedTemplate = (heading: string, body: string, btnText: string, btnUrl
 
 export async function POST(req: NextRequest) {
   try {
+    // ── Same-origin check ────────────────────────────────────────────────────
+    if (!isSameOrigin(req)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // ── Rate limit (per IP) ──────────────────────────────────────────────────
+    const ip = getClientIp(req);
+    const limit = rateLimit(`notify:${ip}`, NOTIFY_LIMIT, NOTIFY_WINDOW_MS);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a few minutes and try again.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+      );
+    }
+
     const body     = await req.json();
     const { type } = body;
 

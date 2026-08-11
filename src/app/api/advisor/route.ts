@@ -1,4 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
+
+// ─── ABUSE PROTECTION ────────────────────────────────────────────────────────
+// This route calls the Anthropic API, which costs money per request, and it is
+// public (no login required — the advisor is a free feature). Two safeguards:
+//
+//   1. STRICT INPUT ALLOW-LIST — only known option values are accepted. Without
+//      this, an unknown value fell through to the prompt as raw user text,
+//      letting anyone inject arbitrary content and inflate token cost.
+//   2. RATE LIMIT — caps how often one IP can trigger a paid API call.
+const ADVISOR_LIMIT = 8;                    // requests...
+const ADVISOR_WINDOW_MS = 10 * 60 * 1000;   // ...per 10 minutes per IP
+
+const ALLOWED_DISCIPLINES = ['self_defense', 'sport', 'hunting', 'collection'];
+const ALLOWED_FRAMES      = ['subcompact', 'compact', 'fullsize', 'any'];
+const ALLOWED_EXPERIENCE  = ['first_time', 'beginner', 'intermediate', 'advanced'];
 
 const SYSTEM_PROMPT = `You are the Gun X Firearm Match Advisor — an institutional-grade digital firearms consultant for the South African civilian firearms community. You operate with absolute legal precision and tactical authority. Your tone is direct, measured, and entirely tailored to South African law and market conditions.
 
@@ -81,10 +97,36 @@ FORMAT: Return four to five concise paragraphs in clean flowing prose. No markdo
 
 export async function POST(req: NextRequest) {
   try {
+    // ── Rate limit (per IP) ──────────────────────────────────────────────────
+    const ip = getClientIp(req);
+    const limit = rateLimit(`advisor:${ip}`, ADVISOR_LIMIT, ADVISOR_WINDOW_MS);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a few minutes and try again.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+      );
+    }
+
     const { budget, discipline, frame, experience } = await req.json();
 
     if (!budget || !discipline || !frame || !experience) {
       return NextResponse.json({ error: 'Missing diagnostic fields' }, { status: 400 });
+    }
+
+    // ── Strict allow-list: reject anything not a known option ────────────────
+    // Prevents arbitrary text reaching the model prompt at our expense.
+    if (
+      !ALLOWED_DISCIPLINES.includes(discipline) ||
+      !ALLOWED_FRAMES.includes(frame) ||
+      !ALLOWED_EXPERIENCE.includes(experience)
+    ) {
+      return NextResponse.json({ error: 'Invalid selection' }, { status: 400 });
+    }
+
+    // Budget must be a plain number within a sane range
+    const budgetNum = parseInt(String(budget), 10);
+    if (!Number.isFinite(budgetNum) || budgetNum < 0 || budgetNum > 999999) {
+      return NextResponse.json({ error: 'Invalid budget' }, { status: 400 });
     }
 
     const disciplineLabel: Record<string, string> = {
@@ -110,13 +152,13 @@ export async function POST(req: NextRequest) {
 
     const budgetLabel = budget === '999999'
       ? 'no stated budget ceiling'
-      : `a maximum platform budget of R${parseInt(budget).toLocaleString('en-ZA')} — remind them the competency certificate and CFR licensing process costs an additional R2,500 to R4,500 and must be budgeted separately`;
+      : `a maximum platform budget of R${budgetNum.toLocaleString('en-ZA')} — remind them the competency certificate and CFR licensing process costs an additional R2,500 to R4,500 and must be budgeted separately`;
 
     const userPrompt = `Generate a personalised tactical firearms advisory for a South African buyer:
 - Budget: ${budgetLabel}
-- Primary discipline: ${disciplineLabel[discipline] || discipline}
-- Frame preference: ${frameLabel[frame] || frame}
-- Experience: ${experienceLabel[experience] || experience}
+- Primary discipline: ${disciplineLabel[discipline]}
+- Frame preference: ${frameLabel[frame]}
+- Experience: ${experienceLabel[experience]}
 
 Guide them on: (1) their correct FCA licensing pathway with the accurate section number — Section 17 is collectors only, Section 16 is dedicated sport, Section 13 is self-defence; (2) specific platform recommendations from brands with confirmed South African distributors only; (3) local holster brands first (Daniel Holsters, Reaper Custom, VKS Holsters, South Western Holsters), then international brands; (4) locally available ammunition brands (Winchester, Sellier & Bellot, Magtech, Federal HST, PMP) — for Section 13 mention the 200-round per-transaction purchase limit but make clear it is a per-purchase cap not a cumulative restriction; (5) SANS 1522 safe class appropriate for their platform; (6) direct them to the Gun X Services Directory for Motivation Writers and the Clubs & Ranges directory for test-firing before purchase.`;
 
