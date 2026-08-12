@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
 const TIERS = ['free', 'pay_per_ad', 'pro', 'premium'];
 
@@ -31,7 +30,7 @@ type Dealer = {
   review_count: number;
 };
 
-const STATUS_FILTERS = ['all', 'pending', 'approved', 'rejected'];
+const STATUS_FILTERS = ['all', 'pending', 'approved', 'rejected', 'suspended'];
 
 const NAV = [
   { href: '/admin',           icon: '⚡', label: 'Overview'   },
@@ -55,6 +54,8 @@ export default function AdminDealersPage() {
   const [search, setSearch]               = useState('');
   const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [suspending, setSuspending] = useState<string | null>(null);
   const [changingTier, setChangingTier]   = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,99 +80,150 @@ export default function AdminDealersPage() {
     setFiltered(result);
   }, [statusFilter, search, dealers]);
 
+  // Read through the admin route, NOT the browser client. The dealers table's
+  // only SELECT policy is `status = 'approved'`, so reading as the anon user
+  // hides every pending application from this console.
   const loadDealers = async () => {
-    const { data } = await supabase
-      .from('dealers')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setDealers(data || []);
-    setFiltered(data || []);
+    try {
+      const res = await fetch('/api/admin/records?type=dealer');
+      const data = await res.json();
+      if (res.ok) {
+        setDealers(data.records || []);
+        setFiltered(data.records || []);
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Could not load dealers.' });
+      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
     setLoading(false);
   };
 
+  // Writes also go through the admin route. The only UPDATE policy on dealers
+  // is `auth.uid() = user_id`, i.e. a dealer may edit only their own row — so
+  // every admin write from the browser was silently rejected by RLS.
   const handleStatusChange = async (dealerId: string, newStatus: string) => {
     setActionLoading(dealerId);
-
-    const update: Record<string, any> = { status: newStatus };
-
-    // ── Grant the 2-month free Pro trial on first approval ──────────────────
-    // Only ever once per dealer: trial_used is set when the trial ends (by the
-    // subscription cron) and is pre-set TRUE for anyone already paying, so a
-    // re-approval cannot hand out a second free trial.
-    const dealer = dealers.find(d => d.id === dealerId);
-    const eligible =
-      newStatus === 'approved' &&
-      !(dealer as any)?.trial_used &&
-      !['pro', 'premium'].includes(dealer?.subscription_tier || '');
-
-    if (eligible) {
-      const start = new Date();
-      const end = new Date();
-      end.setDate(end.getDate() + 60);
-
-      update.subscription_tier = 'pro';
-      update.subscription_status = 'trial';
-      update.trial_start_date = start.toISOString();
-      update.trial_end_date = end.toISOString();
-      update.current_period_end = end.toISOString();
-    }
-
-    const { error } = await supabase.from('dealers').update(update).eq('id', dealerId);
-
-    if (!error) {
-      setDealers(prev => prev.map(d => d.id === dealerId ? { ...d, ...update } as any : d));
-      if (selectedDealer?.id === dealerId) {
-        setSelectedDealer(prev => prev ? ({ ...prev, ...update } as any) : prev);
+    setModMsg(null);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'set_status', status: newStatus }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: data.message || 'Updated.' });
+        const patch = data.update || { status: newStatus };
+        setDealers(prev => prev.map(d => d.id === dealerId ? ({ ...d, ...patch } as any) : d));
+        if (selectedDealer?.id === dealerId) {
+          setSelectedDealer(prev => prev ? ({ ...prev, ...patch } as any) : prev);
+        }
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Could not change status.' });
       }
-
-      if (eligible) {
-        // Audit trail — records that the trial was granted and by whom
-        try {
-          await supabase.from('subscription_events').insert({
-            entity_type: 'dealer',
-            entity_id: dealerId,
-            event_type: 'trial_started',
-            from_tier: 'free',
-            to_tier: 'pro',
-            actor: 'admin',
-            notes: '2-month free Pro trial granted on approval',
-          });
-        } catch { /* non-blocking */ }
-
-        // Tell the dealer their trial has started
-        try {
-          await fetch('/api/notify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'dealer_approved',
-              email: dealer?.email,
-              name: dealer?.business_name,
-              contact: (dealer as any)?.contact_person,
-            }),
-          });
-        } catch { /* non-blocking */ }
-      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
     }
     setActionLoading(null);
   };
 
+  const handleSuspend = async (dealer: Dealer) => {
+    const isSuspended = (dealer as any).status === 'suspended';
+
+    let reason = '';
+    if (!isSuspended) {
+      const input = prompt(
+        `Suspend ${dealer.business_name}?\n\n` +
+        `Their listings will be hidden from the public (not deleted) and they lose dashboard access.\n\n` +
+        `Reason for suspension (required — recorded in the audit trail):`
+      );
+      if (input === null) return;
+      if (input.trim().length < 3) {
+        setModMsg({ kind: 'err', text: 'A reason is required to suspend an account.' });
+        return;
+      }
+      reason = input.trim();
+    } else {
+      if (!confirm(`Reinstate ${dealer.business_name}? Listings hidden by the suspension will be restored.`)) return;
+    }
+
+    setSuspending(dealer.id);
+    setModMsg(null);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: 'dealer',
+          entityId: dealer.id,
+          action: isSuspended ? 'reinstate' : 'suspend',
+          reason,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: data.message || 'Done.' });
+        setDealers(prev => prev.map(d => d.id === dealer.id ? ({ ...d, status: data.status } as any) : d));
+        if (selectedDealer?.id === dealer.id) {
+          setSelectedDealer(prev => prev ? ({ ...prev, status: data.status } as any) : prev);
+        }
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Something went wrong.' });
+      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    } finally {
+      setSuspending(null);
+    }
+  };
+
   const handleTierChange = async (dealerId: string, newTier: string) => {
     setChangingTier(dealerId);
-    const { error } = await supabase.from('dealers').update({ subscription_tier: newTier }).eq('id', dealerId);
-    if (!error) {
-      setDealers(prev => prev.map(d => d.id === dealerId ? { ...d, subscription_tier: newTier } : d));
-      if (selectedDealer?.id === dealerId) setSelectedDealer(prev => prev ? { ...prev, subscription_tier: newTier } : prev);
+    setModMsg(null);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'set_tier', tier: newTier }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: data.message || 'Tier updated.' });
+        setDealers(prev => prev.map(d => d.id === dealerId ? { ...d, subscription_tier: newTier } : d));
+        if (selectedDealer?.id === dealerId) {
+          setSelectedDealer(prev => prev ? { ...prev, subscription_tier: newTier } : prev);
+        }
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Could not change tier.' });
+      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
     }
     setChangingTier(null);
   };
 
   const handleDelete = async (dealerId: string) => {
-    if (!confirm('Permanently delete this dealer? This cannot be undone.')) return;
+    if (!confirm('Permanently delete this dealer? This cannot be undone.\n\nConsider suspending instead — that hides them without destroying anything.')) return;
     setActionLoading(dealerId);
-    await supabase.from('dealers').delete().eq('id', dealerId);
-    setDealers(prev => prev.filter(d => d.id !== dealerId));
-    if (selectedDealer?.id === dealerId) setSelectedDealer(null);
+    setModMsg(null);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'delete' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDealers(prev => prev.filter(d => d.id !== dealerId));
+        if (selectedDealer?.id === dealerId) setSelectedDealer(null);
+        setModMsg({ kind: 'ok', text: 'Dealer deleted.' });
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Could not delete.' });
+      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
     setActionLoading(null);
   };
 
@@ -319,12 +371,44 @@ export default function AdminDealersPage() {
                       className="text-[10px] font-black uppercase tracking-widest text-[#4CC9F0] border border-[#4CC9F0]/30 px-3 py-2 rounded-sm hover:bg-[#4CC9F0]/10 transition-all">
                       View Storefront
                     </Link>
+                    <button onClick={() => handleSuspend(selectedDealer)} disabled={suspending === selectedDealer.id}
+                      className={`text-[10px] font-black uppercase tracking-widest border px-3 py-2 rounded-sm transition-all disabled:opacity-40 ${
+                        (selectedDealer as any).status === 'suspended'
+                          ? 'text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/10'
+                          : 'text-[#F59E0B] border-[#F59E0B]/30 hover:bg-[#F59E0B]/10'
+                      }`}>
+                      {suspending === selectedDealer.id
+                        ? '...'
+                        : (selectedDealer as any).status === 'suspended' ? '✓ Reinstate' : '⊘ Suspend'}
+                    </button>
                     <button onClick={() => handleDelete(selectedDealer.id)} disabled={actionLoading === selectedDealer.id}
                       className="text-[10px] font-black uppercase tracking-widest text-[#E63946] border border-[#E63946]/30 px-3 py-2 rounded-sm hover:bg-[#E63946]/10 transition-all disabled:opacity-40">
                       Delete
                     </button>
                   </div>
                 </div>
+
+                {modMsg && (
+                  <div className={`p-3 rounded-sm text-[12px] font-bold border mb-4 ${
+                    modMsg.kind === 'ok'
+                      ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
+                      : 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]'
+                  }`}>
+                    {modMsg.text}
+                  </div>
+                )}
+
+                {(selectedDealer as any).status === 'suspended' && (
+                  <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4 mb-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B] mb-1">Account suspended</p>
+                    <p className="text-[12px] text-white/70 leading-relaxed">
+                      {(selectedDealer as any).suspended_reason || 'No reason recorded.'}
+                      {(selectedDealer as any).suspended_at
+                        ? ` — ${new Date((selectedDealer as any).suspended_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                        : ''}
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-[#0D1420] border border-white/5 rounded-sm p-4">
