@@ -257,6 +257,64 @@ export async function POST(req: NextRequest) {
         );
         break;
 
+      case 'dealer_trial_ending':
+        if (body.data?.email) {
+          const d = body.data;
+          const willArchive = Number(d.willArchive || 0);
+          await sendEmail(
+            d.email,
+            `Your Gun X Pro trial ends in ${d.daysLeft} day${d.daysLeft === 1 ? '' : 's'}`,
+            approvedTemplate(
+              `Trial Ends in ${d.daysLeft} Day${d.daysLeft === 1 ? '' : 's'}`,
+              `Hi ${d.name || 'there'}, your free Pro trial ends soon. You currently have ${d.totalListings || 0} live listing${d.totalListings === 1 ? '' : 's'}.` +
+              (willArchive > 0
+                ? ` If you don't continue on Pro, your 5 newest listings stay live and the other ${willArchive} will be moved to your archive. Nothing is deleted — subscribe any time and they all come straight back.`
+                : ` You're within the free tier limit, so nothing will change.`),
+              'Continue on Pro →',
+              `${BASE_URL}/dealer-dashboard/subscription`
+            )
+          );
+        }
+        break;
+
+      // ── Trial ended, dealer moved to the free tier ────────────────────────
+      case 'dealer_trial_ended':
+        if (body.data?.email) {
+          const d = body.data;
+          const archived = Number(d.archived || 0);
+          await sendEmail(
+            d.email,
+            `Your Gun X Pro trial has ended`,
+            approvedTemplate(
+              'Trial Ended',
+              `Hi ${d.name || 'there'}, your free Pro trial has ended and your account is now on the free tier. Your ${d.kept || 0} newest listing${d.kept === 1 ? '' : 's'} ${d.kept === 1 ? 'is' : 'are'} still live.` +
+              (archived > 0
+                ? ` ${archived} listing${archived === 1 ? '' : 's'} ${archived === 1 ? 'has' : 'have'} been moved to your archive — hidden from buyers, but safely stored. Subscribe to Pro and every one of them is restored instantly.`
+                : ''),
+              'View Plans →',
+              `${BASE_URL}/dealer-dashboard/subscription`
+            )
+          );
+        }
+        break;
+
+      // ── 7 days on the free tier with listings sitting in the archive ──────
+      case 'dealer_archive_reminder':
+        if (body.data?.email) {
+          const d = body.data;
+          await sendEmail(
+            d.email,
+            `${d.archived} of your listings are waiting in your archive`,
+            approvedTemplate(
+              'Your Archived Listings',
+              `Hi ${d.name || 'there'}, you have ${d.archived} listing${d.archived === 1 ? '' : 's'} sitting in your archive where buyers can't see ${d.archived === 1 ? 'it' : 'them'}. They are safely stored and nothing has been deleted. Upgrading to Pro restores every one of them immediately, or you can restore them individually within your free tier allowance.`,
+              'Restore My Listings →',
+              `${BASE_URL}/dealer-dashboard/inventory`
+            )
+          );
+        }
+        break;
+
       default:
         return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 });
     }
