@@ -28,11 +28,39 @@ const CATEGORIES = [
   { n: 'Industry Jobs',    slug: 'jobs',        i: '💼', href: '/jobs' },
 ];
 
+// ─── ROTATING LAUNCH OFFERS ──────────────────────────────────────────────────
+// Both the range and dealer free-trial offers, shown in turn in the top bar.
+const OFFERS = [
+  {
+    icon: '🎯',
+    headline: 'Shooting Ranges — List Free for 2 Months',
+    detail: 'Booking system, live status & results board. R399/month after trial.',
+    cta: 'Start Free →',
+    href: '/clubs/pricing',
+  },
+  {
+    icon: '🏪',
+    headline: 'Gun Dealers — 2 Months Free on Pro',
+    detail: '50 listings, storefront, featured slots & lead analytics. R499/month after trial.',
+    cta: 'Apply Free →',
+    href: '/dealer/apply',
+  },
+];
+
 export default function HomePage() {
   const [reelListings, setReelListings]             = useState<any[]>([]);
   const [categoryCounts, setCategoryCounts]         = useState<Record<string, number>>({});
   const [totalListings, setTotalListings]           = useState(0);
   const [announcementVisible, setAnnouncementVisible] = useState(true);
+  const [offerIndex, setOfferIndex] = useState(0);
+
+  // Rotate between the two free-trial offers so both get equal billing without
+  // cluttering the bar. Pauses when the bar is dismissed.
+  useEffect(() => {
+    if (!announcementVisible) return;
+    const t = setInterval(() => setOfferIndex(i => (i + 1) % OFFERS.length), 7000);
+    return () => clearInterval(t);
+  }, [announcementVisible]);
 
   useEffect(() => { fetchReelListings(); fetchCategoryCounts(); }, []);
 
@@ -63,19 +91,28 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] overflow-x-hidden flex flex-col">
 
-      {/* ANNOUNCEMENT BAR */}
+      {/* ANNOUNCEMENT BAR — rotates between the range and dealer offers */}
       {announcementVisible && (
-        <div className="bg-[#C9922A] text-black relative z-50">
-          <div className="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap">
-            <span className="text-sm">🎯</span>
-            <p className="text-[12px] font-black uppercase tracking-widest">Shooting Ranges — List Free for 2 Months</p>
+        <div className="bg-[#C9922A] text-black relative z-50 overflow-hidden">
+          <div key={offerIndex} className="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap animate-offer">
+            <span className="text-sm">{OFFERS[offerIndex].icon}</span>
+            <p className="text-[12px] font-black uppercase tracking-widest">{OFFERS[offerIndex].headline}</p>
             <span className="hidden sm:inline text-black/40">·</span>
             <p className="text-[12px] font-bold text-black/80 hidden sm:block">
-              Booking system, live status &amp; results board. R399/month after trial.
+              {OFFERS[offerIndex].detail}
             </p>
-            <Link href="/clubs/pricing" className="text-[11px] font-black uppercase tracking-widest underline hover:text-black/70 whitespace-nowrap">
-              Start Free →
+            <Link href={OFFERS[offerIndex].href} className="text-[11px] font-black uppercase tracking-widest underline hover:text-black/70 whitespace-nowrap">
+              {OFFERS[offerIndex].cta}
             </Link>
+
+            {/* Which offer is showing */}
+            <span className="hidden md:flex items-center gap-1.5 absolute left-4 top-1/2 -translate-y-1/2">
+              {OFFERS.map((_, i) => (
+                <button key={i} onClick={() => setOfferIndex(i)} aria-label={`Show offer ${i + 1}`}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === offerIndex ? 'bg-black' : 'bg-black/25 hover:bg-black/50'}`} />
+              ))}
+            </span>
+
             <button onClick={() => setAnnouncementVisible(false)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-black/50 hover:text-black text-lg leading-none font-bold">×</button>
           </div>
@@ -296,6 +333,11 @@ export default function HomePage() {
           100% { transform: translateX(calc(-253px * 16)); }
         }
         .animate-scroll { animation: scroll 45s linear infinite; }
+        @keyframes offerIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-offer { animation: offerIn 400ms ease-out; }
         .animate-scroll:hover { animation-play-state: paused; }
       `}</style>
     </div>

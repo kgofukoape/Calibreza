@@ -91,10 +91,67 @@ export default function AdminDealersPage() {
 
   const handleStatusChange = async (dealerId: string, newStatus: string) => {
     setActionLoading(dealerId);
-    const { error } = await supabase.from('dealers').update({ status: newStatus }).eq('id', dealerId);
+
+    const update: Record<string, any> = { status: newStatus };
+
+    // ── Grant the 2-month free Pro trial on first approval ──────────────────
+    // Only ever once per dealer: trial_used is set when the trial ends (by the
+    // subscription cron) and is pre-set TRUE for anyone already paying, so a
+    // re-approval cannot hand out a second free trial.
+    const dealer = dealers.find(d => d.id === dealerId);
+    const eligible =
+      newStatus === 'approved' &&
+      !(dealer as any)?.trial_used &&
+      !['pro', 'premium'].includes(dealer?.subscription_tier || '');
+
+    if (eligible) {
+      const start = new Date();
+      const end = new Date();
+      end.setDate(end.getDate() + 60);
+
+      update.subscription_tier = 'pro';
+      update.subscription_status = 'trial';
+      update.trial_start_date = start.toISOString();
+      update.trial_end_date = end.toISOString();
+      update.current_period_end = end.toISOString();
+    }
+
+    const { error } = await supabase.from('dealers').update(update).eq('id', dealerId);
+
     if (!error) {
-      setDealers(prev => prev.map(d => d.id === dealerId ? { ...d, status: newStatus } : d));
-      if (selectedDealer?.id === dealerId) setSelectedDealer(prev => prev ? { ...prev, status: newStatus } : prev);
+      setDealers(prev => prev.map(d => d.id === dealerId ? { ...d, ...update } as any : d));
+      if (selectedDealer?.id === dealerId) {
+        setSelectedDealer(prev => prev ? ({ ...prev, ...update } as any) : prev);
+      }
+
+      if (eligible) {
+        // Audit trail — records that the trial was granted and by whom
+        try {
+          await supabase.from('subscription_events').insert({
+            entity_type: 'dealer',
+            entity_id: dealerId,
+            event_type: 'trial_started',
+            from_tier: 'free',
+            to_tier: 'pro',
+            actor: 'admin',
+            notes: '2-month free Pro trial granted on approval',
+          });
+        } catch { /* non-blocking */ }
+
+        // Tell the dealer their trial has started
+        try {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'dealer_approved',
+              email: dealer?.email,
+              name: dealer?.business_name,
+              contact: (dealer as any)?.contact_person,
+            }),
+          });
+        } catch { /* non-blocking */ }
+      }
     }
     setActionLoading(null);
   };

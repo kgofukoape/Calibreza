@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 export default function DealerDashboardPage() {
   const router = useRouter();
   const [dealer, setDealer] = useState<any>(null);
-  const [stats, setStats] = useState({ totalListings: 0, activeListings: 0, activeJobs: 0, totalViews: 0 });
+  const [stats, setStats] = useState({ totalListings: 0, activeListings: 0, archivedListings: 0, activeJobs: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,6 +29,8 @@ export default function DealerDashboardPage() {
       setStats({
         totalListings: listings?.length || 0,
         activeListings: listings?.filter(l => l.status === 'active').length || 0,
+        // Listings hidden when a trial ended — recoverable, not deleted
+        archivedListings: listings?.filter(l => l.status === 'archived').length || 0,
         activeJobs: jobCount || 0,
         totalViews: 0,
       });
@@ -86,6 +88,65 @@ export default function DealerDashboardPage() {
         </header>
 
         <div className="p-8">
+
+          {/* ── FREE TRIAL BANNER ──────────────────────────────────────────
+              Shown while a dealer is on the 2-month free Pro trial, and again
+              once it has ended with listings sitting in the archive. Turns
+              amber in the last 7 days so the deadline is impossible to miss. */}
+          {(() => {
+            const status = dealer?.subscription_status;
+            const endRaw = dealer?.trial_end_date;
+            if (status !== 'trial' || !endRaw) return null;
+
+            const daysLeft = Math.max(0, Math.ceil((new Date(endRaw).getTime() - Date.now()) / 86400000));
+            const urgent = daysLeft <= 7;
+            const endStr = new Date(endRaw).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            return (
+              <div className={`rounded-sm p-5 mb-8 border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                urgent ? 'bg-[#F59E0B]/10 border-[#F59E0B]/40' : 'bg-[#2A9C6E]/10 border-[#2A9C6E]/30'
+              }`}>
+                <div>
+                  <p className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${urgent ? 'text-[#F59E0B]' : 'text-[#2A9C6E]'}`}>
+                    {urgent ? 'Trial ending soon' : 'Free Pro trial active'}
+                  </p>
+                  <p style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase leading-none mb-1">
+                    {daysLeft} day{daysLeft === 1 ? '' : 's'} left on Pro
+                  </p>
+                  <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                    Free until {endStr}. After that your 5 newest listings stay live and the rest move to your
+                    archive — nothing is deleted, and subscribing brings them all straight back.
+                  </p>
+                </div>
+                <Link href="/dealer-dashboard/subscription"
+                  style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                  className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all whitespace-nowrap text-center flex-shrink-0">
+                  Continue on Pro →
+                </Link>
+              </div>
+            );
+          })()}
+
+          {/* ── ARCHIVED LISTINGS NOTICE (after a trial ends) ──────────────── */}
+          {stats.archivedListings > 0 && (
+            <div className="bg-[#13151A] border border-[#C9922A]/30 rounded-sm p-5 mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C9922A] mb-1">Archived listings</p>
+                <p style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase leading-none mb-1">
+                  {stats.archivedListings} listing{stats.archivedListings === 1 ? '' : 's'} hidden from buyers
+                </p>
+                <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                  Safely stored, never deleted. Restore them one at a time within your free allowance, or subscribe to Pro to bring back every one.
+                </p>
+              </div>
+              <Link href="/dealer-dashboard/inventory"
+                style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+                className="border border-[#C9922A]/40 text-[#C9922A] font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:bg-[#C9922A]/10 transition-all whitespace-nowrap text-center flex-shrink-0">
+                View Archive →
+              </Link>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-[#13151A] border border-white/5 p-6 rounded-sm">
               <div className="flex items-center justify-between mb-2"><span className="text-[#8A8E99] text-xs uppercase tracking-widest font-bold">Total Listings</span><span className="text-2xl">📦</span></div>

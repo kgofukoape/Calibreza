@@ -52,6 +52,8 @@ export default function DealerInventoryPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -59,7 +61,9 @@ export default function DealerInventoryPage() {
 
   useEffect(() => {
     if (activeFilter === 'all') {
-      setFiltered(listings);
+      // Archived listings are hidden from buyers, so they do not belong in the
+      // default view — they have their own tab.
+      setFiltered(listings.filter((l) => l.status !== 'archived'));
     } else {
       setFiltered(listings.filter((l) => l.status === activeFilter));
     }
@@ -88,12 +92,49 @@ export default function DealerInventoryPage() {
   const fetchListings = async (dealerId: string) => {
     const { data } = await supabase
       .from('listings')
-      .select('id, title, category_id, price, is_negotiable, status, images, views_count, created_at, city, province_id, is_featured')
+      .select('id, title, category_id, price, is_negotiable, status, images, views_count, created_at, city, province_id, is_featured, archived_at, archived_reason, previous_status')
       .eq('dealer_id', dealerId)
       .order('created_at', { ascending: false });
 
     setListings(data || []);
     setFiltered(data || []);
+  };
+
+  // Free tier allows 5 live listings. Restoring beyond that requires Pro.
+  const FREE_TIER_LIMIT = 5;
+
+  const handleRestore = async (listing: Listing) => {
+    const tier = dealer?.subscription_tier || 'free';
+    const unlimited = ['pro', 'premium'].includes(tier);
+    const liveCount = listings.filter((l) => l.status === 'active').length;
+
+    if (!unlimited && liveCount >= FREE_TIER_LIMIT) {
+      setRestoreMsg(
+        `Your free tier allows ${FREE_TIER_LIMIT} live listings and you already have ${liveCount}. ` +
+        `Deactivate one to restore this listing, or subscribe to Pro to bring back every archived listing at once.`
+      );
+      return;
+    }
+
+    setRestoringId(listing.id);
+    setRestoreMsg(null);
+
+    const { error } = await supabase
+      .from('listings')
+      .update({
+        status: (listing as any).previous_status || 'active',
+        archived_at: null,
+        archived_reason: null,
+        previous_status: null,
+      })
+      .eq('id', listing.id);
+
+    if (error) {
+      setRestoreMsg(`Could not restore: ${error.message}`);
+    } else if (dealer) {
+      await fetchListings(dealer.id);
+    }
+    setRestoringId(null);
   };
 
   const handleToggleStatus = async (listing: Listing) => {
@@ -272,9 +313,32 @@ export default function DealerInventoryPage() {
 
         <div className="p-8">
 
+          {restoreMsg && (
+            <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4 mb-6 flex items-start justify-between gap-4">
+              <p className="text-[12px] text-[#F59E0B] leading-relaxed">{restoreMsg}</p>
+              <button onClick={() => setRestoreMsg(null)} className="text-[#F59E0B]/60 hover:text-[#F59E0B] text-lg leading-none flex-shrink-0">×</button>
+            </div>
+          )}
+
+          {/* Archive explainer — only when there is something archived */}
+          {listings.some((l) => l.status === 'archived') && activeFilter !== 'archived' && (
+            <div className="bg-[#13151A] border border-[#C9922A]/25 rounded-sm p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                <strong className="text-[#C9922A] uppercase tracking-widest text-[10px] font-black">Archived </strong>
+                You have {listings.filter((l) => l.status === 'archived').length} listing
+                {listings.filter((l) => l.status === 'archived').length === 1 ? '' : 's'} stored out of sight of buyers.
+                Nothing has been deleted — restore them individually, or subscribe to Pro to bring them all back.
+              </p>
+              <button onClick={() => setActiveFilter('archived')}
+                className="text-[10px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/40 px-4 py-2 rounded-sm hover:bg-[#C9922A]/10 transition-all whitespace-nowrap flex-shrink-0">
+                View Archive
+              </button>
+            </div>
+          )}
+
           {/* Filter Tabs */}
           <div className="flex gap-2 mb-6">
-            {(['all', 'active', 'inactive', 'sold'] as const).map((filter) => (
+            {(['all', 'active', 'inactive', 'sold', 'archived'] as const).map((filter) => (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
@@ -397,8 +461,19 @@ export default function DealerInventoryPage() {
                       Edit
                     </Link>
 
+                    {/* Restore — archived listings only */}
+                    {listing.status === 'archived' && (
+                      <button
+                        onClick={() => handleRestore(listing)}
+                        disabled={restoringId === listing.id}
+                        className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-[#C9922A]/40 bg-[#C9922A]/10 text-[#C9922A] rounded-sm hover:bg-[#C9922A]/20 transition-all disabled:opacity-40"
+                      >
+                        {restoringId === listing.id ? '...' : '↩ Restore'}
+                      </button>
+                    )}
+
                     {/* Toggle Active/Inactive */}
-                    {listing.status !== 'sold' && (
+                    {listing.status !== 'sold' && listing.status !== 'archived' && (
                       <button
                         onClick={() => handleToggleStatus(listing)}
                         disabled={togglingId === listing.id}
