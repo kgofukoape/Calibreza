@@ -1,66 +1,97 @@
 'use client';
-// ─────────────────────────────────────────────────────────────────────────────
-// SUBSCRIPTION TAB — drop this JSX into the club-dashboard/page.tsx
-// inside the {activeTab === 'subscription' && (...)} block
-// ─────────────────────────────────────────────────────────────────────────────
-// Also add this function inside the component above the return statement:
-//
-// const handleSubscribe = async () => {
-//   setSubLoading(true);
-//   try {
-//     const res = await fetch('/api/clubs/subscribe', {
-//       method: 'POST',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({
-//         clubId: club.id,
-//         clubName: club.name,
-//         contactEmail: club.email,
-//         contactName: user?.user_metadata?.full_name || club.name,
-//       }),
-//     });
-//     const { payfast_url, params, error } = await res.json();
-//     if (error) { alert(error); return; }
-//     // Build form and submit to PayFast
-//     const form = document.createElement('form');
-//     form.method = 'POST';
-//     form.action = payfast_url;
-//     Object.entries(params).forEach(([key, value]) => {
-//       const input = document.createElement('input');
-//       input.type = 'hidden';
-//       input.name = key;
-//       input.value = value as string;
-//       form.appendChild(input);
-//     });
-//     document.body.appendChild(form);
-//     form.submit();
-//   } catch (err) {
-//     alert('Something went wrong. Please try again.');
-//   } finally {
-//     setSubLoading(false);
-//   }
-// };
-//
-// And add to state: const [subLoading, setSubLoading] = useState(false);
-// ─────────────────────────────────────────────────────────────────────────────
 
-import React from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
+
+// ─── CLUB / RANGE SUBSCRIPTION TAB ───────────────────────────────────────────
+// Replaces the earlier draft, which was never wired into the dashboard and
+// whose "Cancel Subscription" was only a mailto link — while the feature list
+// advertised "Cancel anytime — no contracts".
+//
+// Cancelling never cuts access on the day it is requested:
+//   • During the free trial — nothing has been charged, so the trial runs to
+//     its end date and then the listing drops to the free tier.
+//   • On a paid plan — features continue to the end of the paid period.
+// Either way the range stays listed in the public directory afterwards.
 
 interface SubscriptionTabProps {
   club: any;
   subLoading: boolean;
   handleSubscribe: () => void;
+  /** Re-fetch the club record after a change so the UI reflects it */
+  onChanged?: () => void;
 }
 
-export function SubscriptionTab({ club, subLoading, handleSubscribe }: SubscriptionTabProps) {
+export function SubscriptionTab({ club, subLoading, handleSubscribe, onChanged }: SubscriptionTabProps) {
+  const [subInfo, setSubInfo] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (club?.id) loadInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [club?.id]);
+
+  const loadInfo = async () => {
+    try {
+      const res = await fetch('/api/subscriptions/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'club', entityId: club.id, action: 'check' }),
+      });
+      if (res.ok) setSubInfo(await res.json());
+    } catch {
+      /* non-blocking — the panel still renders from the club record */
+    }
+  };
+
+  const run = async (action: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch('/api/subscriptions/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'club', entityId: club.id, action }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg({ kind: 'ok', text: data.message || 'Done.' });
+        await loadInfo();
+        onChanged?.();
+      } else {
+        setMsg({ kind: 'err', text: data.error || 'Something went wrong.' });
+      }
+    } catch {
+      setMsg({ kind: 'err', text: 'Could not reach the server. Please try again.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onCancel = () => {
+    const trialing = subInfo?.isTrialling;
+    const days = subInfo?.trialDaysLeft ?? 0;
+    const warning = trialing
+      ? `Cancel your subscription?\n\nNothing has been charged - your trial is free.\nYou keep every feature for the ${days} day${days === 1 ? '' : 's'} still left on your trial.\nAfter that your range stays listed on the free tier.`
+      : 'Cancel your subscription?\n\nYou keep full access until the end of your current paid period.\nAfter that your range stays listed on the free tier.';
+    if (!confirm(warning)) return;
+    run('cancel');
+  };
+
+  // ── Derived state ──────────────────────────────────────────────────────────
   const trialEnd = club.trial_end_date ? new Date(club.trial_end_date) : null;
-  const now = new Date();
-  const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
-  const trialEndStr = trialEnd ? trialEnd.toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-  const isActive = club.subscription_tier === 'active';
-  const isTrial = club.subscription_status === 'trial';
-  const isCancelled = club.subscription_status === 'cancelled';
-  const isFree = !isActive || club.subscription_status === 'free';
+  const daysLeft = subInfo?.trialDaysLeft ?? (trialEnd
+    ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / 86400000))
+    : 0);
+  const trialEndStr = trialEnd
+    ? trialEnd.toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+
+  const status = subInfo?.status ?? club.subscription_status ?? 'free';
+  const isActive = (subInfo?.currentTier ?? club.subscription_tier) === 'active';
+  const isTrial = status === 'trial';
+  const isCancelling = status === 'cancelling';
+  const isFree = !isActive || status === 'free';
 
   const FEATURES = [
     { icon: '📅', text: 'Booking & RSVP system with calendar' },
@@ -78,87 +109,64 @@ export function SubscriptionTab({ club, subLoading, handleSubscribe }: Subscript
   return (
     <div className="flex flex-col gap-5 max-w-[700px]">
 
-      {/* CURRENT PLAN STATUS */}
-      <div className={`rounded-sm p-6 border ${
-        isTrial ? 'bg-[#2A9C6E]/5 border-[#2A9C6E]/30' :
-        isActive ? 'bg-[#C9922A]/5 border-[#C9922A]/30' :
-        isCancelled ? 'bg-red-500/5 border-red-500/20' :
-        'bg-[#13151A] border-white/5'
-      }`}>
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Current Plan</p>
-            <div className="flex items-center gap-3 mb-2">
-              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                className="text-3xl font-black uppercase">
-                {isActive ? 'Active' : 'Listed'}
-              </p>
-              <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-sm ${
-                isTrial ? 'bg-[#2A9C6E]/15 text-[#2A9C6E] border border-[#2A9C6E]/30' :
-                isActive ? 'bg-[#C9922A]/15 text-[#C9922A] border border-[#C9922A]/30' :
-                isCancelled ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                'bg-white/5 text-[#8A8E99] border border-white/10'
-              }`}>
-                {isTrial ? '🗓️ Free Trial' : isActive ? '✓ Active' : isCancelled ? 'Cancelled' : 'Free'}
-              </span>
-            </div>
-
-            {isTrial && trialEnd && (
-              <div>
-                <p className="text-[#2A9C6E] font-bold text-[13px]">
-                  {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining in free trial
-                </p>
-                <p className="text-[#8A8E99] text-[12px]">First payment of R399 on {trialEndStr}</p>
-              </div>
-            )}
-
-            {isActive && !isTrial && (
-              <p className="text-[#C9922A] font-bold text-[13px]">R399/month · Next charge coming up</p>
-            )}
-
-            {isFree && !isTrial && !isCancelled && (
-              <p className="text-[#8A8E99] text-[13px]">Basic directory listing only</p>
-            )}
-
-            {isCancelled && (
-              <p className="text-red-400 text-[13px]">Your subscription has been cancelled</p>
-            )}
-          </div>
-
-          {/* Trial progress bar */}
-          {isTrial && trialEnd && (
-            <div className="w-full md:w-48">
-              <div className="flex justify-between text-[10px] text-[#8A8E99] mb-1.5">
-                <span>Trial started</span>
-                <span>{daysLeft}d left</span>
-              </div>
-              <div className="w-full h-2 bg-[#0D0F13] rounded-full overflow-hidden border border-white/5">
-                <div
-                  className="h-full bg-[#2A9C6E] rounded-full transition-all"
-                  style={{ width: `${Math.max(5, 100 - (daysLeft / 60) * 100)}%` }}
-                />
-              </div>
-              <p className="text-[10px] text-[#8A8E99] mt-1">Billing starts {trialEndStr}</p>
-            </div>
-          )}
+      {msg && (
+        <div className={`p-4 rounded-sm text-[13px] font-bold border leading-relaxed ${
+          msg.kind === 'ok'
+            ? 'bg-[#2A9C6E]/10 border-[#2A9C6E]/30 text-[#2A9C6E]'
+            : 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]'
+        }`}>
+          {msg.text}
         </div>
+      )}
+
+      {/* ── CURRENT STATUS ─────────────────────────────────────────────────── */}
+      <div className={`rounded-sm p-6 border ${
+        isCancelling ? 'bg-[#F59E0B]/5 border-[#F59E0B]/30'
+        : isTrial    ? 'bg-[#2A9C6E]/5 border-[#2A9C6E]/30'
+        : isActive   ? 'bg-[#C9922A]/5 border-[#C9922A]/30'
+                     : 'bg-[#13151A] border-white/5'
+      }`}>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Current Plan</p>
+        <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-1">
+          {isActive ? <>Active <span className="text-[#C9922A]">Range</span></> : <>Free <span className="text-[#8A8E99]">Listing</span></>}
+        </h3>
+
+        {isCancelling ? (
+          <p className="text-[13px] text-[#F59E0B] leading-relaxed">
+            {daysLeft > 0
+              ? <>Cancellation scheduled. You still have <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong> of full access{trialEndStr ? ` until ${trialEndStr}` : ''}, then your range moves to the free listing tier.</>
+              : <>Cancellation scheduled. Your range moves to the free listing tier at the end of your paid period.</>}
+          </p>
+        ) : isTrial ? (
+          <p className="text-[13px] text-[#2A9C6E] leading-relaxed">
+            Free trial — <strong>{daysLeft} day{daysLeft === 1 ? '' : 's'} left</strong>
+            {trialEndStr ? <>. First charge on {trialEndStr}.</> : '.'}
+          </p>
+        ) : isActive ? (
+          <p className="text-[13px] text-[#C9922A]">Active &amp; billing — R399/month</p>
+        ) : (
+          <p className="text-[13px] text-[#8A8E99] leading-relaxed">
+            Your range is listed in the public directory. Booking, live status and the results board need the Active plan.
+          </p>
+        )}
       </div>
 
-      {/* UPGRADE PROMPT (for free/listed ranges) */}
-      {(isFree || isCancelled) && (
+      {/* ── UPGRADE PROMPT (free tier) ─────────────────────────────────────── */}
+      {isFree && !isCancelling && (
         <div className="bg-[#13151A] border border-[#C9922A]/30 rounded-sm p-6">
-          <div className="flex items-start gap-4 mb-5">
-            <div>
-              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                className="text-2xl font-black uppercase mb-1">
-                Upgrade to <span className="text-[#C9922A]">Active</span>
-              </h3>
-              <div className="flex items-center gap-3">
-                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">R399<span className="text-[16px] text-[#8A8E99] font-bold">/month</span></p>
-                <span className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 text-[#2A9C6E] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-sm">2 months free</span>
-              </div>
-              <p className="text-[#8A8E99] text-[12px] mt-1">Less than a box of ammo. Cancel anytime.</p>
+          <div className="mb-5">
+            <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-1">
+              Upgrade to <span className="text-[#C9922A]">Active</span>
+            </h3>
+            <div className="flex items-center gap-3 flex-wrap">
+              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">
+                R399<span className="text-[16px] text-[#8A8E99] font-bold">/month</span>
+              </p>
+              <span className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 text-[#2A9C6E] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-sm">
+                2 months free
+              </span>
             </div>
+            <p className="text-[#8A8E99] text-[12px] mt-1">Less than a box of ammo. Cancel anytime.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
@@ -183,62 +191,73 @@ export function SubscriptionTab({ club, subLoading, handleSubscribe }: Subscript
         </div>
       )}
 
-      {/* ACTIVE SUBSCRIPTION MANAGEMENT */}
-      {isActive && (
+      {/* ── MANAGE (active or trialling) ───────────────────────────────────── */}
+      {(isActive || isTrial || isCancelling) && (
         <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-          <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-xl font-black uppercase mb-4">Manage Subscription</h3>
-          <div className="flex flex-col gap-3">
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <span className="text-[13px] text-[#8A8E99]">Plan</span>
-              <span className="font-black text-[13px]">Active — R399/month</span>
-            </div>
-            <div className="flex justify-between items-center py-3 border-b border-white/5">
-              <span className="text-[13px] text-[#8A8E99]">Status</span>
-              <span className={`font-black text-[13px] ${isTrial ? 'text-[#2A9C6E]' : 'text-[#C9922A]'}`}>
-                {isTrial ? `Free trial — ${daysLeft} days left` : 'Active & Billing'}
-              </span>
-            </div>
-            {trialEnd && (
-              <div className="flex justify-between items-center py-3 border-b border-white/5">
-                <span className="text-[13px] text-[#8A8E99]">{isTrial ? 'First charge' : 'Next charge'}</span>
-                <span className="font-black text-[13px]">{trialEndStr}</span>
-              </div>
+          <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase mb-4">
+            Manage Subscription
+          </h3>
+
+          <div className="flex flex-col gap-0 mb-5">
+            <Row label="Plan" value="Active — R399/month" />
+            <Row
+              label="Status"
+              value={isCancelling ? `Cancelling — ${daysLeft} day${daysLeft === 1 ? '' : 's'} of access left`
+                   : isTrial     ? `Free trial — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`
+                                 : 'Active & billing'}
+              tone={isCancelling ? 'warn' : isTrial ? 'good' : 'gold'}
+            />
+            {trialEndStr && (
+              <Row label={isTrial ? 'First charge' : 'Next charge'} value={isCancelling ? '—' : trialEndStr} />
             )}
-            <div className="flex justify-between items-center py-3">
-              <span className="text-[13px] text-[#8A8E99]">Cancel</span>
-              <a
-                href="mailto:support@gunx.co.za?subject=Cancel Range Subscription"
-                className="text-red-400 font-black text-[12px] uppercase tracking-widest hover:brightness-125 transition-all">
-                Cancel Subscription →
-              </a>
-            </div>
           </div>
-          <p className="text-[#5A5E69] text-[11px] mt-4 leading-relaxed">
-            To cancel, email support@gunx.co.za with your range name. Cancellations take effect at end of current billing cycle.
-            {isTrial && ' Cancel before ' + trialEndStr + ' and you pay nothing.'}
+
+          {isCancelling ? (
+            <>
+              <p className="text-[12px] text-[#8A8E99] mb-3 leading-relaxed">
+                Changed your mind? Reactivating keeps everything exactly as it is — nothing was lost.
+              </p>
+              <button onClick={() => run('reactivate')} disabled={busy}
+                style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="bg-[#2A9C6E] text-white font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
+                {busy ? 'Working...' : 'Keep My Subscription'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={onCancel} disabled={busy}
+                className="border border-[#E63946]/40 text-[#E63946] font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:bg-[#E63946]/10 transition-all disabled:opacity-50">
+                {busy ? 'Working...' : 'Cancel Subscription'}
+              </button>
+              <p className="text-[11px] text-[#8A8E99] mt-3 leading-relaxed">
+                {isTrial
+                  ? `Nothing has been charged yet. If you cancel, you keep every feature for the ${daysLeft} day${daysLeft === 1 ? '' : 's'} still left on your trial, then your range stays listed on the free tier.`
+                  : 'You keep full access to the end of the period you have paid for, then your range stays listed on the free tier.'}
+              </p>
+            </>
+          )}
+
+          <p className="text-[11px] text-[#8A8E99] mt-4 leading-relaxed border-t border-white/5 pt-4">
+            Questions about billing? Email{' '}
+            <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>.
           </p>
         </div>
       )}
-
-      {/* WHAT'S INCLUDED */}
-      <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-        <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-          className="text-xl font-black uppercase mb-4">Active Plan Includes</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {FEATURES.map((f, i) => (
-            <div key={i} className={`flex items-center gap-3 py-2 border-b border-white/5 last:border-0 ${isActive ? '' : 'opacity-50'}`}>
-              <span className="text-[16px]">{f.icon}</span>
-              <span className="text-[13px] text-[#8A8E99]">{f.text}</span>
-              {isActive && <span className="ml-auto text-[#2A9C6E] text-[11px] font-bold">✓</span>}
-            </div>
-          ))}
-        </div>
-        <Link href="/clubs/pricing"
-          className="block text-center text-[#C9922A] font-bold text-[12px] uppercase tracking-widest mt-4 hover:brightness-125">
-          View full pricing page →
-        </Link>
-      </div>
     </div>
   );
 }
+
+function Row({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'warn' | 'gold' }) {
+  const colour =
+    tone === 'good' ? 'text-[#2A9C6E]' :
+    tone === 'warn' ? 'text-[#F59E0B]' :
+    tone === 'gold' ? 'text-[#C9922A]' : 'text-[#F0EDE8]';
+  return (
+    <div className="flex justify-between items-center gap-4 py-3 border-b border-white/5">
+      <span className="text-[13px] text-[#8A8E99]">{label}</span>
+      <span className={`font-black text-[13px] text-right ${colour}`}>{value}</span>
+    </div>
+  );
+}
+
+export default SubscriptionTab;

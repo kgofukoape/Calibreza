@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { SubscriptionTab } from '@/components/clubs/subscriptionTab';
 
 const PROVINCES = ['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Free State','Limpopo','Mpumalanga','North West','Northern Cape'];
 const ALL_DISCIPLINES = ['IPSC','IDPA','Practical Shooting','Target Shooting','Hunting','Long Range','Skeet','Trap','Air Gun','Benchrest','Field Shooting'];
@@ -67,6 +68,7 @@ export default function ClubDashboardPage() {
 
   // Results
   const [results, setResults] = useState<any[]>([]);
+  const [subLoading, setSubLoading] = useState(false);
   const [showResultForm, setShowResultForm] = useState(false);
   const [resultForm, setResultForm] = useState({ title: '', discipline: '', shoot_date: '', entries: [{ name: '', score: '', notes: '' }] });
   const [resultSaving, setResultSaving] = useState(false);
@@ -112,6 +114,48 @@ export default function ClubDashboardPage() {
   };
 
   useEffect(() => { if (club && activeTab === 'bookings') fetchSlotsForDate(selectedSlotDate); }, [selectedSlotDate, club, activeTab]);
+
+  // Start the R399 range subscription (2 months free, first charge day 60).
+  // The API returns PayFast form params which we submit as a real form POST —
+  // PayFast requires a form submission, not a fetch redirect.
+  const handleSubscribe = async () => {
+    if (!club?.id) return;
+    setSubLoading(true);
+    try {
+      const res = await fetch('/api/clubs/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clubId: club.id,
+          clubName: club.name,
+          contactEmail: club.email,
+          contactName: club.contact_person || club.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Could not start the subscription. Please try again.');
+        setSubLoading(false);
+        return;
+      }
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = data.payfast_url;
+      Object.entries(data.params || {}).forEach(([k, v]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = k;
+        input.value = String(v);
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      alert('Could not reach the server. Please try again.');
+      setSubLoading(false);
+    }
+  };
 
   const handleSignOut = async () => { await supabase.auth.signOut(); router.push('/dealer/login'); };
 
@@ -329,6 +373,7 @@ export default function ClubDashboardPage() {
     { id: 'compliance', label: 'Compliance', icon: '🛡️' },
     { id: 'profile', label: 'Edit Profile', icon: '✏️' },
     { id: 'members', label: 'Members', icon: '👥' },
+    { id: 'subscription', label: 'Subscription', icon: '💳' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ];
 
@@ -991,6 +1036,15 @@ export default function ClubDashboardPage() {
 
           {activeTab === 'members' && (
             <div className="max-w-2xl"><div className={sec}><h2 style={{fontFamily:"'Barlow Condensed',sans-serif"}} className="text-xl font-black uppercase mb-4"><span className="text-[#C9922A]">Members</span></h2><div className="border-2 border-dashed border-white/10 rounded-sm p-10 text-center"><p className="text-3xl mb-3">👥</p><p className="text-[#8A8E99] text-[13px]">Member management coming soon</p></div></div></div>
+          )}
+
+          {activeTab === 'subscription' && (
+            <SubscriptionTab
+              club={club}
+              subLoading={subLoading}
+              handleSubscribe={handleSubscribe}
+              onChanged={fetchAll}
+            />
           )}
 
           {activeTab === 'settings' && (

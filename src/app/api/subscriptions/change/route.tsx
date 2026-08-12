@@ -33,8 +33,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+// ─── TIER MODELS PER ENTITY TYPE ─────────────────────────────────────────────
+// Dealers and clubs use DIFFERENT tier vocabularies. This previously only knew
+// the dealer tiers, so a club calling cancel was told "no paid subscription to
+// cancel" — its tier ('active') was not in the paid list.
+//
+//   dealers : free  → pro → premium
+//   clubs   : listed → active            ('listed' = free directory entry)
+const TIER_MODEL: Record<string, { rank: Record<string, number>; paid: string[]; freeTier: string }> = {
+  dealer: {
+    rank: { free: 0, pro: 1, premium: 2 },
+    paid: ['pro', 'premium'],
+    freeTier: 'free',
+  },
+  club: {
+    rank: { listed: 0, free: 0, active: 1 },
+    paid: ['active'],
+    freeTier: 'listed',
+  },
+};
+
+// Kept for the dealer proration path
 const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, premium: 2 };
-const PAID_PLANS = ['pro', 'premium'];
 
 type Action = 'cancel' | 'downgrade' | 'reactivate' | 'check' | 'upgrade_quote';
 
@@ -123,13 +143,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Account not found' }, { status: 404 });
   }
 
-  const currentTier: string = entity.subscription_tier || 'free';
+  // Resolve which tier vocabulary applies to this entity
+  const model = TIER_MODEL[entityType] || TIER_MODEL.dealer;
+  const PAID_PLANS = model.paid;
+  const FREE_TIER = model.freeTier;
+
+  const currentTier: string = entity.subscription_tier || FREE_TIER;
   const status: string = entity.subscription_status || 'free';
-  const periodEnd: string | null = entity.current_period_end || null;
+
+  // Trial handling. Clubs get a 2-month free trial before first billing, so
+  // "cancel" during a trial must NOT cut access — the trial was free, they keep
+  // it to the end, then fall back to the free tier.
+  const trialEnd: string | null = entity.trial_end_date || entity.trial_ends_at || null;
+  const isTrialling = status === 'trial' && !!trialEnd && new Date(trialEnd).getTime() > Date.now();
+  const trialDaysLeft = isTrialling
+    ? Math.max(0, Math.ceil((new Date(trialEnd as string).getTime() - Date.now()) / 86_400_000))
+    : 0;
+
+  // While trialling, the trial end IS the effective period end
+  const periodEnd: string | null = isTrialling ? trialEnd : (entity.current_period_end || null);
 
   // ── CHECK — used by the UI before offering a plan change ───────────────────
   if (action === 'check') {
-    const hasActivePaid = PAID_PLANS.includes(currentTier) && ['active', 'cancelling', 'past_due'].includes(status);
+    const hasActivePaid =
+      (PAID_PLANS.includes(currentTier) && ['active', 'cancelling', 'past_due'].includes(status)) ||
+      isTrialling;
     return NextResponse.json({
       ok: true,
       currentTier,
@@ -137,6 +175,10 @@ export async function POST(req: NextRequest) {
       periodEnd,
       pendingTier: entity.pending_tier || null,
       hasActivePaid,
+      isTrialling,
+      trialDaysLeft,
+      trialEnd,
+      freeTier: FREE_TIER,
       // The UI uses this to block a second checkout instead of double-billing
       canStartNewSubscription: !hasActivePaid,
       message: hasActivePaid
@@ -173,12 +215,18 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── CANCEL — ends at period end, keeps paid access until then ──────────────
+  // ── CANCEL — nothing is cut off today ──────────────────────────────────────
+  // Two cases, both of which preserve access already earned:
+  //   TRIAL  — the trial was free, so cancelling costs them nothing. They keep
+  //            the trial to its end date, then drop to the free tier.
+  //   PAID   — they keep the features to the end of the period they paid for.
   if (action === 'cancel') {
-    if (!PAID_PLANS.includes(currentTier)) {
-      return NextResponse.json({ error: 'No paid subscription to cancel.' }, { status: 400 });
+    if (!PAID_PLANS.includes(currentTier) && !isTrialling) {
+      return NextResponse.json({ error: 'No active subscription to cancel.' }, { status: 400 });
     }
 
+    // Only attempt a PayFast cancellation if money is actually flowing. During
+    // a trial nothing has been charged yet, but the mandate may already exist.
     const pf = await cancelPayFastSubscription(entity.payfast_token || null);
 
     await supabase
@@ -186,7 +234,7 @@ export async function POST(req: NextRequest) {
       .update({
         subscription_status: 'cancelling',
         cancellation_requested_at: new Date().toISOString(),
-        pending_tier: 'free',
+        pending_tier: FREE_TIER,
         pending_change_type: 'cancel',
       })
       .eq('id', entityId);
@@ -196,20 +244,31 @@ export async function POST(req: NextRequest) {
       entity_id: entityId,
       event_type: 'cancel',
       from_tier: currentTier,
-      to_tier: 'free',
+      to_tier: FREE_TIER,
       effective_at: periodEnd,
-      notes: pf.message,
+      notes: isTrialling ? `Cancelled during trial — ${trialDaysLeft} days remaining` : pf.message,
     });
+
+    const endStr = periodEnd
+      ? new Date(periodEnd).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null;
 
     return NextResponse.json({
       ok: true,
       status: 'cancelling',
       effectiveAt: periodEnd,
-      // Surfaced honestly so nobody assumes billing definitely stopped
-      billingNote: pf.ok ? 'Recurring billing cancelled.' : pf.message,
-      message: periodEnd
-        ? 'Your subscription will end at the close of your current paid period. You keep full access until then.'
-        : 'Your cancellation has been recorded. Our team will confirm the exact end date.',
+      isTrialling,
+      trialDaysLeft,
+      freeTier: FREE_TIER,
+      // Stated honestly so nobody assumes billing definitely stopped
+      billingNote: isTrialling
+        ? 'No payment has been taken — your trial was free.'
+        : (pf.ok ? 'Recurring billing cancelled.' : pf.message),
+      message: isTrialling
+        ? `Nothing has been charged, and nothing changes today. You still have ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left on your free trial${endStr ? ` (until ${endStr})` : ''} — keep using every feature until then. After that your listing stays live on the free tier. Change your mind any time before then and you can pick the trial back up.`
+        : endStr
+          ? `Your subscription ends on ${endStr}. You keep full access until then, after which your listing stays live on the free tier.`
+          : 'Your cancellation has been recorded. Our team will confirm the exact end date.',
     });
   }
 
@@ -257,10 +316,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nothing to reactivate.' }, { status: 400 });
     }
 
+    // Restore to 'trial' if the trial is still running, otherwise 'active'
     await supabase
       .from(table)
       .update({
-        subscription_status: 'active',
+        subscription_status: isTrialling ? 'trial' : 'active',
         pending_tier: null,
         pending_change_type: null,
         cancellation_requested_at: null,
@@ -275,7 +335,12 @@ export async function POST(req: NextRequest) {
       to_tier: currentTier,
     });
 
-    return NextResponse.json({ ok: true, message: 'Your subscription has been reactivated.' });
+    return NextResponse.json({
+      ok: true,
+      message: isTrialling
+        ? `Welcome back — your free trial continues, with ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} still to run.`
+        : 'Your subscription has been reactivated.',
+    });
   }
 
   return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });
