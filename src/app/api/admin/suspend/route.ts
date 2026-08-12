@@ -29,14 +29,41 @@ const supabase = createClient(
 // the admin console silently cannot change any dealer and cannot even SEE
 // pending applications. Routing through the service role key here fixes both
 // without loosening RLS for everyone else.
-const ALLOWED_STATUSES = ['pending', 'approved', 'rejected'];
 const ALLOWED_TIERS = ['free', 'pay_per_ad', 'pro', 'premium'];
 
-const TABLES: Record<string, { table: string; activeStatus: string }> = {
-  dealer:  { table: 'dealers',  activeStatus: 'approved' },
-  club:    { table: 'clubs',    activeStatus: 'active'   },
-  service: { table: 'services', activeStatus: 'active'   },
-  user:    { table: 'users',    activeStatus: 'active'   },
+// Each account type has its own status vocabulary and its own set of fields an
+// admin may toggle. Whitelisting both means this route can serve every admin
+// page without ever becoming a general-purpose "update any column" endpoint.
+const TABLES: Record<string, {
+  table: string;
+  activeStatus: string;
+  statuses: string[];
+  fields: string[];
+}> = {
+  dealer: {
+    table: 'dealers',
+    activeStatus: 'approved',
+    statuses: ['pending', 'approved', 'rejected'],
+    fields: [],
+  },
+  club: {
+    table: 'clubs',
+    activeStatus: 'active',
+    statuses: ['pending', 'active', 'rejected'],
+    fields: ['is_verified'],
+  },
+  service: {
+    table: 'services',
+    activeStatus: 'active',
+    statuses: ['pending', 'active', 'rejected'],
+    fields: ['is_verified'],
+  },
+  user: {
+    table: 'users',
+    activeStatus: 'active',
+    statuses: ['active'],
+    fields: [],
+  },
 };
 
 export async function POST(req: NextRequest) {
@@ -61,7 +88,7 @@ export async function POST(req: NextRequest) {
   const reason: string = String(body?.reason || '').slice(0, 500);
 
   const config = TABLES[entityType];
-  if (!config || !entityId || !['suspend', 'reinstate', 'set_status', 'set_tier', 'delete'].includes(action)) {
+  if (!config || !entityId || !['suspend', 'reinstate', 'set_status', 'set_tier', 'set_field', 'delete'].includes(action)) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 
@@ -87,8 +114,8 @@ export async function POST(req: NextRequest) {
   // ── SET STATUS (pending / approved / rejected) ─────────────────────────────
   if (action === 'set_status') {
     const target = String(body?.status || '');
-    if (!ALLOWED_STATUSES.includes(target)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    if (!config.statuses.includes(target)) {
+      return NextResponse.json({ error: `Invalid status for ${entityType}` }, { status: 400 });
     }
 
     const update: Record<string, any> = { status: target };
@@ -134,6 +161,28 @@ export async function POST(req: NextRequest) {
         ? 'Approved, and the 2-month free Pro trial has started.'
         : `Status set to ${target}.`,
     });
+  }
+
+  // ── SET A WHITELISTED FIELD (e.g. is_verified) ─────────────────────────────
+  if (action === 'set_field') {
+    const field = String(body?.field || '');
+    if (!config.fields.includes(field)) {
+      return NextResponse.json({ error: 'That field cannot be changed here.' }, { status: 400 });
+    }
+
+    const value = body?.value;
+    if (typeof value !== 'boolean') {
+      return NextResponse.json({ error: 'Invalid value' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from(config.table)
+      .update({ [field]: value })
+      .eq('id', entityId);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true, field, value, message: 'Updated.' });
   }
 
   // ── SET SUBSCRIPTION TIER ──────────────────────────────────────────────────

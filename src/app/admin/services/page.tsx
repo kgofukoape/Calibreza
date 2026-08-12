@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
 const NAV = [
   { href: '/admin',              icon: '⚡', label: 'Overview'      },
@@ -35,6 +34,7 @@ export default function AdminServicesPage() {
   const [services, setServices]         = useState<any[]>([]);
   const [filtered, setFiltered]         = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [selected, setSelected]         = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [search, setSearch]             = useState('');
@@ -62,18 +62,76 @@ export default function AdminServicesPage() {
     setFiltered(result);
   }, [statusFilter, search, services]);
 
+  // Read via the admin route — reading as the anon user means any restrictive
+  // RLS policy silently hides rows from this console.
   const loadServices = async () => {
-    const { data } = await supabase
-      .from('services')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setServices(data || []);
+    try {
+      const res = await fetch('/api/admin/records?type=service');
+      const data = await res.json();
+      if (res.ok) setServices(data.records || []);
+      else setModMsg({ kind: 'err', text: data.error || 'Could not load services.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
     setLoading(false);
+  };
+
+  const adminAction = async (payload: Record<string, any>) => {
+    const res = await fetch('/api/admin/suspend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType: 'service', ...payload }),
+    });
+    return { res, data: await res.json() };
+  };
+
+  const patchService = (id: string, patch: Record<string, any>) => {
+    setServices(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
+    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...patch }));
+  };
+
+  const handleSuspend = async (service: any) => {
+    const isSuspended = service.status === 'suspended';
+    let reason = '';
+    if (!isSuspended) {
+      const input = prompt(
+        `Suspend ${service.name}?\n\n` +
+        `Their listing will be hidden from the public directory.\n\n` +
+        `Reason (required — recorded in the audit trail):`
+      );
+      if (input === null) return;
+      if (input.trim().length < 3) {
+        setModMsg({ kind: 'err', text: 'A reason is required to suspend an account.' });
+        return;
+      }
+      reason = input.trim();
+    } else if (!confirm(`Reinstate ${service.name}?`)) return;
+
+    setActionLoading(service.id);
+    setModMsg(null);
+    try {
+      const { res, data } = await adminAction({
+        entityId: service.id,
+        action: isSuspended ? 'reinstate' : 'suspend',
+        reason,
+      });
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: data.message || 'Done.' });
+        patchService(service.id, {
+          status: data.status,
+          suspended_reason: data.suspended_reason ?? null,
+          suspended_at: data.suspended_at ?? null,
+        });
+      } else setModMsg({ kind: 'err', text: data.error || 'Something went wrong.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setActionLoading(null);
   };
 
   const handleApprove = async (id: string) => {
     setActionLoading(id);
-    await supabase.from('services').update({ status: 'active' }).eq('id', id);
+    await adminAction({ entityId: id, action: 'set_status', status: 'active' });
     setServices(prev => prev.map(s => s.id === id ? { ...s, status: 'active' } : s));
     if (selected?.id === id) setSelected((p: any) => ({ ...p, status: 'active' }));
 
@@ -98,7 +156,7 @@ export default function AdminServicesPage() {
   const handleReject = async () => {
     if (!rejectModal || !rejectReason.trim()) return;
     setActionLoading(rejectModal.id);
-    await supabase.from('services').update({ status: 'rejected' }).eq('id', rejectModal.id);
+    await adminAction({ entityId: rejectModal.id, action: 'set_status', status: 'rejected' });
     setServices(prev => prev.map(s => s.id === rejectModal.id ? { ...s, status: 'rejected' } : s));
     if (selected?.id === rejectModal.id) setSelected((p: any) => ({ ...p, status: 'rejected' }));
     setRejectModal(null);
@@ -109,7 +167,7 @@ export default function AdminServicesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Permanently delete this service listing?')) return;
     setActionLoading(id);
-    await supabase.from('services').delete().eq('id', id);
+    await adminAction({ entityId: id, action: 'delete' });
     setServices(prev => prev.filter(s => s.id !== id));
     if (selected?.id === id) setSelected(null);
     setActionLoading(null);

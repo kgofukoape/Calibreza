@@ -29,6 +29,7 @@ export default function AdminUsersPage() {
   const [loadingListings, setLoadingListings] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -93,6 +94,63 @@ export default function AdminUsersPage() {
   const handleSelectUser = (user: UserWithListings) => {
     setSelectedUser(user);
     loadUserListings(user.id);
+  };
+
+  // Members had no way to be restricted at all — the users table had no status
+  // column until now. Suspension hides their listings from buyers; nothing is
+  // deleted, and reinstating restores exactly what the suspension hid.
+  const handleSuspendUser = async (user: any) => {
+    const isSuspended = user.status === 'suspended';
+    const label = user.email || 'this member';
+    let reason = '';
+
+    if (!isSuspended) {
+      const input = prompt(
+        `Suspend ${label}?\n\n` +
+        `Their listings will be hidden from buyers. Nothing is deleted.\n\n` +
+        `Reason (required — recorded in the audit trail):`
+      );
+      if (input === null) return;
+      if (input.trim().length < 3) {
+        setModMsg({ kind: 'err', text: 'A reason is required to suspend an account.' });
+        return;
+      }
+      reason = input.trim();
+    } else if (!confirm(`Reinstate ${label}? Listings hidden by the suspension will be restored.`)) return;
+
+    setActionLoading(user.id);
+    setModMsg(null);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: 'user',
+          entityId: user.id,
+          action: isSuspended ? 'reinstate' : 'suspend',
+          reason,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: data.message || 'Done.' });
+        const patch = {
+          status: data.status,
+          suspended_reason: data.suspended_reason ?? null,
+          suspended_at: data.suspended_at ?? null,
+        };
+        setUsers(prev => prev.map(u => u.id === user.id ? ({ ...u, ...patch } as any) : u));
+        if (selectedUser?.id === user.id) {
+          setSelectedUser(prev => prev ? ({ ...prev, ...patch } as any) : prev);
+        }
+        if (selectedUser?.id === user.id) loadUserListings(user.id);
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Something went wrong.' });
+      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setActionLoading(null);
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -308,12 +366,34 @@ export default function AdminUsersPage() {
                         </button>
                       </div>
                     ) : (
+                      <>
+                      {modMsg && (
+                        <div className={`w-full p-2 rounded-sm text-[11px] font-bold border mb-2 ${
+                          modMsg.kind === 'ok'
+                            ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
+                            : 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]'
+                        }`}>{modMsg.text}</div>
+                      )}
+                      <button
+                        onClick={() => handleSuspendUser(selectedUser)}
+                        disabled={actionLoading === selectedUser.id}
+                        className={`text-[10px] font-black uppercase tracking-widest border px-3 py-2 rounded-sm transition-all disabled:opacity-40 mr-2 ${
+                          (selectedUser as any).status === 'suspended'
+                            ? 'text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/10'
+                            : 'text-[#F59E0B] border-[#F59E0B]/30 hover:bg-[#F59E0B]/10'
+                        }`}
+                      >
+                        {actionLoading === selectedUser.id
+                          ? '...'
+                          : (selectedUser as any).status === 'suspended' ? '✓ Reinstate' : '⊘ Suspend'}
+                      </button>
                       <button
                         onClick={() => setConfirmDelete(selectedUser.id)}
                         className="text-[10px] font-black uppercase tracking-widest text-[#E63946] border border-[#E63946]/30 px-3 py-2 rounded-sm hover:bg-[#E63946]/10 transition-all"
                       >
                         Delete User
                       </button>
+                      </>
                     )}
                   </div>
                 </div>

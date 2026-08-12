@@ -237,6 +237,15 @@ export default function BulkUploadPage() {
       .eq('user_id', user.id)
       .single();
 
+    // A suspended dealer is still logged in and still owns this account, so
+    // bouncing them to the LOGIN page is confusing and looks like a fault.
+    // Send them to their dashboard instead, where the banner explains exactly
+    // why this feature is paused and how to resolve it.
+    if (dealerData?.status === 'suspended') {
+      router.push('/dealer-dashboard');
+      return;
+    }
+
     if (!dealerData || dealerData.status !== 'approved') {
       router.push('/dealer/login');
       return;

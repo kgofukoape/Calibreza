@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
 export default function AdminClubsPage() {
   const router = useRouter();
   const [clubs, setClubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<any>(null);
   const [filter, setFilter] = useState<'all' | 'verified' | 'unverified'>('all');
   const [search, setSearch] = useState('');
@@ -22,35 +23,120 @@ export default function AdminClubsPage() {
     loadClubs();
   }, []);
 
+  // Read through the admin route rather than the browser client. Admin pages
+  // query as the ANON user, so any restrictive RLS policy silently hides rows
+  // (this is exactly what was hiding pending dealer applications).
   const loadClubs = async () => {
-    const { data } = await supabase.from('clubs').select('*').order('created_at', { ascending: false });
-    setClubs(data || []);
+    try {
+      const res = await fetch('/api/admin/records?type=club');
+      const data = await res.json();
+      if (res.ok) setClubs(data.records || []);
+      else setModMsg({ kind: 'err', text: data.error || 'Could not load clubs.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
     setLoading(false);
   };
 
-  const handleVerify = async (id: string) => {
-    await supabase.from('clubs').update({ is_verified: true }).eq('id', id);
-    setClubs(prev => prev.map(c => c.id === id ? { ...c, is_verified: true } : c));
-    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, is_verified: true }));
+  // Shared caller for every admin write on this page
+  const adminAction = async (payload: Record<string, any>) => {
+    const res = await fetch('/api/admin/suspend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType: 'club', ...payload }),
+    });
+    return { res, data: await res.json() };
   };
 
-  const handleUnverify = async (id: string) => {
-    await supabase.from('clubs').update({ is_verified: false }).eq('id', id);
-    setClubs(prev => prev.map(c => c.id === id ? { ...c, is_verified: false } : c));
-    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, is_verified: false }));
+  const patchClub = (id: string, patch: Record<string, any>) => {
+    setClubs(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...patch }));
   };
+
+  const handleSuspend = async (club: any) => {
+    const isSuspended = club.status === 'suspended';
+    let reason = '';
+    if (!isSuspended) {
+      const input = prompt(
+        `Suspend ${club.name}?\n\n` +
+        `Their range will be hidden from the public directory. They keep dashboard access.\n\n` +
+        `Reason (required — recorded in the audit trail):`
+      );
+      if (input === null) return;
+      if (input.trim().length < 3) {
+        setModMsg({ kind: 'err', text: 'A reason is required to suspend an account.' });
+        return;
+      }
+      reason = input.trim();
+    } else if (!confirm(`Reinstate ${club.name}?`)) return;
+
+    setBusyId(club.id);
+    setModMsg(null);
+    try {
+      const { res, data } = await adminAction({
+        entityId: club.id,
+        action: isSuspended ? 'reinstate' : 'suspend',
+        reason,
+      });
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: data.message || 'Done.' });
+        patchClub(club.id, {
+          status: data.status,
+          suspended_reason: data.suspended_reason ?? null,
+          suspended_at: data.suspended_at ?? null,
+        });
+      } else setModMsg({ kind: 'err', text: data.error || 'Something went wrong.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setBusyId(null);
+  };
+
+  const setVerified = async (id: string, value: boolean) => {
+    setBusyId(id);
+    setModMsg(null);
+    try {
+      const { res, data } = await adminAction({ entityId: id, action: 'set_field', field: 'is_verified', value });
+      if (res.ok) patchClub(id, { is_verified: value });
+      else setModMsg({ kind: 'err', text: data.error || 'Could not update.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setBusyId(null);
+  };
+
+  const handleVerify = (id: string) => setVerified(id, true);
+  const handleUnverify = (id: string) => setVerified(id, false);
 
   const handleStatusChange = async (id: string, status: string) => {
-    await supabase.from('clubs').update({ status }).eq('id', id);
-    setClubs(prev => prev.map(c => c.id === id ? { ...c, status } : c));
-    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, status }));
+    setBusyId(id);
+    setModMsg(null);
+    try {
+      const { res, data } = await adminAction({ entityId: id, action: 'set_status', status });
+      if (res.ok) {
+        patchClub(id, { status });
+        setModMsg({ kind: 'ok', text: data.message || 'Updated.' });
+      } else setModMsg({ kind: 'err', text: data.error || 'Could not change status.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setBusyId(null);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Permanently delete this club?')) return;
-    await supabase.from('clubs').delete().eq('id', id);
-    setClubs(prev => prev.filter(c => c.id !== id));
-    if (selected?.id === id) setSelected(null);
+    if (!confirm('Permanently delete this club? This cannot be undone.\n\nConsider suspending instead — that hides them without destroying anything.')) return;
+    setBusyId(id);
+    try {
+      const { res, data } = await adminAction({ entityId: id, action: 'delete' });
+      if (res.ok) {
+        setClubs(prev => prev.filter(c => c.id !== id));
+        if (selected?.id === id) setSelected(null);
+        setModMsg({ kind: 'ok', text: 'Club deleted.' });
+      } else setModMsg({ kind: 'err', text: data.error || 'Could not delete.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setBusyId(null);
   };
 
   const handleLogout = () => {
@@ -255,17 +341,19 @@ export default function AdminClubsPage() {
                       </button>
                     )}
 
-                    {selected.status === 'active' ? (
-                      <button onClick={() => handleStatusChange(selected.id, 'suspended')}
-                        className="border border-[#E63946]/30 text-[#E63946] font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-[#E63946]/10 transition-all">
-                        Suspend Club
-                      </button>
-                    ) : (
-                      <button onClick={() => handleStatusChange(selected.id, 'active')}
-                        className="border border-[#10B981]/30 text-[#10B981] font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-[#10B981]/10 transition-all">
-                        Restore Club
-                      </button>
-                    )}
+                    {/* Routed through handleSuspend so a reason is captured, the
+                        range is hidden from the directory, and an audit entry
+                        is written — the old version only flipped the status. */}
+                    <button onClick={() => handleSuspend(selected)} disabled={busyId === selected.id}
+                      className={`border font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm transition-all disabled:opacity-40 ${
+                        selected.status === 'suspended'
+                          ? 'border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10'
+                          : 'border-[#E63946]/30 text-[#E63946] hover:bg-[#E63946]/10'
+                      }`}>
+                      {busyId === selected.id
+                        ? '...'
+                        : selected.status === 'suspended' ? '✓ Reinstate Club' : '⊘ Suspend Club'}
+                    </button>
 
                     <Link href={`/clubs/${selected.slug}`} target="_blank"
                       className="border border-white/10 text-white/60 font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-white/5 transition-all">
@@ -278,6 +366,28 @@ export default function AdminClubsPage() {
                     </button>
                   </div>
                 </div>
+
+                                {modMsg && (
+                  <div className={`p-3 rounded-sm text-[12px] font-bold border mb-4 ${
+                    modMsg.kind === 'ok'
+                      ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
+                      : 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]'
+                  }`}>
+                    {modMsg.text}
+                  </div>
+                )}
+
+                {selected.status === 'suspended' && (
+                  <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4 mb-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B] mb-1">Suspended</p>
+                    <p className="text-[12px] text-white/70 leading-relaxed">
+                      {selected.suspended_reason || 'No reason recorded.'}
+                      {selected.suspended_at
+                        ? ` — ${new Date(selected.suspended_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                        : ''}
+                    </p>
+                  </div>
+                )}
 
                 {/* Club Info */}
                 <div className="grid grid-cols-2 gap-4">
