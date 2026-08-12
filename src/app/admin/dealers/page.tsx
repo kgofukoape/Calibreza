@@ -135,7 +135,8 @@ export default function AdminDealersPage() {
     if (!isSuspended) {
       const input = prompt(
         `Suspend ${dealer.business_name}?\n\n` +
-        `Their listings will be hidden from the public (not deleted) and they lose dashboard access.\n\n` +
+        `Their listings will be hidden from the public (not deleted) and paid features are paused.\n` +
+        `They keep dashboard access so they can see why and respond.\n\n` +
         `Reason for suspension (required — recorded in the audit trail):`
       );
       if (input === null) return;
@@ -164,9 +165,16 @@ export default function AdminDealersPage() {
       const data = await res.json();
       if (res.ok) {
         setModMsg({ kind: 'ok', text: data.message || 'Done.' });
-        setDealers(prev => prev.map(d => d.id === dealer.id ? ({ ...d, status: data.status } as any) : d));
+        // Patch the suspension details too, or the panel would keep showing
+        // "No reason recorded" even though it was saved.
+        const patch = {
+          status: data.status,
+          suspended_reason: data.suspended_reason ?? null,
+          suspended_at: data.suspended_at ?? null,
+        };
+        setDealers(prev => prev.map(d => d.id === dealer.id ? ({ ...d, ...patch } as any) : d));
         if (selectedDealer?.id === dealer.id) {
-          setSelectedDealer(prev => prev ? ({ ...prev, status: data.status } as any) : prev);
+          setSelectedDealer(prev => prev ? ({ ...prev, ...patch } as any) : prev);
         }
       } else {
         setModMsg({ kind: 'err', text: data.error || 'Something went wrong.' });

@@ -17,7 +17,14 @@ export default function DealerDashboardPage() {
       if (!user) { router.push('/dealer/login'); return; }
 
       const { data: dealerData } = await supabase.from('dealers').select('*').eq('user_id', user.id).single();
-      if (!dealerData || dealerData.status !== 'approved') { router.push('/dealer/login'); return; }
+      // A SUSPENDED dealer keeps dashboard access. They can see their account,
+      // read why they were suspended, and contact support — they just lose the
+      // paid features and their listings are hidden from the public. Locking
+      // them out entirely would leave them with no way to understand or fix it.
+      if (!dealerData || !['approved', 'suspended'].includes(dealerData.status)) {
+        router.push('/dealer/login');
+        return;
+      }
       setDealer(dealerData);
 
       // Fetch standard listings stats
@@ -88,6 +95,27 @@ export default function DealerDashboardPage() {
         </header>
 
         <div className="p-8">
+
+          {/* ── SUSPENSION NOTICE ──────────────────────────────────────────
+              Shown instead of the usual prompts when an account is suspended,
+              so the dealer knows exactly what has happened and why. */}
+          {dealer?.status === 'suspended' && (
+            <div className="bg-[#E63946]/10 border border-[#E63946]/40 rounded-sm p-5 mb-8">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#E63946] mb-1">Account suspended</p>
+              <p style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase leading-none mb-2">
+                Your listings are hidden from buyers
+              </p>
+              <p className="text-[13px] text-[#F0EDE8] mb-2 leading-relaxed">
+                <strong>Reason:</strong> {dealer?.suspended_reason || 'Not recorded — please contact support.'}
+              </p>
+              <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                You still have full access to your dashboard and nothing has been deleted. New listings and paid
+                features are paused while the suspension is in place. Once it is lifted, every hidden listing is
+                restored automatically. To discuss this, email{' '}
+                <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>.
+              </p>
+            </div>
+          )}
 
           {/* ── FREE TRIAL BANNER ──────────────────────────────────────────
               Shown while a dealer is on the 2-month free Pro trial, and again

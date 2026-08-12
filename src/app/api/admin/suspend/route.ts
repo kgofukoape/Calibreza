@@ -270,6 +270,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       status: 'suspended',
+      // Returned so the console can show the reason immediately without a reload
+      suspended_reason: reason,
+      suspended_at: now,
+      previous_status: currentStatus,
       hiddenListings: hidden,
       message: hidden > 0
         ? `Account suspended. ${hidden} listing${hidden === 1 ? '' : 's'} hidden from the public — nothing was deleted, and they return on reinstatement.`
@@ -334,6 +338,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     status: restoreTo,
+    suspended_reason: null,
+    suspended_at: null,
     restoredListings: restored,
     message: restored > 0
       ? `Account reinstated. ${restored} listing${restored === 1 ? '' : 's'} restored.`
