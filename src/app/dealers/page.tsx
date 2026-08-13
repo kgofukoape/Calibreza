@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import AdBanner from '@/components/AdBanner';
+import InFeedAd from '@/components/InFeedAd';
 import { supabase } from '@/lib/supabase';
 
 const PROVINCES = [
@@ -167,12 +168,10 @@ export default function DealersDirectoryPage() {
                       </div>
                     </Link>
 
-                    {/* LEADERBOARD MID — after every 6th dealer card */}
-                    {(idx + 1) % 6 === 0 && idx < filtered.length - 1 && (
-                      <div className="col-span-full flex justify-center py-2">
-                        <AdBanner slot="leaderboard_mid" page="dealers_directory" />
-                      </div>
-                    )}
+                    {/* In-feed advert every 6 cards — cycles through the mid
+                          leaderboard and the two sidebar bookings, so a
+                          sidebar advertiser is seen on mobile too. */}
+                      <InFeedAd index={idx} page="dealers_directory" every={6} />
                   </React.Fragment>
                 ))}
               </div>
