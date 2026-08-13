@@ -24,6 +24,11 @@ const TABLES: Record<string, { table: string; orderBy: string }> = {
   club:    { table: 'clubs',    orderBy: 'created_at' },
   service: { table: 'services', orderBy: 'created_at' },
   user:    { table: 'users',    orderBy: 'member_since' },
+  // The ads table's only public SELECT policy is `status = 'active'`, so
+  // reading it from the browser as the anon user would hide every pending
+  // submission from the Ad Manager — the same fault that hid pending dealer
+  // applications.
+  ad:      { table: 'ads',      orderBy: 'created_at' },
 };
 
 export async function GET(req: NextRequest) {

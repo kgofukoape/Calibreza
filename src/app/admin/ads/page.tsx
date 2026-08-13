@@ -6,14 +6,18 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 const NAV = [
-  { href: '/admin',           icon: '⚡', label: 'Overview' },
-  { href: '/admin/dealers',   icon: '🏪', label: 'Dealers' },
-  { href: '/admin/clubs',     icon: '⊕', label: 'Clubs' },
-  { href: '/admin/listings',  icon: '📋', label: 'Listings' },
-  { href: '/admin/analytics', icon: '📈', label: 'Analytics' },
-  { href: '/admin/ads',       icon: '📢', label: 'Ad Manager', active: true },
-  { href: '/admin/crm',       icon: '💰', label: 'CRM' },
-  { href: '/admin/users',     icon: '👥', label: 'Users' },
+  { href: '/admin',               icon: '⚡', label: 'Overview' },
+  { href: '/admin/dealers',       icon: '🏪', label: 'Dealers' },
+  { href: '/admin/clubs',         icon: '⊕',  label: 'Clubs' },
+  { href: '/admin/services',      icon: '🔧', label: 'Services' },
+  { href: '/admin/jobs',          icon: '💼', label: 'Jobs' },
+  { href: '/admin/listings',      icon: '📋', label: 'Listings' },
+  { href: '/admin/users',         icon: '👥', label: 'Users' },
+  { href: '/admin/analytics',     icon: '📈', label: 'Analytics' },
+  { href: '/admin/crm',           icon: '💰', label: 'CRM' },
+  { href: '/admin/subscriptions', icon: '🔄', label: 'Subscriptions' },
+  { href: '/admin/ads',           icon: '📢', label: 'Ad Manager', active: true },
+  { href: '/admin/sentinel',      icon: '👁️', label: 'Tokoloshe' },
 ];
 
 // ─── LOCKED RATE CARD — matches AdBanner.tsx and /advertise page ─────────────
@@ -110,6 +114,8 @@ export default function AdManagerPage() {
   const [form, setForm]             = useState<any>({ ...EMPTY_FORM });
   const [file, setFile]             = useState<File | null>(null);
   const [preview, setPreview]       = useState<string>('');
+  const [mobileFile, setMobileFile] = useState<File | null>(null);
+  const [mobilePreview, setMobilePreview] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState('pending_review');
   const [selectedAd, setSelectedAd] = useState<any>(null);
   const [error, setError]           = useState('');
@@ -143,11 +149,33 @@ export default function AdManagerPage() {
     }
   }, [form.slot, form.page, form.starts_at, form.expires_at]);
 
+  // Read via the admin route. The ads table's only public SELECT policy is
+  // `status = 'active'`, so reading from the browser as the anon user would
+  // hide every pending submission from this console.
   const fetchAds = async () => {
-    const { data } = await supabase.from('ads').select('*').order('created_at', { ascending: false });
-    setAds(data || []);
+    try {
+      const res = await fetch('/api/admin/records?type=ad');
+      const data = await res.json();
+      if (res.ok) {
+        setAds(data.records || []);
+        checkExpiring(data.records || []);
+      } else {
+        setError(data.error || 'Could not load ads.');
+      }
+    } catch {
+      setError('Could not reach the server.');
+    }
     setLoading(false);
-    checkExpiring(data || []);
+  };
+
+  // Every write goes through the admin route too — see the comment above.
+  const adAction = async (payload: Record<string, any>) => {
+    const res = await fetch('/api/admin/ads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return { res, data: await res.json() };
   };
 
   const checkExpiring = (adList: any[]) => {
@@ -159,7 +187,7 @@ export default function AdManagerPage() {
       new Date(a.expires_at) > new Date()
     );
     expiring.forEach(async (ad) => {
-      await supabase.from('ads').update({ expiry_notified: true }).eq('id', ad.id);
+      await adAction({ action: 'update', adId: ad.id, payload: { expiry_notified: true } });
     });
   };
 
@@ -198,6 +226,15 @@ export default function AdManagerPage() {
     setPreview(URL.createObjectURL(f));
   };
 
+  const handleMobileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setMobileFile(f);
+    setMobilePreview(URL.createObjectURL(f));
+  };
+
+  const isSidebarSlot = form.slot === 'sidebar_left' || form.slot === 'sidebar_right';
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const val = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
     setForm((prev: any) => ({ ...prev, [e.target.name]: val }));
@@ -207,30 +244,9 @@ export default function AdManagerPage() {
   // Self-service submissions land as pending_review and require approval here.
   const handleApprove = async (ad: any) => {
     if (!confirm(`Approve "${ad.title}" by ${ad.client_company || ad.client_name}?\n\nThis opens a 24-hour payment window. The advertiser must pay within 24h or the slot is auto-released. The ad does NOT go live until you mark it paid.`)) return;
-    const approvedAt = new Date();
-    const dueAt      = new Date(approvedAt.getTime() + 24 * 60 * 60 * 1000);
-    const { error } = await supabase.from('ads').update({
-      status: 'approved_awaiting_payment',
-      reviewed_at: approvedAt.toISOString(),
-      approved_at: approvedAt.toISOString(),
-      payment_due_at: dueAt.toISOString(),
-      payment_reminder_sent: false,
-      review_notes: null,
-    }).eq('id', ad.id);
-    if (error) { alert('Approve failed: ' + error.message); return; }
-
-    // Notify advertiser their ad is approved + payment due (best-effort)
-    try {
-      await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'ad_approved_pay',
-          data: { email: ad.client_email, name: ad.client_name, title: ad.title, amount: ad.amount_paid, dueAt: dueAt.toISOString() },
-        }),
-      });
-    } catch { /* non-blocking */ }
-
+    const { res, data } = await adAction({ action: 'approve', adId: ad.id });
+    if (!res.ok) { setError(data.error || 'Approve failed.'); return; }
+    setSuccess(data.message || 'Approved.');
     setReviewingAd(null);
     fetchAds();
   };
@@ -238,21 +254,17 @@ export default function AdManagerPage() {
   // Mark an approved+awaiting-payment ad as PAID → goes live
   const handleMarkPaid = async (ad: any) => {
     if (!confirm(`Confirm payment received for "${ad.title}"? The ad will go LIVE.`)) return;
-    const { error } = await supabase.from('ads').update({
-      status: 'active',
-    }).eq('id', ad.id);
-    if (error) { alert('Failed: ' + error.message); return; }
+    const { res, data } = await adAction({ action: 'mark_paid', adId: ad.id });
+    if (!res.ok) { setError(data.error || 'Failed.'); return; }
+    setSuccess(data.message || 'Ad is live.');
     fetchAds();
   };
 
   const handleReject = async (ad: any) => {
-    if (!rejectReason.trim()) { alert('Please provide a reason for rejection.'); return; }
-    const { error } = await supabase.from('ads').update({
-      status: 'rejected',
-      reviewed_at: new Date().toISOString(),
-      review_notes: rejectReason,
-    }).eq('id', ad.id);
-    if (error) { alert('Reject failed: ' + error.message); return; }
+    if (!rejectReason.trim()) { setError('Please provide a reason for rejection.'); return; }
+    const { res, data } = await adAction({ action: 'reject', adId: ad.id, reason: rejectReason });
+    if (!res.ok) { setError(data.error || 'Reject failed.'); return; }
+    setSuccess(data.message || 'Rejected.');
     setReviewingAd(null);
     setRejectReason('');
     fetchAds();
@@ -266,6 +278,7 @@ export default function AdManagerPage() {
     setSaving(true); setError(''); setSuccess('');
 
     let fileUrl = selectedAd?.file_url || '';
+    let mobileUrl: string | null = selectedAd?.mobile_file_url || null;
 
     if (file) {
       setUploading(true);
@@ -275,6 +288,19 @@ export default function AdManagerPage() {
       if (upErr) { setError('Upload failed: ' + upErr.message); setSaving(false); setUploading(false); return; }
       const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(path);
       fileUrl = publicUrl;
+      setUploading(false);
+    }
+
+    // Sidebar bookings run in-feed on mobile as well, using a wide banner.
+    // Uploading it here lets you fill a gap the advertiser left rather than
+    // stretching their skyscraper into the phone feed.
+    if (mobileFile) {
+      setUploading(true);
+      const mExt  = mobileFile.name.split('.').pop();
+      const mPath = `ads/${Date.now()}-m-${Math.random().toString(36).slice(2)}.${mExt}`;
+      const { error: mErr } = await supabase.storage.from('images').upload(mPath, mobileFile);
+      if (mErr) { setError('Mobile creative upload failed: ' + mErr.message); setSaving(false); setUploading(false); return; }
+      mobileUrl = supabase.storage.from('images').getPublicUrl(mPath).data.publicUrl;
       setUploading(false);
     }
 
@@ -288,6 +314,7 @@ export default function AdManagerPage() {
       page:           form.page,
       ad_type:        form.ad_type,
       file_url:       fileUrl,
+      mobile_file_url: mobileUrl,
       click_url:      form.click_url,
       starts_at:      form.starts_at,
       expires_at:     form.expires_at,
@@ -301,12 +328,12 @@ export default function AdManagerPage() {
     };
 
     if (selectedAd) {
-      const { error: err } = await supabase.from('ads').update(payload).eq('id', selectedAd.id);
-      if (err) { setError(err.message); setSaving(false); return; }
+      const { res, data } = await adAction({ action: 'update', adId: selectedAd.id, payload });
+      if (!res.ok) { setError(data.error || 'Update failed.'); setSaving(false); return; }
       setSuccess('Ad updated successfully.');
     } else {
-      const { error: err } = await supabase.from('ads').insert(payload);
-      if (err) { setError(err.message); setSaving(false); return; }
+      const { res, data } = await adAction({ action: 'create', payload });
+      if (!res.ok) { setError(data.error || 'Create failed.'); setSaving(false); return; }
       setSuccess('Ad created and is now live.');
     }
 
@@ -316,19 +343,23 @@ export default function AdManagerPage() {
     setForm({ ...EMPTY_FORM });
     setFile(null);
     setPreview('');
+    setMobileFile(null);
+    setMobilePreview('');
     setConflictWarning('');
     fetchAds();
   };
 
   const handlePause = async (ad: any) => {
-    const next = ad.status === 'active' ? 'paused' : 'active';
-    await supabase.from('ads').update({ status: next }).eq('id', ad.id);
-    setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: next } : a));
+    const action = ad.status === 'active' ? 'pause' : 'resume';
+    const { res, data } = await adAction({ action, adId: ad.id });
+    if (!res.ok) { setError(data.error || 'Failed.'); return; }
+    setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: data.status } : a));
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Permanently delete this ad?')) return;
-    await supabase.from('ads').delete().eq('id', id);
+    if (!confirm('Permanently delete this ad? This cannot be undone.')) return;
+    const { res, data } = await adAction({ action: 'delete', adId: id });
+    if (!res.ok) { setError(data.error || 'Delete failed.'); return; }
     setAds(prev => prev.filter(a => a.id !== id));
   };
 
@@ -353,6 +384,8 @@ export default function AdManagerPage() {
       notes:          ad.notes          || '',
     });
     setPreview(ad.file_url || '');
+    setMobilePreview(ad.mobile_file_url || '');
+    setMobileFile(null);
     setShowForm(true);
     setConflictWarning('');
   };
@@ -363,6 +396,8 @@ export default function AdManagerPage() {
     setForm({ ...EMPTY_FORM });
     setFile(null);
     setPreview('');
+    setMobileFile(null);
+    setMobilePreview('');
     setError('');
     setSuccess('');
     setConflictWarning('');
@@ -654,6 +689,30 @@ export default function AdManagerPage() {
                         <input type="file" accept={AD_FORMATS[form.ad_type as keyof typeof AD_FORMATS]?.accept} onChange={handleFileChange} className="hidden" />
                       </label>
                     </div>
+                    {isSidebarSlot && (
+                      <div className="md:col-span-2 bg-[#C9922A]/5 border border-[#C9922A]/25 rounded-sm p-4">
+                        <label className={labelClass}>Mobile Creative — 320×100 (sidebar bookings)</label>
+                        <p className="text-[11px] text-white/40 leading-relaxed mb-3">
+                          A sidebar booking also runs in-feed between listings on phones, where most visitors are.
+                          A 160×600 skyscraper does not fit a phone feed, so upload the wide banner version here.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className="flex flex-col items-center justify-center w-full h-[100px] bg-[#080B12] border-2 border-dashed border-[#C9922A]/30 rounded-sm cursor-pointer hover:border-[#C9922A]/60 transition-all">
+                            <span className="text-2xl mb-1">📱</span>
+                            <span className="text-[11px] text-white/40 font-bold uppercase tracking-widest">
+                              {mobileFile ? mobileFile.name : 'Upload mobile banner'}
+                            </span>
+                            <input type="file" accept={AD_FORMATS[form.ad_type as keyof typeof AD_FORMATS]?.accept} onChange={handleMobileFileChange} className="hidden" />
+                          </label>
+                          {(mobilePreview || selectedAd?.mobile_file_url) && (
+                            <div className="w-full h-[100px] bg-[#080B12] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
+                              <img src={mobilePreview || selectedAd?.mobile_file_url} alt="Mobile preview" className="max-w-full max-h-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {preview && (
                       <div>
                         <label className={labelClass}>Preview</label>
@@ -965,6 +1024,30 @@ export default function AdManagerPage() {
                     <p className="text-white/30 italic">No creative uploaded</p>
                   )}
                 </div>
+
+                {/* Mobile creative — a sidebar booking runs in-feed on phones,
+                    so review that version too. Its absence is worth catching
+                    before approval, since most of the audience is on mobile. */}
+                {(reviewingAd.slot === 'sidebar_left' || reviewingAd.slot === 'sidebar_right') && (
+                  <div className="mt-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">
+                      Mobile Creative (320×100) — shown in-feed on phones
+                    </p>
+                    {reviewingAd.mobile_file_url ? (
+                      <div className="bg-[#0D0F13] border border-white/10 rounded-sm p-4 flex items-center justify-center">
+                        <img src={reviewingAd.mobile_file_url} alt="Mobile creative" className="max-w-full max-h-[160px] object-contain" />
+                      </div>
+                    ) : (
+                      <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4">
+                        <p className="text-[12px] text-[#F59E0B] leading-relaxed">
+                          <strong>No mobile creative supplied.</strong> On phones this booking will stretch the
+                          160×600 skyscraper into a wide banner and look poor to most of the audience. Ask the
+                          advertiser for a 320×100 version, or add one yourself via Edit before approving.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* REVIEW CHECKLIST */}

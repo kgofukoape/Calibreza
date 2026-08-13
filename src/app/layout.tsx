@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Suspense } from 'react'
 import FloatingAdvisor from '@/components/FloatingAdvisor'
+import { Analytics } from '@vercel/analytics/next'
 
 const FALLBACK_URL = 'https://calibreza.vercel.app'
 
@@ -152,6 +153,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Suspense fallback={null}>
           <FloatingAdvisor />
         </Suspense>
+
+        {/* Vercel Web Analytics — real visitor counts, page views and device
+            split. This is what backs any audience figure quoted on the
+            /advertise rate card, so the numbers shown to advertisers are
+            measured rather than estimated. No cookies, no personal data
+            stored, which keeps it clean under POPIA. */}
+        <Analytics />
       </body>
     </html>
   )
