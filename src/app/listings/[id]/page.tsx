@@ -8,6 +8,7 @@ import Footer from '@/components/layout/Footer';
 import ListingCard from '@/components/listings/ListingCard';
 import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
+import SmartImage from '@/components/SmartImage';
 
 export default function ListingDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -229,7 +230,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           <div className="flex flex-col gap-2">
             <div className="w-full bg-[#191C23] border border-white/5 rounded-sm flex items-center justify-center relative overflow-hidden" style={{ aspectRatio: '4/3', maxHeight: '520px' }}>
               {images
-                ? <img src={images[selectedImage]} alt={listing.title} className="w-full h-full object-contain" />
+                ? <SmartImage src={images[selectedImage]} alt={listing.title} width={800} quality={80} priority className="w-full h-full object-contain" />
                 : <span className="text-6xl opacity-10">📷</span>}
               {images && images.length > 1 && (
                 <>
@@ -245,7 +246,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                 {images.slice(0, 8).map((img: string, idx: number) => (
                   <button key={idx} onClick={() => setSelectedImage(idx)}
                     className={`aspect-square bg-[#191C23] rounded-sm overflow-hidden transition-all ${selectedImage === idx ? 'border-2 border-[#C9922A]' : 'border border-white/10 hover:border-[#C9922A]/50'}`}>
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <SmartImage src={img} alt="" width={100} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -382,7 +383,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             <div className="flex items-center gap-3 mb-3">
               <div className="w-11 h-11 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden flex-shrink-0">
                 {seller?.logo_url
-                  ? <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
+                  ? <SmartImage src={seller.logo_url} alt="" width={44} className="w-full h-full object-cover" />
                   : <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-bold text-black">{seller?.full_name?.charAt(0) || 'S'}</span>}
               </div>
               <div>
@@ -469,7 +470,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
 
             <div className="flex items-center gap-3 mb-5 pb-5 border-b border-white/5">
               <div className="w-11 h-11 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden flex-shrink-0">
-                {seller?.logo_url ? <img src={seller.logo_url} alt="" className="w-full h-full object-cover" /> : <span className="text-black font-black text-lg">{(seller?.full_name || 'S').charAt(0)}</span>}
+                {seller?.logo_url ? <SmartImage src={seller.logo_url} alt="" width={44} className="w-full h-full object-cover" /> : <span className="text-black font-black text-lg">{(seller?.full_name || 'S').charAt(0)}</span>}
               </div>
               <div>
                 <p className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || 'Private Seller'}</p>

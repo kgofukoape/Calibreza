@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import SmartImage from '@/components/SmartImage';
 
 interface ListingCardProps {
   id: string;
@@ -40,9 +41,10 @@ export default function ListingCard({
       {/* Image or Placeholder */}
       <div className="w-full aspect-[4/3] bg-gradient-to-br from-[#1F2330] to-[#0D0F13] border-b border-white/5 relative flex items-center justify-center overflow-hidden">
         {images && images.length > 0 ? (
-          <img 
-            src={images[0]} 
+          <SmartImage
+            src={images[0]}
             alt={title}
+            width={400}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (

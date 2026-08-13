@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import AdBanner from '@/components/AdBanner';
+import SmartImage from '@/components/SmartImage';
 import { supabase } from '@/lib/supabase';
 
 const CATEGORIES = [
@@ -178,7 +179,7 @@ export default function HomePage() {
                       className="bg-[#191C23] border border-white/5 p-2 rounded-sm shrink-0 flex-none text-left hover:border-[#C9922A]/40 transition-colors block">
                       <div className="relative overflow-hidden bg-[#0D0F13] mb-1.5" style={{ height: '160px' }}>
                         {item.images?.length > 0
-                          ? <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
+                          ? <SmartImage src={item.images[0]} alt={item.title} width={250} priority={idx < 4} className="w-full h-full object-cover" />
                           : <div className="w-full h-full flex items-center justify-center text-lg opacity-20">🔫</div>}
                         <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 py-0.5 uppercase tracking-tighter z-10 leading-none">
                           {formatCategory(item.category_id)}
