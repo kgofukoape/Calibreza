@@ -2,465 +2,255 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import AdBanner from '@/components/AdBanner';
+import InFeedAd from '@/components/InFeedAd';
+import { supabase } from '@/lib/supabase';
 
-export default function AdminClubsPage() {
-  const router = useRouter();
+const PROVINCES = [
+  'All Provinces', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
+  'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
+];
+
+const DISCIPLINES = [
+  'IPSC', 'IDPA', 'Practical Shooting', 'Target Shooting', 'Hunting',
+  'Long Range', 'Skeet', 'Trap', 'Air Gun', 'Airsoft',
+];
+
+export default function ClubsPage() {
   const [clubs, setClubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<any>(null);
-  const [filter, setFilter] = useState<'all' | 'verified' | 'unverified'>('all');
+  const [selectedProvince, setSelectedProvince] = useState('All Provinces');
+  const [selectedDiscipline, setSelectedDiscipline] = useState('');
+  const [selectedType, setSelectedType] = useState('all');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (localStorage.getItem('gunx_admin_session') !== 'authenticated') {
-        router.push('/admin/login'); return;
-      }
-    }
-    loadClubs();
-  }, []);
+  useEffect(() => { fetchClubs(); }, []);
 
-  // Read through the admin route rather than the browser client. Admin pages
-  // query as the ANON user, so any restrictive RLS policy silently hides rows
-  // (this is exactly what was hiding pending dealer applications).
-  const loadClubs = async () => {
-    try {
-      const res = await fetch('/api/admin/records?type=club');
-      const data = await res.json();
-      if (res.ok) setClubs(data.records || []);
-      else setModMsg({ kind: 'err', text: data.error || 'Could not load clubs.' });
-    } catch {
-      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
-    }
+  const fetchClubs = async () => {
+    const { data } = await supabase
+      .from('clubs')
+      .select('*')
+      .in('status', ['active', 'approved'])
+      .order('is_verified', { ascending: false })
+      .order('name');
+    setClubs(data || []);
     setLoading(false);
   };
 
-  // Shared caller for every admin write on this page
-  const adminAction = async (payload: Record<string, any>) => {
-    const res = await fetch('/api/admin/suspend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entityType: 'club', ...payload }),
-    });
-    return { res, data: await res.json() };
-  };
-
-  const patchClub = (id: string, patch: Record<string, any>) => {
-    setClubs(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-    if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...patch }));
-  };
-
-  const handleSuspend = async (club: any) => {
-    const isSuspended = club.status === 'suspended';
-    let reason = '';
-    if (!isSuspended) {
-      const input = prompt(
-        `Suspend ${club.name}?\n\n` +
-        `Their range will be hidden from the public directory. They keep dashboard access.\n\n` +
-        `Reason (required — recorded in the audit trail):`
-      );
-      if (input === null) return;
-      if (input.trim().length < 3) {
-        setModMsg({ kind: 'err', text: 'A reason is required to suspend an account.' });
-        return;
-      }
-      reason = input.trim();
-    } else if (!confirm(`Reinstate ${club.name}?`)) return;
-
-    setBusyId(club.id);
-    setModMsg(null);
-    try {
-      const { res, data } = await adminAction({
-        entityId: club.id,
-        action: isSuspended ? 'reinstate' : 'suspend',
-        reason,
-      });
-      if (res.ok) {
-        setModMsg({ kind: 'ok', text: data.message || 'Done.' });
-        patchClub(club.id, {
-          status: data.status,
-          suspended_reason: data.suspended_reason ?? null,
-          suspended_at: data.suspended_at ?? null,
-        });
-      } else setModMsg({ kind: 'err', text: data.error || 'Something went wrong.' });
-    } catch {
-      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
-    }
-    setBusyId(null);
-  };
-
-  const setVerified = async (id: string, value: boolean) => {
-    setBusyId(id);
-    setModMsg(null);
-    try {
-      const { res, data } = await adminAction({ entityId: id, action: 'set_field', field: 'is_verified', value });
-      if (res.ok) patchClub(id, { is_verified: value });
-      else setModMsg({ kind: 'err', text: data.error || 'Could not update.' });
-    } catch {
-      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
-    }
-    setBusyId(null);
-  };
-
-  const handleVerify = (id: string) => setVerified(id, true);
-  const handleUnverify = (id: string) => setVerified(id, false);
-
-  const handleStatusChange = async (id: string, status: string) => {
-    setBusyId(id);
-    setModMsg(null);
-    try {
-      const { res, data } = await adminAction({ entityId: id, action: 'set_status', status });
-      if (res.ok) {
-        patchClub(id, { status });
-        setModMsg({ kind: 'ok', text: data.message || 'Updated.' });
-      } else setModMsg({ kind: 'err', text: data.error || 'Could not change status.' });
-    } catch {
-      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
-    }
-    setBusyId(null);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Permanently delete this club? This cannot be undone.\n\nConsider suspending instead — that hides them without destroying anything.')) return;
-    setBusyId(id);
-    try {
-      const { res, data } = await adminAction({ entityId: id, action: 'delete' });
-      if (res.ok) {
-        setClubs(prev => prev.filter(c => c.id !== id));
-        if (selected?.id === id) setSelected(null);
-        setModMsg({ kind: 'ok', text: 'Club deleted.' });
-      } else setModMsg({ kind: 'err', text: data.error || 'Could not delete.' });
-    } catch {
-      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
-    }
-    setBusyId(null);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('gunx_admin_session');
-    router.push('/admin/login');
-  };
-
   const filtered = clubs.filter(c => {
-    if (filter === 'verified' && !c.is_verified) return false;
-    if (filter === 'unverified' && c.is_verified) return false;
-    if (search && !c.name?.toLowerCase().includes(search.toLowerCase()) && !c.city?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (selectedProvince !== 'All Provinces' && c.province !== selectedProvince) return false;
+    if (selectedDiscipline && !(c.disciplines || []).includes(selectedDiscipline)) return false;
+    if (selectedType === 'club' && c.facility_type !== 'club') return false;
+    if (selectedType === 'range' && c.facility_type !== 'range') return false;
+    if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.city?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  const NAV_ITEMS = [
-    { href: '/admin', icon: '⚡', label: 'Overview' },
-    { href: '/admin/dealers', icon: '🏪', label: 'Dealers' },
-    { href: '/admin/clubs', icon: '⊕', label: 'Clubs & Ranges', active: true },
-    { href: '/admin/listings', icon: '📋', label: 'Listings' },
-    { href: '/admin/users', icon: '👥', label: 'Users' },
-    { href: '/admin/analytics', icon: '📈', label: 'Analytics' },
-  ];
+  const clubCount = clubs.filter(c => c.facility_type !== 'range').length;
+  const rangeCount = clubs.filter(c => c.facility_type === 'range').length;
 
   return (
-    <div className="min-h-screen bg-[#080B12] text-[#E8EAF0] flex">
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
 
-      {/* SIDEBAR */}
-      <aside className="w-[260px] bg-[#0D1420] border-r border-white/5 flex flex-col fixed h-full z-50">
-        <div className="p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#E63946] rounded-sm flex items-center justify-center"><span className="text-white font-black text-sm">GX</span></div>
+      {/* PAGE HEADER */}
+      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-6 md:py-10">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase tracking-widest text-white leading-none">Command Center</p>
-              <p className="text-[9px] font-bold text-[#E63946] uppercase tracking-[0.3em]">Admin Access</p>
+              <div className="text-[11px] text-[#8A8E99] tracking-widest uppercase mb-2 flex items-center gap-2">
+                <Link href="/" className="hover:text-[#C9922A]">Home</Link>
+                <span>/</span>
+                <span className="text-[#F0EDE8]">Clubs & Ranges</span>
+              </div>
+              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="text-4xl md:text-6xl font-black uppercase tracking-tight">
+                Clubs & <span className="text-[#C9922A]">Ranges</span>
+              </h1>
+              <p className="text-[#8A8E99] text-sm mt-2 uppercase tracking-widest font-bold">
+                Find shooting clubs and ranges across South Africa
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Link href="/clubs/apply"
+                className="flex-shrink-0 bg-white/5 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/10 transition-all text-center">
+                + List Club
+              </Link>
+              <Link href="/clubs/range-apply"
+                className="flex-shrink-0 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
+                + List Range
+              </Link>
             </div>
           </div>
         </div>
-        <div className="px-6 py-4 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#E63946] flex items-center justify-center text-white font-black text-xs">K</div>
-            <div>
-              <p className="text-xs font-black text-white uppercase tracking-widest">Kgofu</p>
-              <p className="text-[9px] text-[#E63946] font-bold uppercase tracking-widest">Super Admin</p>
-            </div>
-          </div>
-        </div>
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Main</p>
-          <ul className="space-y-1">
-            {NAV_ITEMS.map(item => (
-              <li key={item.href}>
-                <Link href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${
-                  item.active ? 'bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946]' : 'text-white/50 hover:bg-white/5 hover:text-white'
-                }`}>
-                  <span>{item.icon}</span><span>{item.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-6">
-            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Quick Links</p>
-            <ul className="space-y-1">
-              <li><Link href="/" target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all"><span>🌐</span><span>View Site</span></Link></li>
-              <li><Link href="/clubs" target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all"><span>⊕</span><span>Clubs Page</span></Link></li>
-              <li><Link href="https://supabase.com/dashboard/project/xklyirzvbjncedymrjqj" target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all"><span>🗄️</span><span>Supabase</span></Link></li>
-            </ul>
-          </div>
-        </nav>
-        <div className="p-4 border-t border-white/5">
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-red-400 hover:bg-red-500/10 font-black text-[11px] uppercase tracking-widest transition-all">
-            <span>🚪</span><span>Logout</span>
-          </button>
-        </div>
-      </aside>
+      </div>
+
+      {/* LEADERBOARD TOP */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="clubs_directory" />
+      </div>
 
       {/* MAIN */}
-      <main className="flex-1 ml-[260px] overflow-y-auto">
-        <header className="bg-[#0D1420] border-b border-white/5 px-8 py-5 sticky top-0 z-40">
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight text-white">
-            Clubs & <span className="text-[#E63946]">Ranges</span>
-          </h1>
-          <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-bold">Manage club listings and verification</p>
-        </header>
+      <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-6">
 
-        <div className="flex h-[calc(100vh-81px)]">
+        {/* LEFT SIDEBAR AD */}
+        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_left" page="clubs_directory" />
+          </div>
+        </aside>
 
-          {/* LEFT PANEL — Club List */}
-          <div className="w-[380px] flex-shrink-0 border-r border-white/5 flex flex-col">
+        {/* CENTRE CONTENT */}
+        <main className="flex-1 min-w-0">
 
-            {/* Search + Filter */}
-            <div className="p-4 border-b border-white/5 flex flex-col gap-3">
-              <input type="text" placeholder="Search clubs..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full bg-[#080B12] border border-white/10 rounded-sm px-3 py-2 text-[12px] text-white placeholder-white/30 focus:outline-none focus:border-[#E63946]/50" />
-              <div className="flex gap-1">
-                {(['all', 'unverified', 'verified'] as const).map(f => (
-                  <button key={f} onClick={() => setFilter(f)}
-                    className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all ${filter === f ? 'bg-[#E63946] text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}>
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-white/30 uppercase tracking-widest font-bold">{filtered.length} club{filtered.length !== 1 ? 's' : ''}</p>
-            </div>
-
-            {/* Club List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="w-8 h-8 border-2 border-[#E63946] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="py-16 text-center text-white/30 text-sm">No clubs found</div>
-              ) : filtered.map(club => (
-                <div key={club.id}
-                  onClick={() => setSelected(club)}
-                  className={`px-4 py-4 cursor-pointer transition-all hover:bg-white/5 ${selected?.id === club.id ? 'bg-white/5 border-l-2 border-[#E63946]' : ''}`}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-sm bg-[#C9922A]/10 border border-[#C9922A]/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {club.logo_url ? (
-                        <img src={club.logo_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[#C9922A] font-black text-sm">{club.name?.charAt(0)}</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-white truncate">{club.name}</p>
-                      <p className="text-[10px] text-white/40 uppercase tracking-wider">{club.city}, {club.province}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm ${
-                        club.is_verified ? 'bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20' : 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20'
-                      }`}>
-                        {club.is_verified ? '✓ Verified' : 'Unverified'}
-                      </span>
-                      <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm ${
-                        club.status === 'active' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-white/5 text-white/30'
-                      }`}>
-                        {club.status}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* TYPE TABS */}
+          <div className="flex gap-2 mb-4">
+            {[
+              { id: 'all', label: `All (${clubs.length})` },
+              { id: 'club', label: `Clubs (${clubCount})` },
+              { id: 'range', label: `Ranges (${rangeCount})` },
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setSelectedType(tab.id)}
+                className={`px-4 py-2 rounded-sm text-[12px] font-black uppercase tracking-widest transition-all ${
+                  selectedType === tab.id ? 'bg-[#C9922A] text-black' : 'bg-[#13151A] border border-white/10 text-[#8A8E99] hover:text-[#F0EDE8]'
+                }`}>
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {/* RIGHT PANEL — Club Detail */}
-          <div className="flex-1 overflow-y-auto">
-            {!selected ? (
-              <div className="flex items-center justify-center h-full flex-col gap-4 text-white/20">
-                <span className="text-6xl">⊕</span>
-                <p className="text-sm uppercase tracking-widest font-bold">Select a club to manage</p>
-              </div>
-            ) : (
-              <div className="p-8 space-y-6">
+          {/* FILTERS */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-5">
+            <input type="text" placeholder="Search clubs or city..." value={search} onChange={e => setSearch(e.target.value)}
+              className="flex-1 bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50" />
+            <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)}
+              className="bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50 appearance-none cursor-pointer">
+              {PROVINCES.map(p => <option key={p}>{p}</option>)}
+            </select>
+            <select value={selectedDiscipline} onChange={e => setSelectedDiscipline(e.target.value)}
+              className="bg-[#13151A] border border-white/10 rounded-sm px-4 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/50 appearance-none cursor-pointer">
+              <option value="">All Disciplines</option>
+              {DISCIPLINES.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
 
-                {/* Club Header */}
-                <div className="flex items-start gap-6">
-                  <div className="w-20 h-20 rounded-sm bg-[#C9922A]/10 border border-[#C9922A]/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {selected.logo_url ? (
-                      <img src={selected.logo_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-[#C9922A] font-black text-3xl">{selected.name?.charAt(0)}</span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase text-white mb-1">{selected.name}</h2>
-                    <p className="text-white/50 text-sm mb-2">📍 {selected.city}, {selected.province}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-sm border ${
-                        selected.is_verified ? 'border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]' : 'border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B]'
-                      }`}>
-                        {selected.is_verified ? '✓ Verified' : '⚠ Unverified'}
-                      </span>
-                      <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-sm border ${
-                        selected.status === 'active' ? 'border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]' : 'border-white/10 bg-white/5 text-white/40'
-                      }`}>
-                        {selected.status}
-                      </span>
-                      {selected.disciplines?.map((d: string) => (
-                        <span key={d} className="text-[10px] font-black uppercase px-2 py-1 rounded-sm border border-[#C9922A]/20 bg-[#C9922A]/5 text-[#C9922A]">{d}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+          {/* RESULTS COUNT */}
+          <p className="text-[12px] text-[#8A8E99] mb-4 uppercase tracking-widest font-bold">
+            <span className="text-[#F0EDE8] font-black">{filtered.length}</span> result{filtered.length !== 1 ? 's' : ''} found
+          </p>
 
-                {/* Actions */}
-                <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
-                  <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">Actions</h3>
-                  <div className="flex flex-wrap gap-3">
-                    {!selected.is_verified ? (
-                      <button onClick={() => handleVerify(selected.id)}
-                        className="bg-[#10B981] text-white font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:brightness-110 transition-all">
-                        ✓ Verify Club
-                      </button>
-                    ) : (
-                      <button onClick={() => handleUnverify(selected.id)}
-                        className="bg-[#F59E0B] text-black font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:brightness-110 transition-all">
-                        Remove Verification
-                      </button>
-                    )}
+          {/* GRID */}
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="bg-[#13151A] border border-white/5 rounded-sm p-16 text-center">
+              <div className="text-5xl mb-4">⊕</div>
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2">No clubs found</h3>
+              <p className="text-[#8A8E99] text-sm mb-6">Be the first to list your club in this area</p>
+              <Link href="/clubs/apply" className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all">
+                List Your Club
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-5">
+                {filtered.map((club, idx) => {
+                  const isRange = club.facility_type === 'range';
+                  return (
+                    <React.Fragment key={club.id}>
+                      <Link href={`/clubs/${club.slug}`}
+                        className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/30 transition-all group">
 
-                    {/* Routed through handleSuspend so a reason is captured, the
-                        range is hidden from the directory, and an audit entry
-                        is written — the old version only flipped the status. */}
-                    <button onClick={() => handleSuspend(selected)} disabled={busyId === selected.id}
-                      className={`border font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm transition-all disabled:opacity-40 ${
-                        selected.status === 'suspended'
-                          ? 'border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/10'
-                          : 'border-[#E63946]/30 text-[#E63946] hover:bg-[#E63946]/10'
-                      }`}>
-                      {busyId === selected.id
-                        ? '...'
-                        : selected.status === 'suspended' ? '✓ Reinstate Club' : '⊘ Suspend Club'}
-                    </button>
-
-                    <Link href={`/clubs/${selected.slug}`} target="_blank"
-                      className="border border-white/10 text-white/60 font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-white/5 transition-all">
-                      🌐 View Public Page
-                    </Link>
-
-                    <button onClick={() => handleDelete(selected.id)}
-                      className="border border-red-500/30 text-red-400 font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-red-500/10 transition-all ml-auto">
-                      Delete Club
-                    </button>
-                  </div>
-                </div>
-
-                                {modMsg && (
-                  <div className={`p-3 rounded-sm text-[12px] font-bold border mb-4 ${
-                    modMsg.kind === 'ok'
-                      ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
-                      : 'bg-[#E63946]/10 border-[#E63946]/30 text-[#E63946]'
-                  }`}>
-                    {modMsg.text}
-                  </div>
-                )}
-
-                {selected.status === 'suspended' && (
-                  <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4 mb-4">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B] mb-1">Suspended</p>
-                    <p className="text-[12px] text-white/70 leading-relaxed">
-                      {selected.suspended_reason || 'No reason recorded.'}
-                      {selected.suspended_at
-                        ? ` — ${new Date(selected.suspended_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                        : ''}
-                    </p>
-                  </div>
-                )}
-
-                {/* Club Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">Contact</h3>
-                    <div className="space-y-3">
-                      {[
-                        ['Email', selected.email],
-                        ['Phone', selected.phone],
-                        ['Address', selected.address],
-                        ['Website', selected.website],
-                      ].filter(([, v]) => v).map(([label, value]) => (
-                        <div key={label as string}>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-0.5">{label}</p>
-                          <p className="text-[13px] text-white font-bold">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">Fees</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-0.5">Annual Membership</p>
-                        <p className="text-xl font-black text-[#C9922A]">{selected.membership_fee ? `R ${Number(selected.membership_fee).toLocaleString('en-ZA')}` : '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-0.5">Range Fee</p>
-                        <p className="text-xl font-black text-[#C9922A]">{selected.range_fee ? `R ${Number(selected.range_fee).toLocaleString('en-ZA')}` : '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-0.5">Registered</p>
-                        <p className="text-[13px] text-white">{formatDate(selected.created_at)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Shoot Days */}
-                {selected.shoot_days?.length > 0 && (
-                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">Shoot Days</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {selected.shoot_days.map((day: any, idx: number) => (
-                        <div key={idx} className="bg-[#080B12] rounded-sm p-3 border border-white/5">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-black text-sm text-white">{day.day}</p>
-                              {day.discipline && <p className="text-[11px] text-[#C9922A]">{day.discipline}</p>}
-                              {day.time && <p className="text-[11px] text-white/40">{day.time}</p>}
+                        <div className="relative h-[160px] bg-[#191C23] overflow-hidden">
+                          {club.cover_url ? (
+                            <img src={club.cover_url} alt={club.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-[#1a1d24] to-[#0D0F13] flex items-center justify-center">
+                              <span className="text-6xl opacity-5">{isRange ? '🎯' : '⊕'}</span>
                             </div>
-                            {day.fee && <p className="text-sm font-black text-[#C9922A]">R{day.fee}</p>}
-                          </div>
-                          {day.notes && <p className="text-[11px] text-white/30 mt-1">{day.notes}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#13151A] to-transparent" />
 
-                {/* Description */}
-                {selected.description && (
-                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-3 text-white">Description</h3>
-                    <p className="text-[13px] text-white/60 leading-relaxed">{selected.description}</p>
-                  </div>
-                )}
+                          <div className="absolute bottom-3 left-4 w-14 h-14 rounded-sm bg-[#C9922A] border-2 border-[#13151A] overflow-hidden flex items-center justify-center shadow-lg">
+                            {club.logo_url ? (
+                              <img src={club.logo_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-black font-black text-xl">{club.name?.charAt(0)}</span>
+                            )}
+                          </div>
+
+                          <div className={`absolute top-3 left-3 text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider ${isRange ? 'bg-[#C9922A] text-black' : 'bg-white/10 text-[#F0EDE8]'}`}>
+                            {isRange ? '🎯 Range' : '🏛️ Club'}
+                          </div>
+
+                          {club.is_verified && (
+                            <div className="absolute top-3 right-3 bg-[#2A9C6E] text-white text-[9px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">✓ Verified</div>
+                          )}
+                        </div>
+
+                        <div className="p-4 pt-3">
+                          <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                            className="text-xl font-black uppercase tracking-tight text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors mb-1">
+                            {club.name}
+                          </h3>
+                          <p className="text-[12px] text-[#8A8E99] mb-3">📍 {club.city}{club.province ? `, ${club.province}` : ''}</p>
+
+                          {isRange && (
+                            <div className="flex gap-3 mb-3 text-[11px] text-[#8A8E99]">
+                              {club.booth_count && <span>🎯 {club.booth_count} booths</span>}
+                              {club.max_distance_m && <span>📏 {club.max_distance_m}m</span>}
+                              {club.guns_for_hire && <span className="text-[#C9922A]">🔫 Guns for hire</span>}
+                            </div>
+                          )}
+
+                          {club.disciplines?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {club.disciplines.slice(0, 3).map((d: string) => (
+                                <span key={d} className="bg-[#0D0F13] border border-white/10 text-[#8A8E99] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-sm">{d}</span>
+                              ))}
+                              {club.disciplines.length > 3 && <span className="text-[#8A8E99] text-[9px] font-bold self-center">+{club.disciplines.length - 3}</span>}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                            <div className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">
+                              {club.membership_fee ? `From R${Number(club.membership_fee).toLocaleString('en-ZA')}/yr` : 'Contact for info'}
+                            </div>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A]">View {isRange ? 'Range' : 'Club'} →</span>
+                          </div>
+                        </div>
+                      </Link>
+
+                      {/* In-feed advert every 6 cards — cycles through the mid
+                          leaderboard and the two sidebar bookings, so a
+                          sidebar advertiser is seen on mobile too. */}
+                      <InFeedAd index={idx} page="clubs_directory" every={6} />
+                    </React.Fragment>
+                  );
+                })}
               </div>
-            )}
+
+              {/* SQUARE CARD — mobile */}
+              <div className="flex justify-center mt-6 xl:hidden">
+                <AdBanner slot="square_card" page="clubs_directory" />
+              </div>
+            </>
+          )}
+        </main>
+
+        {/* RIGHT SIDEBAR AD */}
+        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
+          <div className="sticky top-6">
+            <AdBanner slot="sidebar_right" page="clubs_directory" />
           </div>
-        </div>
-      </main>
+        </aside>
+      </div>
+
+      <Footer />
     </div>
   );
 }

@@ -136,6 +136,16 @@ export default function ServiceProfilePage() {
         <AdBanner slot="leaderboard_top" page="services_profile" />
       </div>
 
+      {/* Sidebar booking, mobile placement */}
+      <div className="2xl:hidden w-full flex justify-center py-3 px-4">
+        <AdBanner slot="sidebar_left" page="services_profile" variant="infeed" />
+      </div>
+
+      {/* Sidebar booking, mobile placement */}
+      <div className="2xl:hidden w-full flex justify-center py-3 px-4">
+        <AdBanner slot="sidebar_right" page="services_profile" variant="infeed" />
+      </div>
+
       {/* COVER + HERO */}
       <div className="relative bg-[#12141a] overflow-hidden" style={{ height: '240px' }}>
         {service.cover_url

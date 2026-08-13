@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 // ─── SLOT DIMENSIONS ────────────────────────────────────────────────────────
@@ -75,19 +75,42 @@ interface AdBannerProps {
   slot: AdSlot;
   page: AdPage;
   className?: string;
+  /** 'desktop' = sidebar column · 'infeed' = between listings on smaller screens */
+  variant?: 'desktop' | 'infeed';
 }
 
-export default function AdBanner({ slot, page, className = '' }: AdBannerProps) {
+
+export default function AdBanner({ slot, page, className = '' , variant = 'desktop' }: AdBannerProps) {
   const [ad, setAd] = useState<Ad | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const dims = SLOT_DIMENSIONS[slot];
+  const containerRef = useRef<HTMLAnchorElement | null>(null);
+  const impressionLogged = useRef(false);
+
+  // ── RESPONSIVE SIDEBAR RENDERING ────────────────────────────────────────
+  // A sidebar booking is ONE product that appears everywhere: a 160×600
+  // skyscraper on wide screens, and the same advertiser's mobile creative
+  // in-feed between listings on phones. Nothing disappears on mobile, so the
+  // slot can be sold at full price without a device caveat.
+  //
+  // `variant` is set by the page: 'desktop' for the sidebar column,
+  // 'infeed' for the between-listings placement. Each renders on its own
+  // breakpoint, and the viewability check means only the one actually seen
+  // records an impression.
+  const isSidebar = slot === 'sidebar_left' || slot === 'sidebar_right';
+  const renderInFeed = isSidebar && variant === 'infeed';
+
+  // In-feed sidebar creative uses a wide banner shape rather than a 160×600
+  // skyscraper, which would be absurdly tall in a phone feed.
+  const dims = renderInFeed
+    ? { w: 320, h: 100, label: '320 × 100' }
+    : SLOT_DIMENSIONS[slot];
 
   const fetchAd = useCallback(async () => {
     // Try page-specific ad first, fall back to 'all' if none found
     const { data: pageAd } = await supabase
       .from('ads')
-      .select('id, title, file_url, click_url, ad_type, slot, page, impressions, clicks')
+      .select('id, title, file_url, mobile_file_url, click_url, ad_type, slot, page, impressions, clicks')
       .eq('slot', slot)
       .eq('page', page)
       .eq('status', 'active')
@@ -99,14 +122,13 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
     if (pageAd) {
       setAd(pageAd);
       setLoading(false);
-      recordImpression(pageAd.id, pageAd.impressions);
       return;
     }
 
     // Fallback: sitewide 'all' ad for this slot
     const { data: allAd } = await supabase
       .from('ads')
-      .select('id, title, file_url, click_url, ad_type, slot, page, impressions, clicks')
+      .select('id, title, file_url, mobile_file_url, click_url, ad_type, slot, page, impressions, clicks')
       .eq('slot', slot)
       .eq('page', 'all')
       .eq('status', 'active')
@@ -117,19 +139,56 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
 
     setAd(allAd || null);
     setLoading(false);
-    if (allAd) recordImpression(allAd.id, allAd.impressions);
   }, [slot, page]);
 
   useEffect(() => {
     fetchAd();
   }, [fetchAd]);
 
-  const recordImpression = async (adId: string, current: number) => {
+  // ── VIEWABLE IMPRESSIONS ────────────────────────────────────────────────
+  // Impressions were previously recorded the moment the ad DATA loaded, whether
+  // or not the ad was ever on screen. Because the desktop sidebars sit inside a
+  // `hidden 2xl:flex` wrapper, React still mounted them on phones and counted a
+  // view that no mobile user could possibly have seen — inflating advertiser
+  // numbers on a platform that promises "live performance tracking".
+  //
+  // Now an impression is only recorded when the element is actually visible in
+  // the viewport, and only once per page view.
+  const recordImpression = useCallback(async (adId: string, current: number) => {
+    if (impressionLogged.current) return;
+    impressionLogged.current = true;
     await supabase
       .from('ads')
       .update({ impressions: (current || 0) + 1 })
       .eq('id', adId);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!ad || !containerRef.current) return;
+
+    // No IntersectionObserver (very old browsers): fall back to counting it
+    if (typeof IntersectionObserver === 'undefined') {
+      recordImpression(ad.id, ad.impressions);
+      return;
+    }
+
+    const el = containerRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Half the ad on screen counts as seen — the common industry bar
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            recordImpression(ad.id, ad.impressions);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: [0.5] },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ad, recordImpression]);
 
   const handleClick = async () => {
     if (!ad) return;
@@ -144,7 +203,7 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
     return (
       <div
         className={`bg-[#0D0F13] border border-white/5 flex items-center justify-center flex-shrink-0 ${className}`}
-        style={{ width: dims.w, maxWidth: '100%', height: dims.h }}
+        style={{ width: dims.w, maxWidth: '100%', aspectRatio: `${dims.w} / ${dims.h}` }}
       />
     );
   }
@@ -160,7 +219,7 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
       <a
         href="/advertise"
         className={`group relative block flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#15171d] to-[#0D0F13] border border-[#C9922A]/20 hover:border-[#C9922A]/50 transition-all duration-300 ${className}`}
-        style={{ width: dims.w, maxWidth: '100%', height: dims.h }}
+        style={{ width: dims.w, maxWidth: '100%', aspectRatio: `${dims.w} / ${dims.h}` }}
         aria-label="Advertise on Gun X"
       >
         {/* faint copper glow on hover */}
@@ -223,14 +282,20 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
   }
 
   // ── ACTIVE AD ───────────────────────────────────────────────────────────
+  // Sized by aspectRatio rather than a fixed height. A 970×90 leaderboard
+  // squeezed onto a 380px phone previously kept its 90px height, and
+  // object-cover then CROPPED the sides — cutting off the advertiser's message
+  // for most of our traffic. Proportional scaling with object-contain shows the
+  // whole creative on every screen.
   return (
     <a
+      ref={containerRef}
       href={ad.click_url || '#'}
       target="_blank"
       rel="noopener noreferrer sponsored"
       onClick={handleClick}
       className={`block flex-shrink-0 overflow-hidden relative group ${className}`}
-      style={{ width: dims.w, maxWidth: '100%', height: dims.h }}
+      style={{ width: dims.w, maxWidth: '100%', aspectRatio: `${dims.w} / ${dims.h}` }}
       aria-label={`Advertisement: ${ad.title}`}
     >
       {/* Sponsored label */}
@@ -245,13 +310,13 @@ export default function AdBanner({ slot, page, className = '' }: AdBannerProps) 
           muted
           loop
           playsInline
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
         />
       ) : (
         <img
-          src={ad.file_url}
+          src={(renderInFeed && (ad as any).mobile_file_url) || ad.file_url}
           alt={ad.title}
-          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+          className="w-full h-full object-contain group-hover:opacity-90 transition-opacity"
           loading="lazy"
         />
       )}

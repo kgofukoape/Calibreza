@@ -129,6 +129,13 @@ export default function JobsPage() {
                 <AdBanner slot="leaderboard_mid" page="jobs_board" />
               </div>
 
+              {/* SIDEBAR BOOKING, MOBILE PLACEMENT — the jobs board has no
+                  sidebar columns, so on smaller screens the sidebar bookings
+                  run here as wide banners rather than not running at all. */}
+              <div className="2xl:hidden flex justify-center mb-6">
+                <AdBanner slot="sidebar_left" page="jobs_board" variant="infeed" />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 pb-20">
                 {filtered.map(job => (
                   <div key={job.id} className="relative group">
@@ -182,6 +189,15 @@ export default function JobsPage() {
 
                   </div>
                 ))}
+              </div>
+
+              {/* SIDEBAR BOOKING, MOBILE PLACEMENT — below the grid */}
+              <div className="2xl:hidden flex justify-center mt-6">
+                <AdBanner slot="sidebar_right" page="jobs_board" variant="infeed" />
+              </div>
+
+              <div className="flex justify-center mt-4">
+                <AdBanner slot="square_card" page="jobs_board" />
               </div>
             </>
           )}

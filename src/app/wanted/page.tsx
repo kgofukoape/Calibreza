@@ -6,6 +6,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ListingCard from '@/components/listings/ListingCard';
 import AdBanner from '@/components/AdBanner';
+import InFeedAd from '@/components/InFeedAd';
 import { supabase } from '@/lib/supabase';
 
 const PROVINCES = ['Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape','Limpopo','Mpumalanga','North West','Free State','Northern Cape'];
@@ -176,12 +177,10 @@ export default function WantedPage() {
                       sellerName={listing.city || 'N/A'}
                       images={listing.images}
                     />
-                    {/* LEADERBOARD MID — after every 9th */}
-                    {(idx + 1) % 9 === 0 && idx < listings.length - 1 && (
-                      <div className="col-span-full flex justify-center py-2">
-                        <AdBanner slot="leaderboard_mid" page="wanted" />
-                      </div>
-                    )}
+                    {/* In-feed advert every 6 cards — cycles through the mid
+                          leaderboard and the two sidebar bookings, so a
+                          sidebar advertiser is seen on mobile too. */}
+                      <InFeedAd index={idx} page="wanted" every={6} />
                   </React.Fragment>
                 ))}
               </div>

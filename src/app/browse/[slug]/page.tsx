@@ -466,10 +466,32 @@ function BrowseCategoryInner() {
                       images={listing.images}
                       featured={listing.is_featured}
                     />
-                    {/* LEADERBOARD MID AD — inject after every 9th listing */}
-                    {(idx + 1) % 9 === 0 && (
+                    {/* ── IN-FEED ADS ─────────────────────────────────────
+                        One placement after every 6th listing, cycling through
+                        the three bookable slots so each gets feed exposure.
+
+                        The two sidebar slots appear here as `variant="infeed"`,
+                        which renders the advertiser's mobile creative as a wide
+                        banner. On screens 1536px and up this block is hidden and
+                        the same booking shows as a 160x600 skyscraper in the
+                        sidebar column instead — so a sidebar buyer is visible on
+                        every device from a single purchase, and impressions are
+                        only counted where the ad is actually on screen. */}
+                    {(idx + 1) % 6 === 0 && (
                       <div className="col-span-full flex justify-center py-2">
-                        <AdBanner slot="leaderboard_mid" page={adPage} />
+                        {((idx + 1) / 6) % 3 === 1 && (
+                          <AdBanner slot="leaderboard_mid" page={adPage} />
+                        )}
+                        {((idx + 1) / 6) % 3 === 2 && (
+                          <div className="2xl:hidden w-full flex justify-center">
+                            <AdBanner slot="sidebar_left" page={adPage} variant="infeed" />
+                          </div>
+                        )}
+                        {((idx + 1) / 6) % 3 === 0 && (
+                          <div className="2xl:hidden w-full flex justify-center">
+                            <AdBanner slot="sidebar_right" page={adPage} variant="infeed" />
+                          </div>
+                        )}
                       </div>
                     )}
                   </React.Fragment>
@@ -477,7 +499,7 @@ function BrowseCategoryInner() {
               </div>
 
               {/* SQUARE CARD AD — below grid on mobile */}
-              <div className="flex justify-center mt-2 lg:hidden">
+              <div className="flex justify-center mt-2">
                 <AdBanner slot="square_card" page={adPage} />
               </div>
             </>

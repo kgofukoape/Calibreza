@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/layout/Navbar';
+import AdBanner from '@/components/AdBanner';
 
 export default function SingleJobPage() {
   const params = useParams();
@@ -61,6 +62,14 @@ export default function SingleJobPage() {
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col font-sans">
       <Navbar />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(generateJSONLD(job)) }} />
+
+      {/* Job detail pages had NO advertising at all, despite jobs being a
+          high-traffic section. Three placements added, matching the rest of
+          the site: leaderboard at the top, then the sidebar bookings rendered
+          as in-feed banners on smaller screens where there is no sidebar. */}
+      <div className="w-full flex justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="jobs_detail" />
+      </div>
 
       {showLoginPrompt && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -119,6 +128,14 @@ export default function SingleJobPage() {
               )}
             </div>
           </div>
+        </div>
+
+        <div className="2xl:hidden w-full flex justify-center py-4 px-4">
+          <AdBanner slot="sidebar_left" page="jobs_detail" variant="infeed" />
+        </div>
+
+        <div className="w-full flex justify-center pb-6 px-4">
+          <AdBanner slot="square_card" page="jobs_detail" />
         </div>
       </div>
     </div>

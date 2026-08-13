@@ -218,6 +218,11 @@ function DealerStorefrontContent() {
         <AdBanner slot="leaderboard_top" page="dealers_profile" />
       </div>
 
+      {/* Sidebar booking, mobile placement */}
+      <div className="2xl:hidden w-full flex justify-center py-3 px-4">
+        <AdBanner slot="sidebar_right" page="dealers_profile" variant="infeed" />
+      </div>
+
       {dealer.saps_dealer_number && (
         <div className="bg-blue-500/5 border-b border-blue-500/10 px-6 py-2">
           <div className="max-w-[1400px] mx-auto flex items-center gap-2 text-[12px]">

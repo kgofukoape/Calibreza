@@ -197,6 +197,13 @@ export default function HomePage() {
               </div>
             )}
 
+            {/* SIDEBAR BOOKINGS, MOBILE PLACEMENT — the homepage sidebars are
+                hidden below 1280px, so on phones the same bookings run here
+                as wide banners instead of not running at all. */}
+            <div className="xl:hidden px-4 md:px-6 py-3 flex justify-center">
+              <AdBanner slot="sidebar_left" page="home" variant="infeed" />
+            </div>
+
             {/* RANGE CTA STRIP */}
             <div className="px-4 md:px-6 py-4">
               <div className="bg-gradient-to-r from-[#C9922A]/10 via-[#C9922A]/5 to-transparent border border-[#C9922A]/20 rounded-sm px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -238,6 +245,10 @@ export default function HomePage() {
                   Start Free Assessment →
                 </Link>
               </div>
+            </div>
+
+            <div className="xl:hidden px-4 md:px-6 py-3 flex justify-center">
+              <AdBanner slot="sidebar_right" page="home" variant="infeed" />
             </div>
 
             {/* BROWSE BY CATEGORY */}

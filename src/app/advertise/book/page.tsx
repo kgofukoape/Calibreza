@@ -19,8 +19,8 @@ const SLOT_RATES: Record<string, number> = {
 const AD_SLOTS = [
   { id: 'leaderboard_top', label: 'Leaderboard Top',  size: '970 × 90',  rate: SLOT_RATES.leaderboard_top, desc: 'Top of page, maximum visibility' },
   { id: 'leaderboard_mid', label: 'Leaderboard Mid',  size: '728 × 90',  rate: SLOT_RATES.leaderboard_mid, desc: 'Mid-page, inline with content' },
-  { id: 'sidebar_left',    label: 'Sidebar Left',     size: '160 × 600', rate: SLOT_RATES.sidebar_left,    desc: 'Tall skyscraper, left column' },
-  { id: 'sidebar_right',   label: 'Sidebar Right',    size: '160 × 600', rate: SLOT_RATES.sidebar_right,   desc: 'Tall skyscraper, right column' },
+  { id: 'sidebar_left',    label: 'Sidebar Left',     size: '160 × 600', rate: SLOT_RATES.sidebar_left,    desc: 'Skyscraper on desktop · in-feed banner on mobile' },
+  { id: 'sidebar_right',   label: 'Sidebar Right',    size: '160 × 600', rate: SLOT_RATES.sidebar_right,   desc: 'Skyscraper on desktop · in-feed banner on mobile' },
   { id: 'square_card',     label: 'Square Card',      size: '300 × 250', rate: SLOT_RATES.square_card,     desc: 'Compact block, broad reach' },
 ];
 
@@ -95,6 +95,8 @@ export default function AdvertiseBookPage() {
   const [adType, setAdType]       = useState('image');
   const [clickUrl, setClickUrl]   = useState('');
   const [file, setFile]           = useState<File | null>(null);
+  const [mobileFile, setMobileFile]       = useState<File | null>(null);
+  const [mobilePreview, setMobilePreview] = useState<string>('');
   const [preview, setPreview]     = useState('');
   const [title, setTitle]         = useState('');
   const [clientName, setClientName]       = useState('');
@@ -157,6 +159,20 @@ export default function AdvertiseBookPage() {
     setPreview(URL.createObjectURL(f));
   };
 
+  // Sidebar bookings run on every device: a 160×600 skyscraper in the desktop
+  // sidebar column, and a wide banner in-feed between listings on phones. The
+  // two shapes are incompatible, so a sidebar advertiser supplies both.
+  const isSidebarSlot = slot === 'sidebar_left' || slot === 'sidebar_right';
+
+  const handleMobileFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) { setError('File is larger than 50MB. Please compress and try again.'); return; }
+    setError('');
+    setMobileFile(f);
+    setMobilePreview(URL.createObjectURL(f));
+  };
+
   const canProceedStep1 = slot && page && duration && startDate;
   const canProceedStep2 = file && clickUrl && title;
   const canSubmit       = clientName && user?.email && consented;
@@ -173,6 +189,16 @@ export default function AdvertiseBookPage() {
     if (upErr) { setError('Upload failed: ' + upErr.message); setSubmitting(false); return; }
     const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(path);
 
+    // 1b. Upload the mobile creative for sidebar bookings
+    let mobileUrl: string | null = null;
+    if (isSidebarSlot && mobileFile) {
+      const mExt  = mobileFile.name.split('.').pop();
+      const mPath = `ads/${Date.now()}-m-${Math.random().toString(36).slice(2)}.${mExt}`;
+      const { error: mErr } = await supabase.storage.from('images').upload(mPath, mobileFile);
+      if (mErr) { setError('Mobile creative upload failed: ' + mErr.message); setSubmitting(false); return; }
+      mobileUrl = supabase.storage.from('images').getPublicUrl(mPath).data.publicUrl;
+    }
+
     // 2. Insert booking as pending_review
     const startsIso  = new Date(startDate).toISOString();
     const expiresIso = addMonths(startDate, duration);
@@ -187,6 +213,7 @@ export default function AdvertiseBookPage() {
       page,
       ad_type:        adType,
       file_url:       publicUrl,
+      mobile_file_url: mobileUrl,
       click_url:      clickUrl,
       starts_at:      startsIso,
       expires_at:     expiresIso,
@@ -394,6 +421,47 @@ export default function AdvertiseBookPage() {
                 <input type="file" accept={AD_FORMATS[adType as keyof typeof AD_FORMATS].accept} onChange={handleFileChange} className="hidden" />
               </label>
             </div>
+
+            {/* ── MOBILE CREATIVE — sidebar bookings only ────────────────────
+                A sidebar slot runs as a 160×600 skyscraper on wide screens AND
+                as a wide banner in-feed between listings on phones, where most
+                of the traffic is. The two shapes cannot share one image, so we
+                ask for both rather than letting the mobile half go unfilled. */}
+            {isSidebarSlot && (
+              <div className="bg-[#C9922A]/5 border border-[#C9922A]/25 rounded-sm p-4">
+                <label className={labelClass}>Mobile Creative — 320 × 100 px</label>
+                <p className="text-[11px] text-[#8A8E99] leading-relaxed mb-3">
+                  Your sidebar booking also appears between listings on phones and tablets — that is where most
+                  visitors are. A tall 160×600 skyscraper does not fit a phone feed, so upload a wide banner
+                  version here. Same campaign, same price, seen on every device.
+                </p>
+                <label className="flex flex-col items-center justify-center w-full h-[110px] bg-[#13151A] border-2 border-dashed border-[#C9922A]/30 rounded-sm cursor-pointer hover:border-[#C9922A]/60 transition-all">
+                  <span className="text-2xl mb-1">📱</span>
+                  <span className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">
+                    {mobileFile ? mobileFile.name : 'Click to upload mobile banner'}
+                  </span>
+                  <input
+                    type="file"
+                    accept={AD_FORMATS[adType as keyof typeof AD_FORMATS].accept}
+                    onChange={handleMobileFile}
+                    className="hidden"
+                  />
+                </label>
+
+                {mobilePreview && (
+                  <div className="mt-3 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center p-2">
+                    <img src={mobilePreview} alt="Mobile creative preview" className="max-h-[100px] object-contain" />
+                  </div>
+                )}
+
+                {!mobileFile && (
+                  <p className="text-[11px] text-[#F59E0B] mt-2 leading-relaxed">
+                    Optional, but recommended. Without it your skyscraper is stretched into the mobile slot and
+                    will look poor to most of the audience.
+                  </p>
+                )}
+              </div>
+            )}
 
             {preview && (
               <div>
