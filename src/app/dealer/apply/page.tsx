@@ -1,14 +1,54 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
-import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { recordConsent } from '@/lib/auth';
+import { LEGAL_DOCUMENTS } from '@/lib/legal';
+
+// ─── DEALER APPLICATION ──────────────────────────────────────────────────────
+// This page previously allowed anonymous submission, which caused three faults:
+//
+//   1. dealers.user_id was never set. /dealer/login and /dealer-dashboard both
+//      look the business up by user_id, so every dealer who applied this way
+//      was permanently locked out of the account they had just created.
+//
+//   2. Documents were uploaded to a flat path in the dealer-documents bucket.
+//      That bucket is now private, and its read policy is scoped to
+//      {user_id}/... — so uploads must be pathed per user or nobody, not even
+//      the uploader, can read them back.
+//
+//   3. The three acceptance checkboxes gated the submit button and were then
+//      discarded. Nothing recorded what the dealer agreed to.
+//
+// Requiring sign-in fixes all three at once: there is a user id to store, a
+// folder to upload into, and a token to prove identity when recording consent.
+//
+// A note on the checkbox wording. The three boxes are three different kinds of
+// statement and are now labelled as such:
+//   • the Terms and Dealer Agreement are a CONTRACT — you agree to them;
+//   • the Privacy Policy and POPI Notice are a NOTICE — you are told, you do
+//     not "consent" to them, and saying you do misrepresents the lawful basis
+//     for processing, which is contract and legal obligation, not consent;
+//   • FCA compliance is a DECLARATION OF FACT about the business — a warranty,
+//     not permission.
+
+const PROVINCES = [
+  'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
+  'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
+];
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export default function DealerApplyPage() {
   const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState('');
+  const [existingApplication, setExistingApplication] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -29,8 +69,8 @@ export default function DealerApplyPage() {
     sapsNumber: '',
     selectedTier: 'free',
     agreeTerms: false,
-    agreePOPI: false,
-    agreeFCA: false,
+    acknowledgePrivacy: false,
+    declareFCA: false,
   });
 
   const [files, setFiles] = useState({
@@ -38,6 +78,32 @@ export default function DealerApplyPage() {
     businessRegistration: null as File | null,
     idDocument: null as File | null,
   });
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        setUserId(user.id);
+        setAccountEmail(user.email || '');
+        setFormData(prev => ({ ...prev, email: user.email || '' }));
+
+        // Applying twice creates a second dealers row for the same account, and
+        // the login lookup uses .single() — two rows would break it.
+        const { data: existing } = await supabase
+          .from('dealers')
+          .select('business_name, status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (existing) setExistingApplication(existing.status);
+      }
+
+      setCheckingAuth(false);
+    };
+    check();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -55,14 +121,21 @@ export default function DealerApplyPage() {
     }
   };
 
-  const uploadFile = async (file: File, path: string) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `${path}/${fileName}`;
-    const { error: uploadError } = await supabase.storage.from('dealer-documents').upload(filePath, file);
+  // Uploads into {user_id}/... because the dealer-documents read policy is
+  // scoped to the uploader's own folder. Returns the storage path, NOT a public
+  // URL — the bucket is private, so a public URL would not resolve. The admin
+  // console generates a short-lived signed URL from this path when reviewing.
+  const uploadFile = async (file: File, docType: string, uid: string) => {
+    if (file.size > MAX_FILE_BYTES) {
+      throw new Error(`${file.name} is larger than 5MB. Please upload a smaller file.`);
+    }
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+    const path = `${uid}/${docType}-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from('dealer-documents')
+      .upload(path, file, { upsert: false });
     if (uploadError) throw uploadError;
-    const { data } = supabase.storage.from('dealer-documents').getPublicUrl(filePath);
-    return data.publicUrl;
+    return path;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,20 +144,22 @@ export default function DealerApplyPage() {
     setError('');
 
     try {
-      if (!formData.agreeTerms || !formData.agreePOPI || !formData.agreeFCA) {
-        throw new Error('Please accept all terms and conditions');
-      }
+      if (!userId) throw new Error('Your session has expired. Please sign in again.');
+      if (!formData.agreeTerms) throw new Error('Please accept the Terms of Use and Dealer Agreement');
+      if (!formData.acknowledgePrivacy) throw new Error('Please confirm you have read the Privacy Policy and POPI Act Notice');
+      if (!formData.declareFCA) throw new Error('Please confirm your FCA compliance declaration');
       if (!files.sapsCertificate) throw new Error('SAPS Dealer Certificate is required');
       if (!files.businessRegistration) throw new Error('Business Registration document is required');
       if (!files.idDocument) throw new Error('ID Document is required');
 
-      const sapsCertUrl = await uploadFile(files.sapsCertificate, 'saps-certificates');
-      const businessRegUrl = await uploadFile(files.businessRegistration, 'business-registrations');
-      const idDocUrl = await uploadFile(files.idDocument, 'id-documents');
+      const sapsCertPath = await uploadFile(files.sapsCertificate, 'saps-certificate', userId);
+      const businessRegPath = await uploadFile(files.businessRegistration, 'business-registration', userId);
+      const idDocPath = await uploadFile(files.idDocument, 'id-document', userId);
 
       const slug = formData.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
       const { error: insertError } = await supabase.from('dealers').insert({
+        user_id: userId,
         business_name: formData.businessName,
         slug,
         registration_number: formData.registrationNumber,
@@ -99,14 +174,23 @@ export default function DealerApplyPage() {
         province: formData.province,
         postal_code: formData.postalCode,
         saps_dealer_number: formData.sapsNumber,
-        saps_certificate_url: sapsCertUrl,
-        business_registration_url: businessRegUrl,
-        id_document_url: idDocUrl,
+        saps_certificate_url: sapsCertPath,
+        business_registration_url: businessRegPath,
+        id_document_url: idDocPath,
         subscription_tier: formData.selectedTier,
         status: 'pending',
       });
 
       if (insertError) throw insertError;
+
+      // ── Record what was agreed to ────────────────────────────────────────
+      // Non-blocking: the application is already saved and refusing to show
+      // success would be worse than a missing record. Logged loudly so a gap
+      // is discoverable rather than silent.
+      const consentRecorded = await recordConsent('dealer_application', false, formData.businessName);
+      if (!consentRecorded) {
+        console.error('[dealer/apply] consent record was not written for', formData.businessName);
+      }
 
       // ── Notify admin ─────────────────────────────────────────────────────
       try {
@@ -124,10 +208,9 @@ export default function DealerApplyPage() {
       } catch (notifyErr) {
         console.error('Notify failed (non-blocking):', notifyErr);
       }
-      // ─────────────────────────────────────────────────────────────────────
 
       setSuccess(true);
-      setTimeout(() => router.push('/dealer/login'), 3000);
+      setTimeout(() => router.push('/dashboard'), 4000);
 
     } catch (err: any) {
       setError(err.message || 'Application failed. Please try again.');
@@ -135,6 +218,78 @@ export default function DealerApplyPage() {
     }
   };
 
+  // ── Loading ────────────────────────────────────────────────────────────────
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
+        <Navbar />
+        <main className="max-w-[600px] mx-auto px-6 py-32 text-center">
+          <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading…</p>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Not signed in ──────────────────────────────────────────────────────────
+  if (!userId) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
+        <Navbar />
+        <main className="max-w-[600px] mx-auto px-6 py-20 text-center">
+          <div className="bg-[#13151A] border border-white/5 rounded-sm p-12">
+            <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-4xl font-black uppercase mb-4">
+              Sign In to <span className="text-[#C9922A]">Apply</span>
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              Dealer applications are linked to a Gun X account. That account is how you
+              sign in to your dealer dashboard once approved, manage your listings and
+              track your subscription — so we need it before you apply.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link href="/signup"
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:brightness-110 transition-all">
+                Create Account
+              </Link>
+              <Link href="/login"
+                className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                Sign In
+              </Link>
+            </div>
+            <p className="text-xs text-[#8A8E99] mt-6">
+              Come back to this page once you are signed in.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Already applied ────────────────────────────────────────────────────────
+  if (existingApplication) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
+        <Navbar />
+        <main className="max-w-[600px] mx-auto px-6 py-20 text-center">
+          <div className="bg-[#13151A] border border-white/5 rounded-sm p-12">
+            <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-4xl font-black uppercase mb-4">
+              Application <span className="text-[#C9922A]">{existingApplication}</span>
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              This account already has a dealer application on file. You do not need to
+              apply again. If something needs correcting, email{' '}
+              <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-110">support@gunx.co.za</a>.
+            </p>
+            <Link href="/dashboard"
+              className="inline-block border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all">
+              Back to Dashboard
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Submitted ──────────────────────────────────────────────────────────────
   if (success) {
     return (
       <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
@@ -146,9 +301,11 @@ export default function DealerApplyPage() {
               Application <span className="text-[#C9922A]">Submitted!</span>
             </h1>
             <p className="text-[#8A8E99] mb-6">
-              Thank you for applying to become a Gun X dealer. We'll review your application and contact you within 2-3 business days.
+              Thank you for applying to become a Gun X dealer. We&apos;ll review your application
+              and contact you within 2-3 business days. Once approved, sign in with this same
+              account to reach your dealer dashboard.
             </p>
-            <p className="text-sm text-[#8A8E99]">Redirecting to login page...</p>
+            <p className="text-sm text-[#8A8E99]">Redirecting…</p>
           </div>
         </main>
       </div>
@@ -168,10 +325,13 @@ export default function DealerApplyPage() {
             Dealer <span className="text-[#C9922A]">Application</span>
           </h1>
           <p className="text-[#8A8E99] text-[14px] uppercase tracking-widest font-bold mb-4">
-            Join South Africa's Premier Firearms Marketplace
+            Join South Africa&apos;s Premier Firearms Marketplace
           </p>
           <p className="text-sm text-[#F0EDE8] max-w-2xl mx-auto">
             Complete the application below. All dealers must be licensed under the Firearms Control Act (FCA) with a valid SAPS dealer number.
+          </p>
+          <p className="text-xs text-[#8A8E99] mt-4">
+            Applying as <span className="text-[#C9922A]">{accountEmail}</span>
           </p>
         </div>
 
@@ -193,7 +353,7 @@ export default function DealerApplyPage() {
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Business Name <span className="text-red-500">*</span></label>
                 <input type="text" name="businessName" value={formData.businessName} onChange={handleInputChange} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors"
-                  placeholder="e.g. City Guns & Ammo" />
+                  placeholder="e.g. City Guns &amp; Ammo" />
               </div>
               <div>
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Business Type <span className="text-red-500">*</span></label>
@@ -230,13 +390,14 @@ export default function DealerApplyPage() {
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Contact Person <span className="text-red-500">*</span></label>
                 <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleInputChange} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors"
-                  placeholder="Full name of authorized person" />
+                  placeholder="Full name of authorised person" />
               </div>
               <div>
-                <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Email Address <span className="text-red-500">*</span></label>
+                <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Business Email <span className="text-red-500">*</span></label>
                 <input type="email" name="email" value={formData.email} onChange={handleInputChange} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors"
                   placeholder="dealer@example.com" />
+                <p className="text-xs text-[#8A8E99] mt-2">Shown on your public dealer profile. Can differ from your account email.</p>
               </div>
               <div>
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Phone Number <span className="text-red-500">*</span></label>
@@ -275,15 +436,7 @@ export default function DealerApplyPage() {
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Province <span className="text-red-500">*</span></label>
                 <select name="province" value={formData.province} onChange={handleInputChange} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors">
-                  <option value="Gauteng">Gauteng</option>
-                  <option value="Western Cape">Western Cape</option>
-                  <option value="KwaZulu-Natal">KwaZulu-Natal</option>
-                  <option value="Eastern Cape">Eastern Cape</option>
-                  <option value="Free State">Free State</option>
-                  <option value="Limpopo">Limpopo</option>
-                  <option value="Mpumalanga">Mpumalanga</option>
-                  <option value="North West">North West</option>
-                  <option value="Northern Cape">Northern Cape</option>
+                  {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">
@@ -300,6 +453,15 @@ export default function DealerApplyPage() {
             <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">
               SAPS Licensing (FCA Compliance)
             </h2>
+
+            <div className="border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3 mb-6">
+              <p className="text-[13px] text-[#C4C0B8] leading-relaxed">
+                These documents are stored privately and are visible only to you and to our
+                verification team. They are not published on your dealer profile and are not
+                accessible to other users.
+              </p>
+            </div>
+
             <div className="space-y-6">
               <div>
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">SAPS Dealer Number <span className="text-red-500">*</span></label>
@@ -312,7 +474,7 @@ export default function DealerApplyPage() {
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">SAPS Dealer Certificate <span className="text-red-500">*</span></label>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(e, 'sapsCertificate')} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-sm file:font-bold file:bg-[#C9922A] file:text-black hover:file:brightness-110" />
-                <p className="text-xs text-[#8A8E99] mt-2">Upload your current SAPS dealer certificate (PDF, JPG, or PNG - Max 5MB)</p>
+                <p className="text-xs text-[#8A8E99] mt-2">Upload your current SAPS dealer certificate (PDF, JPG, or PNG — max 5MB)</p>
               </div>
               <div>
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Business Registration Document <span className="text-red-500">*</span></label>
@@ -324,7 +486,7 @@ export default function DealerApplyPage() {
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">ID Document of Contact Person <span className="text-red-500">*</span></label>
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileChange(e, 'idDocument')} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-sm file:border-0 file:text-sm file:font-bold file:bg-[#C9922A] file:text-black hover:file:brightness-110" />
-                <p className="text-xs text-[#8A8E99] mt-2">South African ID or passport of the authorized contact person</p>
+                <p className="text-xs text-[#8A8E99] mt-2">South African ID or passport of the authorised contact person</p>
               </div>
             </div>
           </div>
@@ -358,28 +520,39 @@ export default function DealerApplyPage() {
           {/* Legal Agreements */}
           <div className="bg-[#13151A] border border-white/5 rounded-sm p-8">
             <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">
-              Legal Agreements
+              Agreements and Declarations
             </h2>
             <div className="space-y-4">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" name="agreeTerms" checked={formData.agreeTerms} onChange={handleInputChange} required
-                  className="w-5 h-5 mt-1 rounded-sm bg-[#0D0F13] border border-white/10" />
-                <span className="text-sm text-[#F0EDE8]">
-                  I agree to Gun X's <Link href="/terms" className="text-[#C9922A] hover:brightness-110">Terms of Service</Link> and <Link href="/dealer-terms" className="text-[#C9922A] hover:brightness-110">Dealer Agreement</Link> <span className="text-red-500">*</span>
+                  className="w-5 h-5 mt-[2px] flex-shrink-0 accent-[#C9922A]" />
+                <span className="text-sm text-[#F0EDE8] leading-relaxed">
+                  I agree to the{' '}
+                  <Link href={LEGAL_DOCUMENTS.terms.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Terms of Use</Link> and the{' '}
+                  <Link href={LEGAL_DOCUMENTS['dealer-terms'].href} target="_blank" className="text-[#C9922A] hover:brightness-110">Dealer Agreement</Link>,
+                  and I am authorised to bind this business to them <span className="text-red-500">*</span>
                 </span>
               </label>
+
               <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" name="agreePOPI" checked={formData.agreePOPI} onChange={handleInputChange} required
-                  className="w-5 h-5 mt-1 rounded-sm bg-[#0D0F13] border border-white/10" />
-                <span className="text-sm text-[#F0EDE8]">
-                  I consent to the processing of my personal information in accordance with the <Link href="/popi" className="text-[#C9922A] hover:brightness-110">POPI Act</Link> <span className="text-red-500">*</span>
+                <input type="checkbox" name="acknowledgePrivacy" checked={formData.acknowledgePrivacy} onChange={handleInputChange} required
+                  className="w-5 h-5 mt-[2px] flex-shrink-0 accent-[#C9922A]" />
+                <span className="text-sm text-[#F0EDE8] leading-relaxed">
+                  I have read the{' '}
+                  <Link href={LEGAL_DOCUMENTS.privacy.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Privacy Policy</Link> and{' '}
+                  <Link href={LEGAL_DOCUMENTS.popi.href} target="_blank" className="text-[#C9922A] hover:brightness-110">POPI Act Notice</Link>,
+                  and understand how the information in this application will be used <span className="text-red-500">*</span>
                 </span>
               </label>
+
               <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" name="agreeFCA" checked={formData.agreeFCA} onChange={handleInputChange} required
-                  className="w-5 h-5 mt-1 rounded-sm bg-[#0D0F13] border border-white/10" />
-                <span className="text-sm text-[#F0EDE8]">
-                  I confirm that my business is fully compliant with the <strong>Firearms Control Act (FCA) Act 60 of 2000</strong> and holds a valid SAPS dealer license <span className="text-red-500">*</span>
+                <input type="checkbox" name="declareFCA" checked={formData.declareFCA} onChange={handleInputChange} required
+                  className="w-5 h-5 mt-[2px] flex-shrink-0 accent-[#C9922A]" />
+                <span className="text-sm text-[#F0EDE8] leading-relaxed">
+                  I declare that this business holds a valid dealer&apos;s licence under the{' '}
+                  <strong>Firearms Control Act 60 of 2000</strong>, that the documents uploaded above are
+                  true and current, and that I will notify Gun X if that licence lapses, is suspended
+                  or is withdrawn <span className="text-red-500">*</span>
                 </span>
               </label>
             </div>
@@ -396,10 +569,6 @@ export default function DealerApplyPage() {
               View Pricing Details
             </Link>
           </div>
-
-          <p className="text-xs text-[#8A8E99] text-center">
-            Already have an account? <Link href="/dealer/login" className="text-[#C9922A] font-bold hover:brightness-110">Sign in here</Link>
-          </p>
         </form>
       </main>
     </div>
