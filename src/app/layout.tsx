@@ -126,11 +126,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     logo: `${SITE_URL}/og-image.png`,
     description:
       "South Africa's classifieds platform for licensed firearms, dealers, clubs and ranges.",
+    // Locality only. The full street address is published on the legal pages
+    // (Terms, Dealer Agreement, POPI Notice, Legal Disclaimer, Advertising
+    // Policy and the PAIA Manual) where ECTA s43 and PAIA s51 require it, and
+    // is deliberately kept out of site-wide structured data.
     address: {
       '@type': 'PostalAddress',
-      streetAddress: '11 Howe Street, Observatory',
+      addressLocality: 'Cape Town',
       addressRegion: 'Western Cape',
-      postalCode: '7925',
       addressCountry: 'ZA',
     },
     contactPoint: {
