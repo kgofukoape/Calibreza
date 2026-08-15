@@ -6,6 +6,31 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 
+// ─── BUSINESS LOGIN ──────────────────────────────────────────────────────────
+// Signs the user in, then works out which kind of business account they hold
+// and sends them to the matching dashboard.
+//
+// EACH ACCOUNT TYPE HAS ITS OWN STATUS VOCABULARY. This is not cosmetic — the
+// admin API at /api/admin/suspend validates status changes against a fixed
+// whitelist per type:
+//
+//   dealers  → pending | approved | rejected
+//   clubs    → pending | active   | rejected
+//   services → pending | active   | rejected
+//
+// This page previously required 'approved' for all three. Because the admin
+// route will not accept 'approved' for a club or a service, those accounts
+// could never satisfy the check — every club and every service provider was
+// locked out permanently, with no setting in the admin console able to fix it.
+//
+// Kept in one constant so the two halves cannot drift apart again. If the
+// vocabulary changes, it changes here and in the admin route together.
+const APPROVED_STATUS = {
+  dealer: 'approved',
+  club: 'active',
+  service: 'active',
+} as const;
+
 export default function DealerLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -28,15 +53,18 @@ export default function DealerLoginPage() {
 
       const userId = data.user.id;
 
-      // 1. Check dealers
+      // maybeSingle() rather than single(): a user with no business account is
+      // an expected outcome here, not an error to be thrown.
+
+      // 1. Dealers
       const { data: dealerData } = await supabase
         .from('dealers')
         .select('status')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (dealerData) {
-        if (dealerData.status !== 'approved') {
+        if (dealerData.status !== APPROVED_STATUS.dealer) {
           await supabase.auth.signOut();
           setError(`Your dealer application is ${dealerData.status}. Please wait for approval.`);
           setLoading(false);
@@ -46,17 +74,17 @@ export default function DealerLoginPage() {
         return;
       }
 
-      // 2. Check clubs (includes ranges via facility_type)
+      // 2. Clubs and ranges (distinguished by facility_type)
       const { data: clubData } = await supabase
         .from('clubs')
         .select('status, facility_type')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (clubData) {
-        if (clubData.status !== 'approved') {
+        if (clubData.status !== APPROVED_STATUS.club) {
           await supabase.auth.signOut();
-          setError(`Your ${clubData.facility_type} application is ${clubData.status}. Please wait for approval.`);
+          setError(`Your ${clubData.facility_type || 'club'} application is ${clubData.status}. Please wait for approval.`);
           setLoading(false);
           return;
         }
@@ -64,15 +92,15 @@ export default function DealerLoginPage() {
         return;
       }
 
-      // 3. Check services
+      // 3. Service providers
       const { data: serviceData } = await supabase
         .from('services')
         .select('status')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (serviceData) {
-        if (serviceData.status !== 'approved') {
+        if (serviceData.status !== APPROVED_STATUS.service) {
           await supabase.auth.signOut();
           setError(`Your service application is ${serviceData.status}. Please wait for approval.`);
           setLoading(false);
@@ -82,9 +110,9 @@ export default function DealerLoginPage() {
         return;
       }
 
-      // 4. Nothing found
+      // 4. Signed in, but no business account attached to this user.
       await supabase.auth.signOut();
-      setError('No account found. Please apply first.');
+      setError('No business account is linked to this login. If you have applied, use the same account you applied with — or apply below.');
       setLoading(false);
 
     } catch (err: any) {
@@ -103,10 +131,10 @@ export default function DealerLoginPage() {
             <span className="text-4xl">🏪</span>
           </div>
           <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-5xl md:text-6xl font-black uppercase tracking-tight mb-4">
-            Dealer <span className="text-[#C9922A]">Login</span>
+            Business <span className="text-[#C9922A]">Login</span>
           </h1>
           <p className="text-[#8A8E99] text-[14px] uppercase tracking-widest font-bold">
-            Access Your Dashboard
+            Dealers · Clubs · Ranges · Service Providers
           </p>
         </div>
 
@@ -146,11 +174,7 @@ export default function DealerLoginPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded-sm bg-[#0D0F13] border border-white/10" />
-                <span className="text-[#8A8E99]">Remember me</span>
-              </label>
+            <div className="flex items-center justify-end text-sm">
               <Link href="/forgot-password" className="text-[#C9922A] hover:brightness-110 transition-all">
                 Forgot password?
               </Link>
@@ -176,7 +200,7 @@ export default function DealerLoginPage() {
 
           <div className="text-center space-y-4">
             <p className="text-[#8A8E99] text-sm">
-              Don't have a dealer account?{' '}
+              Don&apos;t have a business account?{' '}
               <Link href="/dealer/apply" className="text-[#C9922A] font-bold hover:brightness-110 transition-all">
                 Apply Now
               </Link>
