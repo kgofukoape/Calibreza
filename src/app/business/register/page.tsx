@@ -107,13 +107,34 @@ export default function BusinessRegisterPage() {
       <div className="flex flex-col min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
         <Navbar />
         <main className="flex-1 max-w-[900px] mx-auto w-full px-6 py-16">
-          <div className="text-center mb-12">
-            <p className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.4em] mb-3">Business</p>
+          <div className="text-center mb-8">
             <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}}
-              className="text-4xl md:text-6xl font-black uppercase tracking-tight mb-4">
-              Register Your <span className="text-[#C9922A]">Business</span>
+              className="text-4xl md:text-6xl font-black uppercase tracking-tight mb-3">
+              Create <span className="text-[#C9922A]">Account</span>
             </h1>
-            <p className="text-[#8A8E99] text-sm max-w-xl mx-auto leading-relaxed">
+            <p className="text-[#8A8E99] text-[14px]">Join South Africa&apos;s premier firearms marketplace</p>
+          </div>
+
+          {/* ── ACCOUNT TYPE TABS ──────────────────────────────────────────
+              Mirrors /signup so the two entry points look and behave the same
+              way round. Whichever page you land on, the other is one click. */}
+          <div className="grid grid-cols-2 gap-0 max-w-[520px] mx-auto">
+            <Link href="/signup"
+              className="text-center py-3.5 border-b-2 border-white/5 bg-[#13151A] rounded-t-md hover:bg-[#191C23] transition-colors"
+              style={{fontFamily:"'Barlow Condensed', sans-serif"}}>
+              <span className="font-black uppercase tracking-widest text-[13px] text-[#8A8E99]">Personal</span>
+              <p className="text-[11px] text-[#8A8E99] normal-case tracking-normal mt-0.5">Buy &amp; sell</p>
+            </Link>
+            <div
+              className="text-center py-3.5 border-b-2 border-[#C9922A] bg-[#191C23] rounded-t-md"
+              style={{fontFamily:"'Barlow Condensed', sans-serif"}}>
+              <span className="font-black uppercase tracking-widest text-[13px] text-[#C9922A]">Business</span>
+              <p className="text-[11px] text-[#8A8E99] normal-case tracking-normal mt-0.5">Dealer · Club · Range · Service</p>
+            </div>
+          </div>
+
+          <div className="max-w-[520px] mx-auto bg-[#191C23] border border-white/5 border-t-0 rounded-b-md px-6 py-5 mb-8">
+            <p className="text-[#8A8E99] text-[13px] leading-relaxed text-center">
               Choose what you are listing. Each type has its own dashboard, its own pricing
               and its own application requirements.
             </p>
@@ -139,10 +160,9 @@ export default function BusinessRegisterPage() {
 
           <div className="mt-10 bg-[#13151A] border border-white/5 rounded-sm p-6 text-center">
             <p className="text-[13px] text-[#8A8E99] leading-relaxed">
-              Buying or selling as an individual? You want a{' '}
-              <Link href="/signup" className="text-[#C9922A] font-bold hover:brightness-110">personal account</Link>{' '}
-              instead. If you work for a dealer or club, you can hold a personal account of your
-              own as well as access to the business account — they are separate.
+              If you work for a dealer or club, you can hold a personal account of your own as
+              well as access to the business account. The two are separate and do not affect
+              each other.
             </p>
           </div>
         </main>
