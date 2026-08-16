@@ -1,11 +1,30 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { recordConsent } from '@/lib/auth';
+import { LEGAL_DOCUMENTS } from '@/lib/legal';
+
+// ─── RANGE APPLICATION ───────────────────────────────────────────────────────
+// THIS FORM HAS NEVER WORKED. The insert set `is_range: true`, and there is no
+// such column on the clubs table — Postgres rejected every submission. Nothing
+// else in the codebase reads that field; facility_type is what the directory
+// and the dashboards actually use. The line is removed.
+//
+// Also fixed here, matching the dealer and club forms: sign-in gate requiring a
+// business account, user_id on the insert (without it /club-dashboard cannot
+// find the range), the named responsible person, and consent recorded.
+//
+// New: SAPS range registration number and compliance certificate. The
+// certificate goes to the private business-documents bucket under the account's
+// own folder — never a public URL, the same handling as dealer licensing
+// documents.
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
@@ -32,10 +51,20 @@ const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'S
 
 function RangeApplyInner() {
   const router = useRouter();
+
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isPersonalAccount, setIsPersonalAccount] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<string | null>(null);
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acknowledgePrivacy, setAcknowledgePrivacy] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState('');
+  const [complianceFile, setComplianceFile] = useState<File | null>(null);
 
   const [shootDays, setShootDays] = useState([
     { day: '', discipline: '', time: '', fee: '', notes: '' }
@@ -45,6 +74,8 @@ function RangeApplyInner() {
     name: '',
     description: '',
     contact_name: '',
+    responsible_person_email: '',
+    saps_reg_number: '',
     email: '',
     phone: '',
     website: '',
@@ -69,6 +100,41 @@ function RangeApplyInner() {
   });
 
   const set = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users').select('account_type').eq('id', user.id).maybeSingle();
+
+        if (profile?.account_type === 'personal') {
+          setIsPersonalAccount(true);
+          setCheckingAuth(false);
+          return;
+        }
+
+        setUserId(user.id);
+
+        const { data: existing } = await supabase
+          .from('clubs').select('status').eq('user_id', user.id).maybeSingle();
+        if (existing) setExistingApplication(existing.status);
+
+        const meta = user.user_metadata || {};
+        setForm(prev => ({
+          ...prev,
+          email: prev.email || user.email || '',
+          contact_name: meta.responsible_person || '',
+          responsible_person_email: meta.responsible_person_email || '',
+        }));
+      }
+
+      setCheckingAuth(false);
+    };
+    check();
+  }, []);
 
   const toggleDiscipline = (d: string) =>
     set('disciplines', form.disciplines.includes(d)
@@ -96,8 +162,32 @@ function RangeApplyInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!userId) { alert('Your session has expired. Please sign in again.'); return; }
+    if (!acceptedTerms || !acknowledgePrivacy) {
+      alert('Please accept the Terms of Use and confirm you have read the Privacy Policy.');
+      return;
+    }
+    if (complianceFile && complianceFile.size > MAX_FILE_BYTES) {
+      alert('The compliance certificate must be smaller than 5MB.');
+      return;
+    }
+
     setLoading(true);
     try {
+      // Private storage path, scoped to this account's own folder — the
+      // business-documents read policy requires {user_id}/... or nobody,
+      // including the uploader, can read it back.
+      let compliance_cert_url = '';
+      if (complianceFile) {
+        const cext = complianceFile.name.split('.').pop()?.toLowerCase() || 'bin';
+        const cpath = `${userId}/range-compliance-${Date.now()}.${cext}`;
+        const { error: cErr } = await supabase.storage
+          .from('business-documents').upload(cpath, complianceFile, { upsert: false });
+        if (cErr) throw cErr;
+        compliance_cert_url = cpath;
+      }
+
       let logo_url = '';
       if (logoFile) {
         const ext = logoFile.name.split('.').pop();
@@ -113,8 +203,13 @@ function RangeApplyInner() {
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
       const { error } = await supabase.from('clubs').insert({
+        user_id: userId,
         name: form.name,
         slug,
+        responsible_person: form.contact_name,
+        responsible_person_email: form.responsible_person_email,
+        saps_reg_number: form.saps_reg_number,
+        compliance_cert_url,
         description: form.description,
         email: form.email,
         phone: form.phone,
@@ -128,7 +223,6 @@ function RangeApplyInner() {
         associations: form.associations,
         shoot_days: shootDays.filter(sd => sd.day),
         range_fee: form.range_fee ? parseFloat(form.range_fee) : null,
-        is_range: true,
         facility_type: form.facility_type,
         lane_count: form.lane_count ? parseInt(form.lane_count) : null,
         max_distance_m: form.max_distance_m ? parseInt(form.max_distance_m) : null,
@@ -143,6 +237,12 @@ function RangeApplyInner() {
       });
 
       if (error) throw error;
+
+      // ── Record what was agreed to ────────────────────────────────────────
+      const consentRecorded = await recordConsent('club_application', false, form.name);
+      if (!consentRecorded) {
+        console.error('[range-apply] consent record was not written for', form.name);
+      }
 
       // ── Notify admin ─────────────────────────────────────────────────────
       try {
@@ -173,6 +273,93 @@ function RangeApplyInner() {
   const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-sm text-[#F0EDE8] placeholder-[#8A8E99]/50 focus:outline-none focus:border-[#C9922A]/50 transition-colors";
   const labelClass = "block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2";
   const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-6 md:p-8 flex flex-col gap-5";
+
+  // ── Gate screens ───────────────────────────────────────────────────────────
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4">
+          <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userId && !isPersonalAccount) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+              Business <span className="text-[#C9922A]">Account</span> Needed
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              A range listing is owned by a business account. That login is what your range
+              officers share to manage booking slots, live lane availability and your listing.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link href="/business/register"
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:brightness-110 transition-all">
+                Register Business
+              </Link>
+              <Link href="/business/login"
+                className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                Business Sign In
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPersonalAccount) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+              That&apos;s a <span className="text-[#C9922A]">Personal</span> Account
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              You are signed in with a personal account. A range listing needs its own business
+              account so the facility owns it rather than one individual.
+            </p>
+            <Link href="/business/register"
+              className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
+              Register a Range Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (existingApplication) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+              Application <span className="text-[#C9922A]">{existingApplication}</span>
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              This account already has a facility on file. To correct anything, email{' '}
+              <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-110">support@gunx.co.za</a>.
+            </p>
+            <Link href="/business/login"
+              className="inline-block border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all">
+              Business Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -385,9 +572,16 @@ function RangeApplyInner() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Contact Name</label>
-                <input type="text" value={form.contact_name} onChange={e => set('contact_name', e.target.value)}
+                <label className={labelClass}>Person Responsible <span className="text-red-400">*</span></label>
+                <input type="text" required value={form.contact_name} onChange={e => set('contact_name', e.target.value)}
                   className={inputClass} placeholder="Range Manager / Contact Person" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">Accountable for this account and authorised to accept our terms.</p>
+              </div>
+              <div>
+                <label className={labelClass}>Their Email <span className="text-red-400">*</span></label>
+                <input type="email" required value={form.responsible_person_email} onChange={e => set('responsible_person_email', e.target.value)}
+                  className={inputClass} placeholder="manager@yourrange.co.za" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">For notices about this account. Not published.</p>
               </div>
               <div>
                 <label className={labelClass}>Email Address <span className="text-red-400">*</span></label>
@@ -435,9 +629,69 @@ function RangeApplyInner() {
             </p>
           </div>
 
+          {/* SAPS registration and compliance */}
+          <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6">
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="text-xl font-black uppercase text-[#C9922A] mb-4">
+              SAPS Registration &amp; Compliance
+            </h2>
+
+            <div className="border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3 mb-5">
+              <p className="text-[12.5px] text-[#C4C0B8] leading-relaxed">
+                Your compliance certificate is stored privately and is visible only to you and to
+                our verification team. It is not published on your range profile.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>SAPS Range Registration Number</label>
+                <input type="text" value={form.saps_reg_number} onChange={e => set('saps_reg_number', e.target.value)}
+                  className={inputClass} placeholder="As issued by SAPS" />
+              </div>
+              <div>
+                <label className={labelClass}>Range Compliance Certificate</label>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={e => setComplianceFile(e.target.files?.[0] || null)}
+                  className={inputClass + " file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-bold file:bg-[#C9922A] file:text-black"} />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">PDF, JPG or PNG — max 5MB. Required for a verified badge.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Agreements */}
+          <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6">
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="text-xl font-black uppercase text-[#C9922A] mb-4">
+              Agreements
+            </h2>
+            <div className="flex flex-col gap-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
+                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
+                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  I agree to the{' '}
+                  <Link href={LEGAL_DOCUMENTS.terms.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Terms of Use</Link>{' '}
+                  and I am authorised to accept them for this facility <span className="text-red-400">*</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={acknowledgePrivacy} onChange={e => setAcknowledgePrivacy(e.target.checked)}
+                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
+                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  I have read the{' '}
+                  <Link href={LEGAL_DOCUMENTS.privacy.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Privacy Policy</Link>{' '}
+                  and{' '}
+                  <Link href={LEGAL_DOCUMENTS.popi.href} target="_blank" className="text-[#C9922A] hover:brightness-110">POPI Act Notice</Link>{' '}
+                  <span className="text-red-400">*</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           {/* Submit */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={loading || !acceptedTerms || !acknowledgePrivacy}
               style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
               {loading ? 'Submitting...' : 'Submit Range Application'}
