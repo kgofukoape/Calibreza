@@ -7,6 +7,7 @@ import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import { recordConsent } from '@/lib/auth';
 import { LEGAL_DOCUMENTS } from '@/lib/legal';
+import { BUSINESS_TYPES } from '@/lib/business';
 
 // ─── DEALER APPLICATION ──────────────────────────────────────────────────────
 // This page previously allowed anonymous submission, which caused three faults:
@@ -47,6 +48,7 @@ export default function DealerApplyPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [accountEmail, setAccountEmail] = useState('');
+  const [isPersonalAccount, setIsPersonalAccount] = useState(false);
   const [existingApplication, setExistingApplication] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -59,6 +61,7 @@ export default function DealerApplyPage() {
     businessType: 'company',
     yearsInBusiness: '',
     contactPerson: '',
+    responsiblePersonEmail: '',
     email: '',
     phone: '',
     alternatePhone: '',
@@ -85,9 +88,32 @@ export default function DealerApplyPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        // A dealer record must be owned by a business account. Allowing a
+        // personal account to create one puts us back where we started: the
+        // shop's listings tied to one employee's private login.
+        const { data: profile } = await supabase
+          .from('users')
+          .select('account_type')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile?.account_type === 'personal') {
+          setIsPersonalAccount(true);
+          setCheckingAuth(false);
+          return;
+        }
+
         setUserId(user.id);
         setAccountEmail(user.email || '');
-        setFormData(prev => ({ ...prev, email: user.email || '' }));
+
+        // Captured at business registration; prefilled here so it is not asked twice.
+        const meta = user.user_metadata || {};
+        setFormData(prev => ({
+          ...prev,
+          email: user.email || '',
+          contactPerson: meta.responsible_person || '',
+          responsiblePersonEmail: meta.responsible_person_email || '',
+        }));
 
         // Applying twice creates a second dealers row for the same account, and
         // the login lookup uses .single() — two rows would break it.
@@ -166,6 +192,8 @@ export default function DealerApplyPage() {
         business_type: formData.businessType,
         years_in_business: parseInt(formData.yearsInBusiness),
         contact_person: formData.contactPerson,
+        responsible_person: formData.contactPerson,
+        responsible_person_email: formData.responsiblePersonEmail,
         email: formData.email,
         phone: formData.phone,
         alternate_phone: formData.alternatePhone,
@@ -238,25 +266,58 @@ export default function DealerApplyPage() {
         <main className="max-w-[600px] mx-auto px-6 py-20 text-center">
           <div className="bg-[#13151A] border border-white/5 rounded-sm p-12">
             <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-4xl font-black uppercase mb-4">
-              Sign In to <span className="text-[#C9922A]">Apply</span>
+              Business <span className="text-[#C9922A]">Account</span> Needed
             </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-4">
+              A dealer listing is owned by a business account, not by a person. That account
+              is the login your staff share to manage inventory, enquiries and your
+              subscription.
+            </p>
             <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
-              Dealer applications are linked to a Gun X account. That account is how you
-              sign in to your dealer dashboard once approved, manage your listings and
-              track your subscription — so we need it before you apply.
+              If you work for a dealer, you can also keep your own personal Gun X account for
+              buying and selling. The two are separate and do not affect each other.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/signup"
+              <Link href="/business/register"
                 className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:brightness-110 transition-all">
-                Create Account
+                Register Business
               </Link>
-              <Link href="/login"
+              <Link href="/business/login"
                 className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
-                Sign In
+                Business Sign In
               </Link>
             </div>
             <p className="text-xs text-[#8A8E99] mt-6">
-              Come back to this page once you are signed in.
+              Looking for a personal account instead?{' '}
+              <Link href="/signup" className="text-[#C9922A] hover:brightness-110">Register here</Link>.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Signed in, but with a personal account ─────────────────────────────────
+  if (isPersonalAccount) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
+        <Navbar />
+        <main className="max-w-[600px] mx-auto px-6 py-20 text-center">
+          <div className="bg-[#13151A] border border-white/5 rounded-sm p-12">
+            <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-4xl font-black uppercase mb-4">
+              That&apos;s a <span className="text-[#C9922A]">Personal</span> Account
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              You are signed in with a personal account, which is for buying and selling as an
+              individual. A dealer listing needs its own business account so your staff can
+              share access and your listings stay with the business rather than with you.
+            </p>
+            <Link href="/business/register"
+              className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
+              {BUSINESS_TYPES.dealer.icon} Register a Dealer Account
+            </Link>
+            <p className="text-xs text-[#8A8E99] mt-6">
+              Your personal account stays exactly as it is.
             </p>
           </div>
         </main>
@@ -386,11 +447,19 @@ export default function DealerApplyPage() {
               Contact Information
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Contact Person <span className="text-red-500">*</span></label>
                 <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleInputChange} required
                   className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors"
                   placeholder="Full name of authorised person" />
+                <p className="text-xs text-[#8A8E99] mt-2">The person accountable for this account and authorised to accept our agreements.</p>
+              </div>
+              <div>
+                <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Their Email <span className="text-red-500">*</span></label>
+                <input type="email" name="responsiblePersonEmail" value={formData.responsiblePersonEmail} onChange={handleInputChange} required
+                  className="w-full bg-[#0D0F13] border border-white/10 text-[#F0EDE8] px-4 py-3 rounded-sm outline-none focus:border-[#C9922A] transition-colors"
+                  placeholder="johan@yourbusiness.co.za" />
+                <p className="text-xs text-[#8A8E99] mt-2">For notices about this account. Not published.</p>
               </div>
               <div>
                 <label className="block text-[#8A8E99] text-[11px] font-black uppercase tracking-widest mb-2">Business Email <span className="text-red-500">*</span></label>

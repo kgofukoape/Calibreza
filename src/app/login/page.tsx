@@ -6,66 +6,55 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 
+// ─── PERSONAL LOGIN ──────────────────────────────────────────────────────────
+// For individuals buying and selling. Business accounts sign in at
+// /business/login instead.
+//
+// This page used to check the dealers, clubs and services tables and route into
+// business dashboards from here — which is why a dealer signing in on the wrong
+// page sometimes worked and sometimes dumped them on a personal dashboard with
+// none of their listings. Now it checks one thing: is this a business account?
+// If so it says so and points across, rather than guessing.
+//
+// The three lookups also used .single(), which errors when there is no row —
+// the normal case for a personal user. Removing them takes three failing
+// queries off every single login.
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isBusinessAccount, setIsBusinessAccount] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsBusinessAccount(false);
     setLoading(true);
 
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
 
-      const userId = data.user.id;
+      const { data: profile } = await supabase
+        .from('users')
+        .select('account_type')
+        .eq('id', data.user.id)
+        .maybeSingle();
 
-      // 1. Check dealers
-      const { data: dealerData } = await supabase
-        .from('dealers')
-        .select('status')
-        .eq('user_id', userId)
-        .single();
-
-      if (dealerData?.status === 'approved') {
-        router.push('/dealer-dashboard');
+      if (profile?.account_type === 'business') {
+        await supabase.auth.signOut();
+        setIsBusinessAccount(true);
+        setLoading(false);
         return;
       }
 
-      // 2. Check clubs / ranges
-      const { data: clubData } = await supabase
-        .from('clubs')
-        .select('status, facility_type')
-        .eq('user_id', userId)
-        .single();
-
-      if (clubData?.status === 'approved') {
-        router.push('/club-dashboard');
-        return;
-      }
-
-      // 3. Check services
-      const { data: serviceData } = await supabase
-        .from('services')
-        .select('status')
-        .eq('user_id', userId)
-        .single();
-
-      if (serviceData?.status === 'approved') {
-        router.push('/service-dashboard');
-        return;
-      }
-
-      // 4. Regular user
       router.push('/dashboard');
 
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your email and password.');
-    } finally {
       setLoading(false);
     }
   };
@@ -91,6 +80,20 @@ export default function LoginPage() {
           </div>
 
           <div className="bg-[#13151A] border border-white/5 rounded-sm p-6 md:p-8">
+
+            {isBusinessAccount && (
+              <div className="bg-[#C9922A]/10 border border-[#C9922A]/30 rounded-sm p-4 mb-5">
+                <p className="text-[13px] text-[#C4C0B8] leading-relaxed mb-3">
+                  That&apos;s a business account. Dealers, clubs, ranges and service providers
+                  sign in on the business page.
+                </p>
+                <Link href="/business/login"
+                  className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:brightness-110 transition-all">
+                  Go to Business Login
+                </Link>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
               {error && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-sm p-3 text-red-400 text-[13px]">
@@ -140,15 +143,15 @@ export default function LoginPage() {
 
             <div className="mt-5 pt-5 border-t border-white/5 flex flex-col gap-3 text-center">
               <p className="text-[13px] text-[#8A8E99]">
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
                 <Link href="/signup" className="text-[#C9922A] font-bold hover:underline">
                   Register free
                 </Link>
               </p>
               <p className="text-[13px] text-[#8A8E99]">
-                Dealer account?{' '}
-                <Link href="/dealer/login" className="text-[#C9922A] font-bold hover:underline">
-                  Dealer login →
+                Dealer, club, range or service provider?{' '}
+                <Link href="/business/login" className="text-[#C9922A] font-bold hover:underline">
+                  Business login →
                 </Link>
               </p>
             </div>
