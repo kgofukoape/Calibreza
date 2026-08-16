@@ -1,273 +1,266 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import Navbar from '@/components/layout/Navbar';
+import LegalDoc, { LegalSection } from '@/components/LegalDoc';
 
-const SECTIONS = [
+// ─── PRIVACY POLICY ──────────────────────────────────────────────────────────
+// Version 2.0, effective 1 September 2026.
+//
+// THREE FACTUAL CORRECTIONS against the draft. Each was a statement about how
+// the Platform behaves, and each was untrue as drafted:
+//
+//   COOKIES. The draft described a cookie banner and a footer settings link.
+//   Neither exists. They are also not needed: Vercel Analytics is cookieless
+//   and Supabase session storage is strictly necessary. The clause now
+//   describes what actually happens.
+//
+//   WHATSAPP. The draft described a messaging operator processing mobile
+//   numbers, and marketing sent by WhatsApp. Every WhatsApp reference in the
+//   codebase is a wa.me deep link that opens the user's own app — no message is
+//   sent by us and no number is processed by any messaging provider. All such
+//   claims and the Annexure A row are removed.
+//
+//   ADVISOR. Verified against /api/advisor before publication: the request
+//   carries budget, discipline, frame preference and experience level only. No
+//   name, email, phone number or account identifier is transmitted. The
+//   representation in the Advisor clause is therefore accurate as written.
+//
+// ANNEXURE A is completed from the deployed stack: Vercel (functions in
+// Washington DC, iad1), Supabase (eu-west-1, Ireland), Resend, Anthropic,
+// Sentry, PayFast (South Africa — no cross-border transfer), Vercel Analytics.
+//
+// OUTSTANDING: each operator's data processing agreement must actually be
+// accepted or executed. Most are incorporated in the provider's terms of
+// service; that should be confirmed provider by provider and the record kept.
+
+const SECTIONS: LegalSection[] = [
   {
-    id: 'introduction',
-    title: 'Introduction',
-    content: `GX SA (Pty) Ltd ("Gun X", "we", "us", or "our") operates the Gun X classifieds platform at calibreza.vercel.app and gunx.co.za (the "Platform"). This Privacy Policy explains how we collect, use, store, and protect your personal information in compliance with the Protection of Personal Information Act 4 of 2013 ("POPI Act") and all applicable South African data protection legislation.
+    id: 'who-we-are',
+    title: 'Who We Are',
+    content: `GX SA (Pty) Ltd, registration number 2025/830094/07, of 11 Howe Street, Observatory, Western Cape, 7925, is the responsible party for the personal information processed through the Gun X platform at gunx.co.za.
 
-By accessing or using the Platform, you acknowledge that you have read and understood this Privacy Policy and consent to the processing of your personal information as described herein. If you do not agree with this Policy, please do not use the Platform.`,
+Contact: support@gunx.co.za`,
   },
   {
-    id: 'information-collected',
-    title: 'Information We Collect',
-    content: `We collect the following categories of personal information:
+    id: 'what-we-collect',
+    title: 'What We Collect',
+    content: `**Information you give us**
 
-Account Information: When you register, we collect your full name, email address, password (encrypted), and account type (member, dealer, club, range, or service provider).
+| Category | Examples |
+|---|---|
+| Account information | Name, email address, mobile number, password (stored in hashed form), province |
+| Profile information | Display name, profile photograph, description, preferred contact method |
+| Listing information | Item descriptions, photographs, asking price, location to the level of detail you choose to publish |
+| Enquiry and messaging content | Messages you send to or receive from other users through the Platform |
+| Dealer, club, range and service-provider application information | Company registration details, trading name, SAPS licence number and expiry date, licence certificate, PSIRA registration where applicable, proof of business registration, identification of the responsible person, business address and contact details |
+| Advertising and job-posting information | Booking details, creative material, billing contact |
+| Support correspondence | What you send us, and our replies |
+| Firearm Match Advisor input | The preferences and answers you give the Advisor |
 
-Listing Information: When you post a listing, we collect the details you provide including firearm descriptions, pricing, location (province and city), and photographs.
+**Information we collect automatically**
 
-Dealer Verification Information: For dealer accounts, we collect business registration documents, SAPS dealer licence numbers, SAPS certificates, and identity documents as required by law.
+| Category | Examples |
+|---|---|
+| Technical information | IP address, device and browser type, operating system, referring page |
+| Usage information | Pages viewed, listings viewed, searches run, features used, timestamps |
+| Cookies and similar technologies | Session and authentication cookies only — see the Cookies section |
+| Error and diagnostic data | Error reports generated when something fails, which may include technical identifiers |
 
-Communication Data: Messages sent through the platform's messaging system between buyers and sellers.
+**Information we receive from others**
 
-Usage Data: We automatically collect information about how you use the Platform, including pages visited, search queries, listings viewed, and time spent on the Platform.
+| Category | Examples |
+|---|---|
+| Payment provider | Confirmation that a payment succeeded or failed, the amount, and a transaction reference. **We do not receive or store your full card number.** |
+| Verification sources | Where we verify a company registration or licence against a public or official source, the result of that check |
 
-Device Information: IP address, browser type, operating system, and device identifiers for security and analytics purposes.
-
-Transaction Data: Records of subscription payments, listing boosts, and other platform transactions processed through PayFast.`,
+**We do not collect or ask for the serial number, licence number or registration particulars of any privately held firearm through public listing fields.** Do not publish those details in a listing.`,
   },
   {
-    id: 'how-we-use',
-    title: 'How We Use Your Information',
-    content: `We process your personal information for the following lawful purposes:
+    id: 'why-we-process',
+    title: 'Why We Process It, and on What Lawful Basis',
+    content: `We process personal information on the bases set out in section 11 of the Protection of Personal Information Act 4 of 2013.
 
-Platform Operation: To create and manage your account, display your listings, facilitate communication between buyers and sellers, and provide all Platform features.
+| Purpose | Lawful basis |
+|---|---|
+| Creating and administering your account | Performance of our contract with you |
+| Publishing your listings and profile as you have chosen | Performance of our contract with you |
+| Passing your enquiry to the seller, dealer, club or provider you contacted | Performance of our contract with you |
+| Taking payment and issuing invoices | Performance of our contract with you |
+| Verifying dealer, club, range and service-provider applications, and monitoring licence validity | Our legitimate interests in operating a lawful platform, and compliance with an obligation imposed by law |
+| Moderating listings, detecting fraud and preventing unlawful use | Our legitimate interests in operating a lawful and safe platform |
+| Responding to lawful requests from SAPS, the Central Firearms Registry, the Information Regulator, a court or other competent authority | Compliance with an obligation imposed by law |
+| Securing the Platform and investigating incidents | Our legitimate interests, and compliance with our obligations under POPIA |
+| Sending you service and transactional messages | Performance of our contract with you |
+| Sending you marketing communications | Your consent |
+| Analytics and improving the Platform | Our legitimate interests, using aggregated data that does not identify you |
+| Operating the Firearm Match Advisor | Performance of our contract with you, at your request |
 
-Verification and Compliance: To verify dealer credentials, SAPS licences, and ensure compliance with the Firearms Control Act (Act 60 of 2000). This is a legal obligation.
-
-Safety and Security: To detect fraud, prevent illegal listings, investigate reports, and cooperate with SAPS and law enforcement where required by law.
-
-Communications: To send transactional emails (account confirmations, listing notifications, booking confirmations) and platform alerts. We do not send marketing emails without your explicit consent.
-
-Analytics and Improvement: To understand how the Platform is used and improve our services. Analytics data is aggregated and anonymised where possible.
-
-Payment Processing: To process subscription payments and listing fees through our payment provider PayFast.
-
-Legal Compliance: To comply with applicable South African laws, including the Firearms Control Act, POPI Act, and any lawful requests from regulatory authorities.`,
+Where we rely on legitimate interests, we have considered your interests and rights and are satisfied that our processing is proportionate. You may object at any time on reasonable grounds — see the POPI Act Notice.`,
   },
   {
-    id: 'sharing',
-    title: 'Sharing Your Information',
-    content: `We do not sell your personal information to third parties. We share information only in the following circumstances:
+    id: 'what-others-see',
+    title: 'What Other Users Can See',
+    content: `Anything you publish in a listing or public profile is visible to the public, including people who are not registered. This includes the photographs, description, asking price and the contact details you choose to publish.
 
-Between Users: When you post a listing, your city/province and contact details (if provided) are visible to other users. When you contact a seller, your message is delivered to them through the Platform.
+When you send an enquiry, the recipient sees your name, the contact details you have chosen to share, and your message. Dealers and other business users receive that information as responsible parties in their own right and are separately obliged to handle it lawfully.
 
-Service Providers: We share data with trusted service providers who help us operate the Platform, including Supabase (database hosting), Vercel (platform hosting), Resend (email delivery), and PayFast (payment processing). All service providers are bound by data processing agreements.
-
-Law Enforcement: We will disclose personal information to SAPS or other authorities when required by law, court order, or when we reasonably believe disclosure is necessary to prevent illegal activity, fraud, or threats to safety.
-
-Business Transfers: In the event of a merger, acquisition, or sale of assets, your information may be transferred to the acquiring entity, subject to the same privacy protections.
-
-We will never share your identity documents, SAPS certificates, or verification documents with any party other than regulatory authorities where legally required.`,
+> **Think carefully before publishing a home address, a photograph that identifies your home or safe, or any detail that reveals where a firearm is kept.**`,
   },
   {
-    id: 'data-retention',
-    title: 'Data Retention',
-    content: `We retain your personal information for the following periods:
+    id: 'advisor',
+    title: 'The Firearm Match Advisor and Automated Processing',
+    content: `The Firearm Match Advisor is an automated tool. When you use it, the preferences and answers you give it are transmitted to a third-party artificial-intelligence service provider, which processes them outside the Republic of South Africa in order to generate a suggestion, and returns the result to us.
 
-Active Accounts: For as long as your account remains active on the Platform.
+We do not transmit your name, email address, telephone number or account identifier to that provider as part of an Advisor request. Advisor requests are not used by us to build a profile of you.
 
-Listings: Active listings are retained for 90 days. Expired, sold, or deleted listings are removed from public view but retained in our records for 12 months for compliance and dispute resolution purposes.
+The Advisor does not make any decision about you. It produces a suggestion for your own consideration. It has no legal consequence for you and does not affect your eligibility for anything. See the AI Firearm Match Advisor section of our Legal Disclaimer.
 
-Dealer Verification Documents: Retained for 5 years after account closure as required by South African financial and business regulations.
+We also use automated tools to screen listings and account activity for indicators of fraud or unlawful use. Where such a screen flags something, a person reviews it before we suspend an account or remove a listing on the strength of that flag.
 
-Message History: Platform messages are retained for 24 months.
-
-Transaction Records: Payment and subscription records are retained for 7 years as required by South African tax law.
-
-Upon account deletion, we will anonymise or delete your personal information within 30 days, except where retention is required by law.`,
+**One process is automated.** Where a dealer account is placed in Lapse Suspension because the recorded firearms dealer licence expiry date has passed and we hold neither an updated certificate nor proof that a renewal was lodged, that step is taken automatically, without a person reviewing it first. It is taken because we may not lawfully carry listings for a dealer that is not entitled to trade. A dealer placed in Lapse Suspension is told at the time, may upload the missing document at any time, and may ask a person at Gun X to review the decision by writing to support@gunx.co.za; we will do so within 2 business days. The Dealer Agreement sets the process out in full.`,
   },
   {
-    id: 'security',
-    title: 'Data Security',
-    content: `We implement appropriate technical and organisational measures to protect your personal information against unauthorised access, loss, destruction, or alteration:
+    id: 'who-we-share-with',
+    title: 'Who We Share It With',
+    content: `We share personal information with:
 
-Encryption: All data is transmitted over HTTPS/TLS encryption. Passwords are hashed using industry-standard algorithms and never stored in plain text.
+- **Operators** who process it on our behalf and on our instruction, listed in Annexure A below. Each is bound by a written agreement obliging it to process only on our instruction and to maintain appropriate security safeguards, as required by section 21 of POPIA.
+- **Other users**, to the extent described in the What Other Users Can See section.
+- **The South African Police Service, the Central Firearms Registry, the Information Regulator, a court, or another competent authority**, where we are lawfully required to disclose or where disclosure is necessary to report or prevent a suspected offence.
+- **Our professional advisers**, under obligations of confidence.
+- **A purchaser of our business**, if we sell or transfer it, on notice to you.
 
-Access Controls: Access to personal data is restricted to authorised personnel on a need-to-know basis.
-
-Infrastructure Security: The Platform is hosted on Vercel and Supabase, which maintain SOC 2 compliance and industry-leading security standards.
-
-Verification Documents: Identity and compliance documents are stored in secure, access-controlled storage buckets and are not publicly accessible.
-
-While we take all reasonable precautions, no system is completely secure. You are responsible for maintaining the confidentiality of your account credentials.`,
+**We do not sell your personal information, and we do not share it with third parties for their own marketing.**`,
   },
   {
-    id: 'your-rights',
-    title: 'Your Rights Under POPI',
-    content: `As a data subject under the POPI Act, you have the following rights:
+    id: 'retention',
+    title: 'How Long We Keep It',
+    content: `We keep personal information no longer than is necessary for the purpose it was collected for, unless the law requires or authorises us to keep it longer.
 
-Right to Access: You may request a copy of the personal information we hold about you at any time.
+| Record | Retention |
+|---|---|
+| Account and profile data | For as long as the account is open, and 12 months after closure |
+| Published listing content | For as long as it is published, and 12 months after removal. Dealer listings unpublished on suspension or downgrade are retained for restoration for 90 days under the Dealer Agreement, and thereafter for the balance of the 12 months in archive only |
+| Enquiry and message content | 24 months from the date of the message |
+| Dealer, club, range and service-provider verification records, including licence certificates | For the duration of the relationship, and 5 years after it ends |
+| Transaction, invoice and payment records | 5 years from the end of the tax year to which they relate, as required by tax legislation |
+| Records of reports of suspected unlawful activity, and correspondence with authorities | 5 years from the date of the report |
+| Takedown notifications, our assessment and the action taken | 5 years from the date of the notification |
+| Records of acceptance of our legal terms | For the duration of the relationship, and 3 years after it ends, to evidence what was agreed |
+| Security logs, access logs and error diagnostics | 12 months |
+| Marketing consent and withdrawal records | 3 years after withdrawal, to evidence that we complied |
+| Records of your POPIA requests and our responses | 3 years |
 
-Right to Correction: You may request correction of inaccurate or incomplete personal information.
+After a retention period ends we delete the information or de-identify it so that it can no longer be linked to you. Aggregated statistics that cannot identify anyone may be kept indefinitely.`,
+  },
+  {
+    id: 'cross-border',
+    title: 'Where It Is Processed, and Cross-Border Transfers',
+    content: `Some of our operators process personal information outside the Republic of South Africa. The categories and locations are set out in Annexure A below.
 
-Right to Deletion: You may request deletion of your personal information, subject to our legal retention obligations.
+Where we transfer personal information outside the Republic, we do so in reliance on section 72(1)(a) of POPIA: the recipient is subject to a binding written agreement — a data processing agreement incorporating standard contractual clauses, or binding corporate rules — which upholds principles for the lawful processing of personal information that are substantially similar to those in POPIA, and which includes provisions substantially similar to section 72 relating to onward transfer.
 
-Right to Object: You may object to the processing of your personal information in certain circumstances.
+Where a transfer is necessary for the performance of our contract with you, we also rely on section 72(1)(c).
 
-Right to Withdraw Consent: Where processing is based on consent, you may withdraw consent at any time without affecting the lawfulness of prior processing.
+We review these agreements when we change providers. You may ask us at support@gunx.co.za which providers are currently in use and where they process data.`,
+  },
+  {
+    id: 'marketing',
+    title: 'Marketing and Electronic Communications',
+    content: `**Service messages.** We send messages you need in order to use your account — enquiry notifications, listing status, billing notices, security alerts. These are part of the service and, while your account is open, you cannot opt out of them.
 
-Right to Complain: You have the right to lodge a complaint with the Information Regulator of South Africa at inforeg.org.za.
+**Marketing.** We send marketing by email only where you have consented. We ask for that consent separately from your acceptance of the Terms of Use, and we record the date, time and version of what you agreed to. We do not treat your acceptance of the Terms of Use, or the fact that you have bought something from us, as consent to marketing.
 
-To exercise any of these rights, contact us at support@gunx.co.za. We will respond within 30 days.`,
+**Withdrawing consent.** Turn marketing off in your dashboard or click unsubscribe in any marketing email. We action withdrawals within 2 business days. Withdrawal does not affect the lawfulness of what we sent before.
+
+**Your separate right to refuse.** Independently of consent, section 11 of the Consumer Protection Act 68 of 2008 entitles you to demand that we stop directing marketing at you. You may exercise that right at any time by writing to support@gunx.co.za, and we will action it on the same timeline.`,
   },
   {
     id: 'cookies',
-    title: 'Cookies and Tracking',
-    content: `The Platform uses essential cookies and local storage to maintain your login session and user preferences. We do not use advertising cookies or third-party tracking cookies.
+    title: 'Cookies',
+    content: `We use cookies that are strictly necessary to run the Platform — keeping you signed in, remembering your session, and protecting against fraud. These do not require your consent under POPIA.
 
-Session Storage: Used to maintain your authentication state during your browsing session.
+**We do not use advertising or tracking cookies.** Our analytics provider measures page views without setting cookies and without collecting information that identifies you, so there is nothing for you to accept or refuse and no cookie banner to click through.
 
-Analytics: We collect anonymised page view data to understand Platform usage. This data does not personally identify you.
-
-You may disable cookies in your browser settings, but this may affect Platform functionality including the ability to stay logged in.`,
+You can clear or block cookies in your browser at any time. Blocking strictly necessary cookies will prevent you from signing in.`,
   },
   {
-    id: 'firearms-compliance',
-    title: 'Firearms Act Compliance',
-    content: `Gun X operates in strict compliance with the Firearms Control Act (Act 60 of 2000). In this regard:
+    id: 'security',
+    title: 'Security',
+    content: `We apply reasonable technical and organisational measures to protect personal information, including:
 
-We may be required to retain records of certain transactions and user verifications for compliance purposes.
+- encryption of data in transit;
+- access controls that limit what staff can see to what their role requires;
+- hashed password storage;
+- row-level access rules in our database;
+- private storage for licence certificates and identity documents, which are never published and are accessible only to the business that uploaded them and to our verification team;
+- logging of administrative access; and
+- vetting of the operators we appoint.
 
-We cooperate fully with the South African Police Service (SAPS) in any investigation involving firearms listed or transacted on the Platform.
+No system is completely secure. If a security compromise occurs where there are reasonable grounds to believe that personal information has been accessed or acquired by an unauthorised person, we will notify the Information Regulator and the affected data subjects as required by section 22 of POPIA, as soon as reasonably possible after becoming aware of it.
 
-Reports of illegal firearms or suspected stolen firearms are referred to SAPS immediately. User information relevant to such reports may be disclosed to SAPS without prior notice to the user.
-
-Dealer verification documents and SAPS licence information are processed as required by law and may be subject to regulatory inspection.`,
+If you believe your account or information has been compromised, contact support@gunx.co.za immediately.`,
+  },
+  {
+    id: 'children',
+    title: 'Children',
+    content: `The Platform is not for anyone under 18. We do not knowingly collect personal information from children. If you believe a child has registered, tell us at support@gunx.co.za and we will delete the account and the associated information.`,
+  },
+  {
+    id: 'your-rights',
+    title: 'Your Rights',
+    content: `You have rights of access, correction, deletion, objection, and withdrawal of consent, and the right to complain to the Information Regulator. Our POPI Act Notice explains each right and how to exercise it.`,
   },
   {
     id: 'changes',
     title: 'Changes to This Policy',
-    content: `We may update this Privacy Policy from time to time to reflect changes in our practices or legal requirements. We will notify registered users of material changes via email to their registered email address and by posting a notice on the Platform.
+    content: `We may update this Policy. The current version and date appear at the top. Where a change materially affects how we process your personal information, we will notify registered users by email or dashboard notice not less than 14 days before it takes effect.`,
+  },
+  {
+    id: 'annexure-a',
+    title: 'Annexure A — Operators and Processing Locations',
+    content: `These are the operators that process personal information on our behalf, and where they do it.
 
-Your continued use of the Platform after notification of changes constitutes acceptance of the updated Policy. If you do not agree with the changes, you should discontinue use of the Platform and may request deletion of your account.
+| Operator | Purpose | Personal information involved | Processing location |
+|---|---|---|---|
+| **Vercel** | Application hosting, content delivery and server functions | Technical data, IP address, request logs | United States (Washington DC), with content served from a global edge network |
+| **Supabase** | Database, authentication and file storage | All categories | Ireland (European Union) |
+| **Resend** | Transactional email delivery | Name, email address, message content | United States |
+| **Anthropic** | Firearm Match Advisor | Advisor input only — no name, email, telephone number or account identifier | United States |
+| **Sentry** | Error monitoring and diagnostics | Technical identifiers, error context | United States |
+| **PayFast** | Payment processing | Billing contact, transaction data | **South Africa — no cross-border transfer** |
+| **Vercel Analytics** | Aggregate usage measurement | Pseudonymous, cookieless page-view data | United States |
 
-The date of the most recent update is shown at the top of this Policy.`,
+Every transfer outside the Republic in the table above is made under that provider's data processing agreement incorporating standard contractual clauses, in reliance on section 72(1)(a) of POPIA, and — where the transfer is necessary to provide the service you asked for — on section 72(1)(c).
+
+Payment processing takes place in South Africa and is not a cross-border transfer.
+
+We update this Annexure when we change providers. You may ask us at support@gunx.co.za for the current list at any time.`,
   },
   {
     id: 'contact',
-    title: 'Contact and Information Officer',
-    content: `GX SA (Pty) Ltd is the Responsible Party under the POPI Act.
+    title: 'Contact',
+    content: `**Information Officer**
 
-For all privacy-related queries, access requests, or complaints:
+GX SA (Pty) Ltd
 
-Email: support@gunx.co.za
-Platform: calibreza.vercel.app
-Registered in: South Africa
+11 Howe Street, Observatory, Western Cape, 7925
 
-Information Regulator of South Africa:
-Website: inforeg.org.za
-Email: inforeg@justice.gov.za
-Tel: 010 023 5207
-
-This Privacy Policy was last updated on 18 May 2026.`,
+support@gunx.co.za — subject line "POPIA"`,
   },
 ];
 
 export default function PrivacyPage() {
-  const [openSection, setOpenSection] = useState<string | null>('introduction');
-
   return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-      <Navbar />
-
-      {/* HEADER */}
-      <div className="bg-[#13151A] border-b border-white/5 px-4 md:px-6 py-12 md:py-16">
-        <div className="max-w-[800px] mx-auto">
-          <p className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.4em] mb-3">Legal</p>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-4xl md:text-6xl font-black uppercase tracking-tight mb-4">
-            Privacy <span className="text-[#C9922A]">Policy</span>
-          </h1>
-          <p className="text-[#8A8E99] text-sm leading-relaxed mb-2">
-            GX SA (Pty) Ltd · Last updated: 18 May 2026
-          </p>
-          <p className="text-[#8A8E99] text-sm leading-relaxed">
-            This policy governs the collection, use, and protection of your personal information on the Gun X platform in accordance with the POPI Act 4 of 2013.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 max-w-[800px] mx-auto w-full px-4 md:px-6 py-10 md:py-16">
-
-        {/* QUICK NAV */}
-        <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 mb-8">
-          <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">
-            Contents
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SECTIONS.map(s => (
-              <button key={s.id}
-                onClick={() => { setOpenSection(s.id); document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' }); }}
-                className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] border border-white/10 px-3 py-1.5 rounded-sm hover:border-[#C9922A]/40 hover:text-[#C9922A] transition-all">
-                {s.title}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* SECTIONS */}
-        <div className="space-y-3">
-          {SECTIONS.map((section, idx) => (
-            <div key={section.id} id={section.id}
-              className={`border rounded-sm transition-all ${openSection === section.id ? 'border-[#C9922A]/30 bg-[#C9922A]/5' : 'border-white/5 bg-[#13151A] hover:border-white/10'}`}>
-              <button
-                onClick={() => setOpenSection(openSection === section.id ? null : section.id)}
-                className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left">
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-black text-[#C9922A]/50 w-5">{String(idx + 1).padStart(2, '0')}</span>
-                  <span className="font-black text-[15px] text-[#F0EDE8]">{section.title}</span>
-                </div>
-                <span className={`text-[#C9922A] text-xl flex-shrink-0 transition-transform duration-200 ${openSection === section.id ? 'rotate-45' : ''}`}>+</span>
-              </button>
-              {openSection === section.id && (
-                <div className="px-5 pb-6">
-                  <div className="h-px bg-white/5 mb-4" />
-                  <div className="text-[#8A8E99] text-[14px] leading-relaxed whitespace-pre-line">
-                    {section.content}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* FOOTER CTA */}
-        <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-8 text-center mt-10">
-          <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-            className="text-2xl font-black uppercase mb-2">Questions about your data?</h3>
-          <p className="text-[#8A8E99] text-sm mb-6">Contact our team at support@gunx.co.za — we respond within 1 business day.</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a href="mailto:support@gunx.co.za"
-              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:brightness-110 transition-all">
-              ✉ Contact Support
-            </a>
-            <Link href="/faqs"
-              className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:bg-white/5 transition-all">
-              View FAQs
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* FOOTER STRIP */}
-      <div className="border-t border-white/5 px-4 py-6">
-        <div className="max-w-[800px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-[12px] text-[#8A8E99]">© 2026 GX SA (Pty) Ltd — All rights reserved</p>
-          <div className="flex gap-4 text-[12px] text-[#8A8E99]">
-            <Link href="/terms" className="hover:text-[#C9922A] transition-colors">Terms of Use</Link>
-            <Link href="/contact" className="hover:text-[#C9922A] transition-colors">Contact</Link>
-            <Link href="/faqs" className="hover:text-[#C9922A] transition-colors">FAQs</Link>
-          </div>
-        </div>
-      </div>
-    </div>
+    <LegalDoc
+      eyebrow="Legal"
+      titleLead="Privacy"
+      titleAccent="Policy"
+      version="2.0"
+      updatedLabel="Effective"
+      updated="1 September 2026"
+      intro="What we collect, why, who we share it with, where it goes and how long we keep it."
+      sections={SECTIONS}
+      draftNotice
+    />
   );
 }
