@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { ConsentContext } from './legal';
+import type { BusinessTypeId } from './business';
 
 // ─── CONSENT RECORDING ───────────────────────────────────────────────────────
 // Posts to /api/legal/consent, which writes the append-only evidence row. The
@@ -48,6 +49,26 @@ export async function recordConsent(
   return postConsent(token, context, marketingConsent, reference);
 }
 
+// ─── ACCOUNT TYPE ────────────────────────────────────────────────────────────
+// Personal and business accounts are deliberately separate. A business login
+// is owned by the business and may be shared by its staff; a personal account
+// belongs to one individual. Keeping them apart is what stops a shop's login
+// and an employee's own account from colliding.
+
+export type AccountType = 'personal' | 'business';
+
+export async function getAccountType(userId: string): Promise<AccountType | null> {
+  const { data } = await supabase
+    .from('users')
+    .select('account_type')
+    .eq('id', userId)
+    .maybeSingle();
+
+  return (data?.account_type as AccountType) ?? null;
+}
+
+// ─── PERSONAL SIGNUP ─────────────────────────────────────────────────────────
+
 export interface SignUpResult {
   userId: string | null;
   /** True when Supabase returned no session because email confirmation is on. */
@@ -66,15 +87,12 @@ export async function signUp(
     email,
     password,
     options: {
-      data: {
-        full_name: fullName,
-      },
+      data: { full_name: fullName },
     },
   });
 
   if (error) throw error;
 
-  // Create user profile in our users table
   if (data.user) {
     const { error: profileError } = await supabase
       .from('users')
@@ -82,15 +100,12 @@ export async function signUp(
         id: data.user.id,
         email: data.user.email,
         full_name: fullName,
+        account_type: 'personal',
       });
 
     if (profileError) throw profileError;
   }
 
-  // Consent is recorded against the session created by signUp. If email
-  // confirmation is enabled in Supabase, no session is returned here and the
-  // consent record cannot be written yet — the caller is told so rather than
-  // being left to assume it worked.
   const token = data.session?.access_token;
   const consentRecorded = token
     ? await postConsent(token, 'signup', marketingConsent)
@@ -103,12 +118,83 @@ export async function signUp(
   };
 }
 
-export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+// ─── BUSINESS SIGNUP ─────────────────────────────────────────────────────────
+
+export interface BusinessSignUpInput {
+  /** The login credential. May be a shared business address. */
+  email: string;
+  password: string;
+  businessType: BusinessTypeId;
+  /** Named human accountable for the account. */
+  responsiblePerson: string;
+  /** That person's own email, for notices. May differ from the login email. */
+  responsiblePersonEmail: string;
+}
+
+export interface BusinessSignUpResult extends SignUpResult {
+  businessType: BusinessTypeId;
+}
+
+/**
+ * Creates a business login.
+ *
+ * The responsible person is held in user metadata so the application form can
+ * prefill it, and is written onto the business record when that form is
+ * submitted. It matters because a shared login has no human behind it, and two
+ * things depend on there being one: the Dealer Agreement is accepted by someone
+ * warranting they may bind the business, and the FCA licence declaration is a
+ * statement of fact by a person.
+ */
+export async function signUpBusiness(
+  input: BusinessSignUpInput,
+  marketingConsent = false,
+): Promise<BusinessSignUpResult> {
+  const { data, error } = await supabase.auth.signUp({
+    email: input.email,
+    password: input.password,
+    options: {
+      data: {
+        full_name: input.responsiblePerson,
+        account_type: 'business',
+        business_type: input.businessType,
+        responsible_person: input.responsiblePerson,
+        responsible_person_email: input.responsiblePersonEmail,
+      },
+    },
   });
 
+  if (error) throw error;
+
+  if (data.user) {
+    const { error: profileError } = await supabase
+      .from('users')
+      .insert({
+        id: data.user.id,
+        email: data.user.email,
+        full_name: input.responsiblePerson,
+        account_type: 'business',
+      });
+
+    if (profileError) throw profileError;
+  }
+
+  const token = data.session?.access_token;
+  const consentRecorded = token
+    ? await postConsent(token, 'signup', marketingConsent)
+    : false;
+
+  return {
+    userId: data.user?.id ?? null,
+    needsEmailConfirmation: !data.session,
+    consentRecorded,
+    businessType: input.businessType,
+  };
+}
+
+// ─── SESSION ─────────────────────────────────────────────────────────────────
+
+export async function signIn(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
 }

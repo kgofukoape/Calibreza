@@ -342,7 +342,7 @@ export default function LegalDoc({
             ))}
           </div>
           <p className="text-[12px] text-[#8A8E99] mt-5 leading-relaxed">
-            GX SA (Pty) Ltd · 11 Howe Street, Observatory, Western Cape, 7925<br />
+            GX SA (Pty) Ltd · Registration 2025/830094/07<br />
             <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>
           </p>
         </div>
