@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
+import { recordConsent } from '@/lib/auth';
+import { LEGAL_DOCUMENTS } from '@/lib/legal';
 
 const PROVINCES = [
   'Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape',
@@ -90,6 +92,20 @@ const SERVICE_CATEGORIES = [
     ],
   },
   {
+    id: 'security',
+    label: '🛡️ Security Services',
+    desc: 'Armed response, guarding, close protection, cash-in-transit, event security',
+    subcategories: [
+      'Armed Response',
+      'Security Guarding',
+      'Close Protection / VIP',
+      'Cash-in-Transit',
+      'Event & Venue Security',
+      'Firearm-Carrying Security Officers',
+      'Security Training Provider',
+    ],
+  },
+  {
     id: 'other',
     label: '📋 Other',
     desc: "Anything firearm-related that doesn't fit above",
@@ -97,20 +113,56 @@ const SERVICE_CATEGORIES = [
   },
 ];
 
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
 export default function ServiceApplyPage() {
   const router = useRouter();
 
   // ── Auth gate ────────────────────────────────────────────────────────────
+  // Previously this pushed unauthenticated visitors to /login — a personal
+  // login — which produced service listings owned by an individual's private
+  // account. A service listing belongs to the business.
   const [authChecked, setAuthChecked] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isPersonalAccount, setIsPersonalAccount] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<string | null>(null);
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acknowledgePrivacy, setAcknowledgePrivacy] = useState(false);
+  const [psiraFile, setPsiraFile] = useState<File | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.push('/login');
-      } else {
-        setAuthChecked(true);
+    const check = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users').select('account_type').eq('id', user.id).maybeSingle();
+
+        if (profile?.account_type === 'personal') {
+          setIsPersonalAccount(true);
+          setAuthChecked(true);
+          return;
+        }
+
+        setUserId(user.id);
+
+        const { data: existing } = await supabase
+          .from('services').select('status').eq('user_id', user.id).maybeSingle();
+        if (existing) setExistingApplication(existing.status);
+
+        const meta = user.user_metadata || {};
+        setForm(prev => ({
+          ...prev,
+          email: prev.email || user.email || '',
+          contact_name: meta.responsible_person || '',
+          responsible_person_email: meta.responsible_person_email || '',
+        }));
       }
-    });
+
+      setAuthChecked(true);
+    };
+    check();
   }, []);
 
   // ── Form state ────────────────────────────────────────────────────────────
@@ -126,6 +178,7 @@ export default function ServiceApplyPage() {
     subcategory:         '',
     description:         '',
     contact_name:        '',
+    responsible_person_email: '',
     email:               '',
     phone:               '',
     whatsapp:            '',
@@ -139,6 +192,7 @@ export default function ServiceApplyPage() {
     years_experience:    '',
     saps_accredited:     false,
     accreditation_number:'',
+    psira_number:        '',
   });
 
   const set = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));
@@ -158,10 +212,48 @@ export default function ServiceApplyPage() {
     }));
   };
 
+  const isSecurity = form.type === 'security';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!userId) { alert('Your session has expired. Please sign in again.'); return; }
+    if (!acceptedTerms || !acknowledgePrivacy) {
+      alert('Please accept the Terms of Use and confirm you have read the Privacy Policy.');
+      return;
+    }
+
+    // A security business must be registered with PSIRA under the Private
+    // Security Industry Regulation Act 56 of 2001. This is a licensing
+    // requirement, not a nice-to-have, so it is enforced rather than optional.
+    if (isSecurity) {
+      if (!form.psira_number.trim()) {
+        alert('A PSIRA registration number is required for security service providers.');
+        return;
+      }
+      if (!psiraFile) {
+        alert('Please upload your PSIRA registration certificate.');
+        return;
+      }
+      if (psiraFile.size > MAX_FILE_BYTES) {
+        alert('The PSIRA certificate must be smaller than 5MB.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
+      // Private bucket, scoped to this account's own folder. Never a public URL.
+      let psira_certificate_url = '';
+      if (psiraFile) {
+        const pext = psiraFile.name.split('.').pop()?.toLowerCase() || 'bin';
+        const ppath = `${userId}/psira-certificate-${Date.now()}.${pext}`;
+        const { error: pErr } = await supabase.storage
+          .from('business-documents').upload(ppath, psiraFile, { upsert: false });
+        if (pErr) throw pErr;
+        psira_certificate_url = ppath;
+      }
+
       // Upload logo
       let logo_url = '';
       if (logoFile) {
@@ -183,9 +275,6 @@ export default function ServiceApplyPage() {
         .replace(/\s+/g, '-')
         + '-' + Date.now().toString(36);
 
-      // Get user
-      const { data: { user } } = await supabase.auth.getUser();
-
       const { error } = await supabase.from('services').insert({
         name:                 form.name,
         type:                 form.type,
@@ -205,9 +294,13 @@ export default function ServiceApplyPage() {
         saps_accredited:      form.saps_accredited,
         accreditation_number: form.accreditation_number,
         contact_name:         form.contact_name,
+        responsible_person:       form.contact_name,
+        responsible_person_email: form.responsible_person_email,
+        psira_number:         form.psira_number || null,
+        psira_certificate_url: psira_certificate_url || null,
         logo_url,
         slug,
-        user_id:              user?.id || null,
+        user_id:              userId,
         status:               'pending',
         is_verified:          false,
         is_featured:          false,
@@ -228,6 +321,11 @@ export default function ServiceApplyPage() {
         }),
       });
 
+      const consentRecorded = await recordConsent('service_application', false, form.name);
+      if (!consentRecorded) {
+        console.error('[services/apply] consent record was not written for', form.name);
+      }
+
       setSubmitted(true);
     } catch (err: any) {
       alert(err.message || 'Submission failed. Please try again.');
@@ -243,11 +341,79 @@ export default function ServiceApplyPage() {
   // ── Spinner while checking auth ──────────────────────────────────────────
   if (!authChecked) return (
     <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+      <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading…</p>
     </div>
   );
 
-  // ── Success ──────────────────────────────────────────────────────────────
+  if (!userId && !isPersonalAccount) return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+            Business <span className="text-[#C9922A]">Account</span> Needed
+          </h1>
+          <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+            A service listing is owned by a business account, not by a person. That login is
+            what you and your staff share to manage packages, portfolio and enquiries.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Link href="/business/register"
+              className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:brightness-110 transition-all">
+              Register Business
+            </Link>
+            <Link href="/business/login"
+              className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+              Business Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isPersonalAccount) return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+            That&apos;s a <span className="text-[#C9922A]">Personal</span> Account
+          </h1>
+          <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+            You are signed in with a personal account. A service listing needs its own business
+            account so the business owns it rather than you personally.
+          </p>
+          <Link href="/business/register"
+            className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
+            Register a Service Provider Account
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (existingApplication) return (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+            Application <span className="text-[#C9922A]">{existingApplication}</span>
+          </h1>
+          <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+            This account already has a service listing on file. To correct anything, email{' '}
+            <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-110">support@gunx.co.za</a>.
+          </p>
+          <Link href="/business/login"
+            className="inline-block border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all">
+            Business Login
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+
   if (submitted) return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
@@ -415,7 +581,13 @@ export default function ServiceApplyPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={lbl}>Contact Person</label>
-                <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} className={inp} placeholder="Your name" />
+                <input required value={form.contact_name} onChange={e => set('contact_name', e.target.value)} className={inp} placeholder="Your name" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">Accountable for this account and authorised to accept our terms.</p>
+              </div>
+              <div>
+                <label className={lbl}>Their Email <span className="text-red-400">*</span></label>
+                <input required type="email" value={form.responsible_person_email} onChange={e => set('responsible_person_email', e.target.value)} className={inp} placeholder="you@yourbusiness.co.za" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">For notices about this account. Not published.</p>
               </div>
               <div>
                 <label className={lbl}>Email Address <span className="text-red-400">*</span></label>
@@ -463,6 +635,67 @@ export default function ServiceApplyPage() {
             </div>
           </div>
 
+          {/* PSIRA — security service providers only */}
+          {isSecurity && (
+            <div className={sec}>
+              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase pb-3 border-b border-white/5">
+                PSIRA Registration
+              </h2>
+
+              <div className="border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3">
+                <p className="text-[12.5px] text-[#C4C0B8] leading-relaxed">
+                  A security business must be registered with the Private Security Industry
+                  Regulatory Authority under the Private Security Industry Regulation Act 56 of
+                  2001. We cannot list a security provider without it. Your certificate is stored
+                  privately and is visible only to you and our verification team.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>PSIRA Registration Number <span className="text-red-400">*</span></label>
+                  <input value={form.psira_number} onChange={e => set('psira_number', e.target.value)} className={inp} placeholder="e.g. 1234567" />
+                </div>
+                <div>
+                  <label className={lbl}>PSIRA Certificate <span className="text-red-400">*</span></label>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => setPsiraFile(e.target.files?.[0] || null)}
+                    className={inp + " file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-bold file:bg-[#C9922A] file:text-black"} />
+                  <p className="text-[11px] text-[#8A8E99] mt-1.5">PDF, JPG or PNG — max 5MB.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AGREEMENTS */}
+          <div className={sec}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase pb-3 border-b border-white/5">
+              Agreements
+            </h2>
+            <div className="flex flex-col gap-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
+                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
+                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  I agree to the{' '}
+                  <Link href={LEGAL_DOCUMENTS.terms.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Terms of Use</Link>{' '}
+                  and I am authorised to accept them for this business <span className="text-red-400">*</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={acknowledgePrivacy} onChange={e => setAcknowledgePrivacy(e.target.checked)}
+                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
+                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  I have read the{' '}
+                  <Link href={LEGAL_DOCUMENTS.privacy.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Privacy Policy</Link>{' '}
+                  and{' '}
+                  <Link href={LEGAL_DOCUMENTS.popi.href} target="_blank" className="text-[#C9922A] hover:brightness-110">POPI Act Notice</Link>{' '}
+                  <span className="text-red-400">*</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           {/* NOTICE */}
           <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5">
             <p className="text-[13px] text-[#8A8E99] leading-relaxed">
@@ -472,7 +705,7 @@ export default function ServiceApplyPage() {
 
           {/* SUBMIT */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" disabled={submitting}
+            <button type="submit" disabled={submitting || !acceptedTerms || !acknowledgePrivacy}
               style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
               {submitting ? 'Submitting...' : 'Submit Service Listing'}
