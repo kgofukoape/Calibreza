@@ -66,9 +66,13 @@ export type User = {
   email: string;
   full_name: string;
   phone: string;
-  user_type: 'private' | 'dealer';
-  province_id: string;
+  /** 'personal' or 'business'. Business logins are shared by a dealer, club,
+   *  range or service provider and sign in at /business/login. */
+  account_type: 'personal' | 'business';
+  province: string;
   city: string;
+  /** Optional category preferences chosen at signup. */
+  interests: string[];
   is_verified: boolean;
   avg_response_hours: number;
   total_listings: number;

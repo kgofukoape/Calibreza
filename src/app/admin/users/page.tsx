@@ -402,8 +402,13 @@ export default function AdminUsersPage() {
                 <div className="grid grid-cols-3 gap-4">
                   {[
                     { label: 'Total Listings', value: selectedUser.listingCount, color: 'text-[#4CC9F0]' },
-                    { label: 'Province', value: (selectedUser as any).province_id || '—', color: 'text-white' },
-                    { label: 'User Type', value: (selectedUser as any).user_type || 'private', color: 'text-[#10B981]' },
+                    // province_id and user_type were dropped: nothing ever wrote
+                    // to them, so this panel showed a dash and "private" for
+                    // every user regardless of who they were. The live fields
+                    // are province (written at signup) and account_type
+                    // (personal or business).
+                    { label: 'Province', value: (selectedUser as any).province || '—', color: 'text-white' },
+                    { label: 'Account Type', value: (selectedUser as any).account_type || 'personal', color: 'text-[#10B981]' },
                   ].map((stat) => (
                     <div key={stat.label} className="bg-[#0D1420] border border-white/5 rounded-sm p-4">
                       <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-1">{stat.label}</p>
