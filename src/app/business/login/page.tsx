@@ -82,7 +82,12 @@ export default function BusinessLoginPage() {
         .from('clubs').select('status, facility_type').eq('user_id', user.id).maybeSingle();
 
       if (club) {
-        const isRange = club.facility_type === 'range';
+        // Clubs and ranges share the clubs table. /clubs/apply writes
+        // facility_type 'club'; /clubs/range-apply writes the range's physical
+        // type — 'indoor', 'outdoor' or 'both' — and older rows hold 'range'.
+        // So the test is "not a club" rather than a list of range values, which
+        // would break every time a new facility type is added.
+        const isRange = club.facility_type !== 'club';
         const type = isRange ? BUSINESS_TYPES.range : BUSINESS_TYPES.club;
         if (club.status !== type.approvedStatus) {
           setOutcome({ kind: 'pending', label: `${type.label.toLowerCase()} application`, status: club.status });
