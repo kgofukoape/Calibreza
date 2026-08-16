@@ -1,11 +1,23 @@
 'use client';
  
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { recordConsent } from '@/lib/auth';
+import { LEGAL_DOCUMENTS } from '@/lib/legal';
+
+// ─── CLUB APPLICATION ────────────────────────────────────────────────────────
+// Previously anonymous, which caused three faults:
+//   1. clubs.user_id was never set, so /business/login and /club-dashboard —
+//      both of which look the club up by user_id — could never find it. Every
+//      club that applied was locked out of its own dashboard.
+//   2. status was inserted as 'active', meaning a club went live on the public
+//      directory the moment it applied, with no review at all. Ranges used
+//      'pending' correctly, so the two disagreed with each other.
+//   3. Nothing was shown or recorded about the terms being accepted.
 
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
@@ -34,6 +46,14 @@ const ALL_ASSOCIATIONS = [
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function ClubApplyInner() {
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isPersonalAccount, setIsPersonalAccount] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<string | null>(null);
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acknowledgePrivacy, setAcknowledgePrivacy] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -49,6 +69,8 @@ function ClubApplyInner() {
 
   const [form, setForm] = useState({
     name: '',
+    responsible_person: '',
+    responsible_person_email: '',
     description: '',
     province: '',
     city: '',
@@ -63,6 +85,43 @@ function ClubApplyInner() {
     disciplines: [] as string[],
     associations: [] as string[],
   });
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users').select('account_type').eq('id', user.id).maybeSingle();
+
+        if (profile?.account_type === 'personal') {
+          setIsPersonalAccount(true);
+          setCheckingAuth(false);
+          return;
+        }
+
+        setUserId(user.id);
+
+        // One business account holds one club. The login lookup uses
+        // maybeSingle(), which a second row would break.
+        const { data: existing } = await supabase
+          .from('clubs').select('status').eq('user_id', user.id).maybeSingle();
+        if (existing) setExistingApplication(existing.status);
+
+        const meta = user.user_metadata || {};
+        setForm(prev => ({
+          ...prev,
+          email: prev.email || user.email || '',
+          responsible_person: meta.responsible_person || '',
+          responsible_person_email: meta.responsible_person_email || '',
+        }));
+      }
+
+      setCheckingAuth(false);
+    };
+    check();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -135,6 +194,14 @@ function ClubApplyInner() {
       alert('Please fill in all required fields.');
       return;
     }
+    if (!userId) {
+      alert('Your session has expired. Please sign in again.');
+      return;
+    }
+    if (!acceptedTerms || !acknowledgePrivacy) {
+      alert('Please accept the Terms of Use and confirm you have read the Privacy Policy.');
+      return;
+    }
     setLoading(true);
     try {
       let logo_url = '';
@@ -152,8 +219,12 @@ function ClubApplyInner() {
       const validShootDays = shootDays.filter(d => d.day);
 
       const { error } = await supabase.from('clubs').insert({
+        user_id: userId,
         name: form.name,
         slug,
+        facility_type: 'club',
+        responsible_person: form.responsible_person,
+        responsible_person_email: form.responsible_person_email,
         description: form.description,
         province: form.province,
         city: form.city,
@@ -169,11 +240,19 @@ function ClubApplyInner() {
         range_fee: form.range_fee ? parseFloat(form.range_fee) : null,
         disciplines: form.disciplines,
         associations: form.associations,
-        status: 'active',
+        // 'pending' until reviewed. Inserting 'active' published the club to
+        // the public directory instantly, with no verification of anything.
+        status: 'pending',
         is_verified: false,
       });
 
       if (error) throw error;
+
+      // ── Record what was agreed to ────────────────────────────────────────
+      const consentRecorded = await recordConsent('club_application', false, form.name);
+      if (!consentRecorded) {
+        console.error('[clubs/apply] consent record was not written for', form.name);
+      }
 
       // ── Notify admin ─────────────────────────────────────────────────────
       try {
@@ -205,6 +284,97 @@ function ClubApplyInner() {
   const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5";
   const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6";
 
+  // ── Gate screens ───────────────────────────────────────────────────────────
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4">
+          <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userId && !isPersonalAccount) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+              Business <span className="text-[#C9922A]">Account</span> Needed
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-4">
+              A club listing is owned by a business account, not by a person. That account is the
+              login your committee members share to manage shoot days, results and your listing.
+            </p>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              If you are also a club member who buys and sells, keep your own personal Gun X
+              account as well. The two are separate.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link href="/business/register"
+                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:brightness-110 transition-all">
+                Register Business
+              </Link>
+              <Link href="/business/login"
+                className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
+                Business Sign In
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPersonalAccount) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+              That&apos;s a <span className="text-[#C9922A]">Personal</span> Account
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              You are signed in with a personal account. A club listing needs its own business
+              account so the club — not one member — owns it.
+            </p>
+            <Link href="/business/register"
+              className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
+              Register a Club Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (existingApplication) {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
+              Application <span className="text-[#C9922A]">{existingApplication}</span>
+            </h1>
+            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+              This account already has a club on file. If something needs correcting, email{' '}
+              <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-110">support@gunx.co.za</a>.
+            </p>
+            <Link href="/business/login"
+              className="inline-block border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all">
+              Business Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
@@ -213,10 +383,10 @@ function ClubApplyInner() {
           <div className="max-w-md w-full text-center">
             <div className="w-16 h-16 bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">✓</div>
             <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-3">
-              Club <span className="text-[#C9922A]">Listed!</span>
+              Application <span className="text-[#C9922A]">Submitted!</span>
             </h1>
-            <p className="text-[#8A8E99] mb-3">Your club is now live on Gun X.</p>
-            <p className="text-[#8A8E99] text-sm mb-8">Our team will verify your details within 48 hours to award a verified badge.</p>
+            <p className="text-[#8A8E99] mb-3">Your club application is with our team for review.</p>
+            <p className="text-[#8A8E99] text-sm mb-8">We review applications within 2–3 business days. Once approved, sign in with this same account to reach your club dashboard.</p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Link href="/clubs" className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 transition-all text-center">
                 View All Clubs
@@ -268,6 +438,18 @@ function ClubApplyInner() {
               <div className="md:col-span-2">
                 <label className={labelClass}>Club Name <span className="text-red-400">*</span></label>
                 <input name="name" value={form.name} onChange={handleChange} required className={inputClass} placeholder="e.g., Cape Town Practical Shooting Club" />
+              </div>
+
+              <div>
+                <label className={labelClass}>Person Responsible <span className="text-red-400">*</span></label>
+                <input name="responsible_person" value={form.responsible_person} onChange={handleChange} required className={inputClass} placeholder="Full name" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">Accountable for this account and authorised to accept our terms for the club.</p>
+              </div>
+
+              <div>
+                <label className={labelClass}>Their Email <span className="text-red-400">*</span></label>
+                <input type="email" name="responsible_person_email" value={form.responsible_person_email} onChange={handleChange} required className={inputClass} placeholder="chairman@yourclub.co.za" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">For notices about this account. Not published.</p>
               </div>
               <div>
                 <label className={labelClass}>Province <span className="text-red-400">*</span></label>
@@ -492,12 +674,43 @@ function ClubApplyInner() {
             </div>
           </div>
 
+          {/* Agreements */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+              className="text-xl font-black uppercase text-[#C9922A] mb-4">
+              Agreements
+            </h2>
+            <div className="flex flex-col gap-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
+                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
+                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  I agree to the{' '}
+                  <Link href={LEGAL_DOCUMENTS.terms.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Terms of Use</Link>{' '}
+                  and I am authorised to accept them on behalf of this club <span className="text-red-400">*</span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={acknowledgePrivacy} onChange={e => setAcknowledgePrivacy(e.target.checked)}
+                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
+                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  I have read the{' '}
+                  <Link href={LEGAL_DOCUMENTS.privacy.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Privacy Policy</Link>{' '}
+                  and{' '}
+                  <Link href={LEGAL_DOCUMENTS.popi.href} target="_blank" className="text-[#C9922A] hover:brightness-110">POPI Act Notice</Link>{' '}
+                  <span className="text-red-400">*</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           {/* Submit */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={loading || !acceptedTerms || !acknowledgePrivacy}
               style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? 'Submitting...' : 'List My Club — Free'}
+              {loading ? 'Submitting...' : 'Submit Club Application'}
             </button>
             <Link href="/clubs" className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
               Cancel
