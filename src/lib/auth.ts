@@ -99,6 +99,14 @@ export async function signUp(
     email,
     password,
     options: {
+      // Without this, Supabase sends the confirmation link to the project's
+      // Site URL — the homepage — and /auth/callback never runs, so the
+      // profile row, the consent record and the routing all silently do not
+      // happen. This must also be listed under Authentication → URL
+      // Configuration → Redirect URLs in the Supabase dashboard.
+      emailRedirectTo: typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback`
+        : undefined,
       // Carried in metadata because, when email confirmation is enabled,
       // signUp returns no session — the profile insert below is rejected by
       // RLS and the consent write has no token. /auth/callback rebuilds both
@@ -185,6 +193,9 @@ export async function signUpBusiness(
     email: input.email,
     password: input.password,
     options: {
+      emailRedirectTo: typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback`
+        : undefined,
       data: {
         full_name: input.responsiblePerson,
         account_type: 'business',
@@ -227,6 +238,40 @@ export async function signUpBusiness(
 }
 
 // ─── SESSION ─────────────────────────────────────────────────────────────────
+
+export interface BootstrapResult {
+  accountType: AccountType;
+  businessType: BusinessTypeId | null;
+}
+
+/**
+ * Makes sure the signed-in account has a profile row and a signup consent
+ * record, creating either if missing, and reports what kind of account it is.
+ *
+ * This is the safety net for the confirmation flow. /auth/callback handles the
+ * normal path, but it cannot run when someone confirms their email on a phone
+ * and then signs in on a laptop — PKCE keeps the code verifier in the browser
+ * that started the signup. Without this, those accounts would exist with no
+ * profile and no consent record, and nothing would ever notice.
+ *
+ * Safe to call on every sign-in: both operations are skipped if already done.
+ */
+export async function bootstrapAccount(): Promise<BootstrapResult | null> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return null;
+
+  try {
+    const res = await fetch('/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });

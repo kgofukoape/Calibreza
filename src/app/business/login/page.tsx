@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
+import { bootstrapAccount } from '@/lib/auth';
 import { BUSINESS_TYPES, BUSINESS_TYPE_LIST, type BusinessTypeId } from '@/lib/business';
 
 // ─── BUSINESS LOGIN ──────────────────────────────────────────────────────────
@@ -49,14 +50,13 @@ export default function BusinessLoginPage() {
 
       const user = data.user;
 
-      // ── Personal accounts belong on /login ───────────────────────────────
-      const { data: profile } = await supabase
-        .from('users')
-        .select('account_type')
-        .eq('id', user.id)
-        .maybeSingle();
+      // Creates the profile row and signup consent record if the confirmation
+      // callback never ran. Also tells us the account type, read from the
+      // profile row rather than from metadata.
+      const bootstrap = await bootstrapAccount();
 
-      if (profile?.account_type === 'personal') {
+      // ── Personal accounts belong on /login ───────────────────────────────
+      if (bootstrap?.accountType === 'personal') {
         await supabase.auth.signOut();
         setOutcome({ kind: 'personal' });
         setLoading(false);
@@ -113,7 +113,8 @@ export default function BusinessLoginPage() {
       }
 
       // ── Registered but the application was never completed ───────────────
-      const intended = user.user_metadata?.business_type as BusinessTypeId | undefined;
+      const intended = (bootstrap?.businessType
+        ?? user.user_metadata?.business_type) as BusinessTypeId | undefined;
       setOutcome({ kind: 'incomplete', typeId: intended ?? null });
       setLoading(false);
 

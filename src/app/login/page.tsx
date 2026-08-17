@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
+import { bootstrapAccount } from '@/lib/auth';
 
 // ─── PERSONAL LOGIN ──────────────────────────────────────────────────────────
 // For individuals buying and selling. Business accounts sign in at
@@ -35,16 +36,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
 
-      const { data: profile } = await supabase
-        .from('users')
-        .select('account_type')
-        .eq('id', data.user.id)
-        .maybeSingle();
+      // Creates the profile row and signup consent record if the confirmation
+      // callback never ran — for example when the email was confirmed on a
+      // different device. No-op when they already exist.
+      const bootstrap = await bootstrapAccount();
 
-      if (profile?.account_type === 'business') {
+      if (bootstrap?.accountType === 'business') {
         await supabase.auth.signOut();
         setIsBusinessAccount(true);
         setLoading(false);

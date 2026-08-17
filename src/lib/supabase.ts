@@ -16,6 +16,11 @@ export const supabase = createClient(supabaseUrl, supabasePublicKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    // PKCE makes the email confirmation link arrive at /auth/callback as
+    // ?code=..., which is what that route handler exchanges for a session.
+    // Under the default implicit flow the token arrives in the URL fragment
+    // instead, the server never sees it, and the callback cannot run at all.
+    flowType: 'pkce',
   },
 });
 
