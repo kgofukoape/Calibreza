@@ -1,40 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit, getClientIp, isSameOrigin } from '@/lib/rateLimit';
-import {
-  CONSENT_BUNDLES,
-  CONSENT_BUNDLE_VERSION,
-  MARKETING_CONSENT_VERSION,
-  documentsForContext,
-  type ConsentContext,
-} from '@/lib/legal';
+import { writeConsent } from '@/lib/consentServer';
+import { CONSENT_BUNDLES, type ConsentContext } from '@/lib/legal';
 
 // ─── LEGAL CONSENT RECORDING ─────────────────────────────────────────────────
 // POST /api/legal/consent
 //
 // Writes one append-only row to legal_consents proving what a user accepted.
 //
-// WHY THIS IS A SERVER ROUTE
-// The legal_consents table has no INSERT policy, so the browser cannot write to
-// it at all. That is deliberate. A consent record the client can create is a
-// consent record the client can fabricate — and the entire value of this table
-// is that it is evidence. Writes happen here, with the service role key, after
-// the caller's identity has been proven.
+// EVERY CALLER MUST BE AUTHENTICATED
+// There is no anonymous path. That is a deliberate constraint rather than a
+// limitation: it means every row in legal_consents is tied to an account whose
+// identity was proven by a validated access token, so identity_verified is
+// always true and the table never contains a self-declared claim you might
+// later mistake for proof.
 //
-// WHAT THE CLIENT IS AND IS NOT TRUSTED WITH
-//   Trusted:     which context they are in ('signup'), and their marketing
-//                answer. Both are checked against a fixed allow-list.
-//   NOT trusted: who they are — proven by verifying their access token against
-//                Supabase, never taken from the request body.
-//   NOT trusted: which documents and versions were accepted — these are read
-//                server-side from src/lib/legal.ts. If the client supplied
-//                them, a user could later claim they accepted some other
-//                version, which defeats the purpose of recording anything.
+// It also forces the application flows to require sign-in, which fixes a
+// separate fault — a dealer or club row created without user_id can never be
+// found by /dealer/login, leaving the applicant permanently locked out of the
+// business they applied for.
 //
-// FAILURE BEHAVIOUR
-// Returns 500 on a write failure rather than swallowing it. The signup flow
-// must be able to tell whether the record was actually written; silently
-// carrying on would leave an account with no consent record and no way to know.
+// WHAT THE CLIENT IS NEVER TRUSTED WITH
+// Which documents and versions were accepted. Those are read server-side from
+// src/lib/legal.ts. If the client supplied them, a person could later claim
+// they accepted some other version, which defeats the point of recording.
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -59,9 +49,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Identity ───────────────────────────────────────────────────────────────
-  // The bearer token is the user's Supabase access token. getUser() validates
-  // its signature and expiry against the project, so a forged or stale token
-  // fails here rather than producing a consent record for someone else.
+  // getUser() validates the token's signature and expiry against the project,
+  // so a forged or stale token fails here rather than producing a consent
+  // record attributed to someone else.
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.toLowerCase().startsWith('bearer ')
     ? authHeader.slice(7).trim()
@@ -79,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Input ──────────────────────────────────────────────────────────────────
-  let body: { context?: string; marketingConsent?: boolean };
+  let body: { context?: string; marketingConsent?: boolean; reference?: string };
   try {
     body = await req.json();
   } catch {
@@ -93,31 +83,33 @@ export async function POST(req: NextRequest) {
 
   const marketingConsent = body.marketingConsent === true;
 
-  // ── Write ──────────────────────────────────────────────────────────────────
-  const { data, error } = await supabaseAdmin
-    .from('legal_consents')
-    .insert({
-      user_id: user.id,
-      user_email: user.email,
-      context,
-      documents: documentsForContext(context),
-      bundle_version: CONSENT_BUNDLE_VERSION,
-      marketing_consent: marketingConsent,
-      marketing_consent_version: marketingConsent ? MARKETING_CONSENT_VERSION : null,
-      ip_address: ip !== 'unknown' ? ip : null,
-      user_agent: req.headers.get('user-agent'),
-    })
-    .select('id, accepted_at')
-    .single();
+  // Ties the consent to what was applied for — the business name or slug — so
+  // you can find it without knowing which email the applicant used.
+  const reference =
+    typeof body.reference === 'string' && body.reference.trim()
+      ? body.reference.trim().slice(0, 200)
+      : null;
 
-  if (error) {
-    console.error('[legal/consent] insert failed', error);
+  // ── Write ──────────────────────────────────────────────────────────────────
+  // Shared with /auth/callback via lib/consentServer so the two paths cannot
+  // record different document versions for the same event.
+  const result = await writeConsent({
+    userId: user.id,
+    userEmail: user.email,
+    context,
+    marketingConsent,
+    reference,
+    ipAddress: ip !== 'unknown' ? ip : null,
+    userAgent: req.headers.get('user-agent'),
+  });
+
+  if (!result.ok) {
     return NextResponse.json({ error: 'Could not record consent' }, { status: 500 });
   }
 
   return NextResponse.json({
     ok: true,
-    consentId: data.id,
-    acceptedAt: data.accepted_at,
+    consentId: result.consentId,
+    acceptedAt: result.acceptedAt,
   });
 }

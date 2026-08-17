@@ -99,7 +99,19 @@ export async function signUp(
     email,
     password,
     options: {
-      data: { full_name: profile.fullName },
+      // Carried in metadata because, when email confirmation is enabled,
+      // signUp returns no session — the profile insert below is rejected by
+      // RLS and the consent write has no token. /auth/callback rebuilds both
+      // from these values once a session exists.
+      data: {
+        full_name: profile.fullName,
+        account_type: 'personal',
+        phone: profile.phone,
+        province: profile.province,
+        city: profile.city || null,
+        interests: profile.interests || [],
+        marketing_consent: marketingConsent,
+      },
     },
   });
 
@@ -119,7 +131,11 @@ export async function signUp(
         account_type: 'personal',
       });
 
-    if (profileError) throw profileError;
+    // With email confirmation enabled there is no session yet, so this insert
+    // is rejected by RLS. That is expected: /auth/callback creates the profile
+    // from user metadata once the user confirms. Throwing here would leave the
+    // account created but report failure to the user.
+    if (profileError && data.session) throw profileError;
   }
 
   const token = data.session?.access_token;
@@ -175,6 +191,7 @@ export async function signUpBusiness(
         business_type: input.businessType,
         responsible_person: input.responsiblePerson,
         responsible_person_email: input.responsiblePersonEmail,
+        marketing_consent: marketingConsent,
       },
     },
   });
@@ -191,7 +208,9 @@ export async function signUpBusiness(
         account_type: 'business',
       });
 
-    if (profileError) throw profileError;
+    // See the note in signUp: without a session this insert is rejected, and
+    // /auth/callback rebuilds the profile after confirmation.
+    if (profileError && data.session) throw profileError;
   }
 
   const token = data.session?.access_token;
