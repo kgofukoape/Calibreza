@@ -46,7 +46,7 @@ export default function EditListingPage({ params }: { params: { id: string } }) 
 
       const [listingRes, calibresRes, conditionsRes] = await Promise.all([
         supabase.from('listings').select('*').eq('id', params.id).single(),
-        supabase.from('calibres').select('*').order('name'),
+        supabase.from('calibres').select('*').order('sort_order').order('name'),
         supabase.from('conditions').select('*').order('name'),
       ]);
 

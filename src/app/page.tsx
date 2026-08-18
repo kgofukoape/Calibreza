@@ -275,6 +275,41 @@ export default function HomePage() {
               </div>
             </section>
 
+            {/* ── COLLECTIONS ──────────────────────────────────────────────
+                A full-width feature rather than a tile in the category grid.
+                A collection is an identity, not a category — someone looking
+                for a 1911 is not browsing pistols, they know exactly what they
+                want. Sitting it below the categories keeps the front page from
+                becoming a wall of equal-weight boxes.
+
+                Deliberately not paid placement: this is editorial, and the
+                moment the homepage becomes entirely paid slots is the moment
+                buyers stop trusting what they see. */}
+            <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12 border-t border-white/5">
+              <Link href="/1911"
+                className="block relative bg-[#13151A] border border-white/5 rounded-sm overflow-hidden group hover:border-[#C9922A]/40 transition-all">
+                <div className="absolute inset-0 bg-gradient-to-r from-[#C9922A]/[0.08] to-transparent pointer-events-none" />
+                <div className="relative px-6 py-8 md:px-10 md:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                  <div>
+                    <p className="text-[#C9922A] text-[10px] font-black uppercase tracking-[0.4em] mb-2">
+                      Collection
+                    </p>
+                    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                      className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none mb-3">
+                      The <span className="text-[#C9922A]">1911</span>
+                    </h2>
+                    <p className="text-[#8A8E99] text-[13px] md:text-[14px] leading-relaxed max-w-xl">
+                      Every 1911-pattern pistol on Gun X in one place — Government,
+                      Commander and Officer, Mil-Spec through full custom.
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 self-start md:self-auto bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3.5 rounded-sm group-hover:brightness-110 transition-all">
+                    View Collection →
+                  </span>
+                </div>
+              </Link>
+            </section>
+
             {/* WHY CHOOSE */}
             <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12 border-t border-white/5">
               <div className="text-center mb-6 lg:mb-10">

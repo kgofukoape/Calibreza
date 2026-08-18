@@ -113,7 +113,7 @@ function BrowseCategoryInner() {
     }
     const [makesRes, calibresRes, conditionsRes] = await Promise.all([
       makesQuery.order('name'),
-      supabase.from('calibres').select('id, name').order('name'),
+      supabase.from('calibres').select('id, name').order('sort_order').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
     ]);
     setMakes(makesRes.data || []);

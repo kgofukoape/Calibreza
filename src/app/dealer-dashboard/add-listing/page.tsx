@@ -128,7 +128,7 @@ function AddListingForm() {
   const loadLookups = async (categoryId: string) => {
     const [makesRes, calibresRes, conditionsRes, provincesRes] = await Promise.all([
       supabase.from('makes').select('id, name').contains('categories', [categoryId]).order('name'),
-      supabase.from('calibres').select('id, name').order('name'),
+      supabase.from('calibres').select('id, name').order('sort_order').order('name'),
       supabase.from('conditions').select('id, name').order('name'),
       supabase.from('provinces').select('id, name').order('name'),
     ]);
