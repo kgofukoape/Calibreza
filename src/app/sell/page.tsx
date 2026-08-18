@@ -33,7 +33,12 @@ export default function SellPage() {
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [listingId, setListingId] = useState('');
-  const [listingCount, setListingCount] = useState(0);
+  // Allowance comes from the database, not from counting rows. Counting rows
+  // would let someone delete a listing to free a slot, and the trigger that
+  // actually enforces the limit counts creations per period, not current rows.
+  // If this page counted differently from the trigger, it would tell people
+  // they had listings left and then the insert would be refused.
+  const [allowance, setAllowance] = useState<any>(null);
   const [listingCountLoading, setListingCountLoading] = useState(true);
 
   const [formData, setFormData] = useState({
@@ -56,7 +61,12 @@ export default function SellPage() {
   });
 
   const isAdmin = user && ADMIN_IDS.includes(user.id);
-  const isPaid = !isAdmin && listingCount >= FREE_LISTING_LIMIT;
+  const unlimited = allowance?.unlimited === true;
+  const remaining = allowance?.remaining ?? 0;
+  const usedCount = allowance?.used ?? 0;
+  const allowanceTotal = allowance?.allowance ?? FREE_LISTING_LIMIT;
+  const periodWord = allowance?.period === 'month' ? 'this month' : 'this year';
+  const isPaid = !isAdmin && !unlimited && remaining <= 0;
   const isKnives = formData.category_id === 'knives';
 
   useEffect(() => { loadInitialData(); }, []);
@@ -71,16 +81,44 @@ export default function SellPage() {
       supabase.from('calibres').select('*').order('sort_order').order('name'),
       supabase.from('conditions').select('*').order('name'),
       supabase.from('provinces').select('*').order('name'),
-      supabase.from('listings').select('id', { count: 'exact', head: true })
-        .eq('seller_id', currentUser.id).eq('listing_type', 'private'),
+      supabase.rpc('listing_allowance', { p_user_id: currentUser.id }),
     ]);
 
     setMakes(makesData.data || []);
     setCalibres(calibresData.data || []);
     setConditions(conditionsData.data || []);
     setProvinces(provincesData.data || []);
-    setListingCount(countData.count || 0);
+    setAllowance(countData.data || null);
     setListingCountLoading(false);
+
+    // Someone returning from PayFast: rebuild the listing they paid for.
+    if (new URLSearchParams(window.location.search).get('paid') === 'true') {
+      await restorePaidListing();
+    }
+  };
+
+  // Without this, a seller pays R29, returns to /sell?paid=true and nothing
+  // happens — the payload sits in sessionStorage and is never used. They have
+  // paid and have no listing.
+  const restorePaidListing = async () => {
+    const stored = sessionStorage.getItem('pendingListing');
+    if (!stored) return;
+
+    try {
+      const payload = JSON.parse(stored);
+      const { data, error } = await supabase.from('listings')
+        .insert({ ...payload, is_paid: true })
+        .select('id').single();
+
+      if (error) throw error;
+
+      sessionStorage.removeItem('pendingListing');
+      setListingId(data.id);
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error('[sell] paid listing could not be created', err);
+      alert('Your payment went through but the listing could not be created. Please contact support@gunx.co.za and we will sort it out — do not pay again.');
+    }
   };
 
   const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
@@ -210,7 +248,17 @@ const ACTION_TYPES: Record<string, string[]> = {
       const { data, error } = await supabase.from('listings')
         .insert({ ...payload, images: uploadedImageUrls })
         .select('id').single();
-      if (error) throw new Error(`Failed to create listing: ${error.message}`);
+      if (error) {
+        // The database enforces the allowance; this page only predicts it. If
+        // the two ever disagree, the seller should see something they can act
+        // on rather than a raw Postgres message.
+        if (error.message?.includes('Free listing allowance')) {
+          throw new Error(
+            `You have used all ${allowanceTotal} of your free listings ${periodWord}. Refresh this page to pay R${PAID_LISTING_PRICE} for this listing, or upgrade to a dealer account.`
+          );
+        }
+        throw new Error(`Failed to create listing: ${error.message}`);
+      }
       setListingId(data.id);
       setSubmitted(true);
     } catch (error: any) {
@@ -272,16 +320,20 @@ const ACTION_TYPES: Record<string, string[]> = {
               <p className="text-[12px] font-black uppercase tracking-widest text-[#F0EDE8]">
                 {isAdmin
                   ? 'Admin — Unlimited Listings'
+                  : unlimited
+                  ? 'Unlimited listings on your plan'
                   : isPaid
-                  ? 'Free listings used up'
-                  : `${FREE_LISTING_LIMIT - listingCount} free listing${FREE_LISTING_LIMIT - listingCount !== 1 ? 's' : ''} remaining`}
+                  ? `Free listings used up ${periodWord}`
+                  : `${remaining} free listing${remaining !== 1 ? 's' : ''} left ${periodWord}`}
               </p>
               <p className="text-[11px] text-[#8A8E99] mt-0.5">
                 {isAdmin
-                  ? `You've posted ${listingCount} listings total — no limit applies to your account`
+                  ? 'No limit applies to your account'
+                  : unlimited
+                  ? 'Your dealer plan covers this listing'
                   : isPaid
                   ? `Each additional listing is R${PAID_LISTING_PRICE} — paid securely via PayFast`
-                  : `You've used ${listingCount} of ${FREE_LISTING_LIMIT} free listings`}
+                  : `You've used ${usedCount} of ${allowanceTotal} free listings ${periodWord}`}
               </p>
             </div>
             <div className={`text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-sm ${
@@ -289,7 +341,7 @@ const ACTION_TYPES: Record<string, string[]> = {
               isPaid ? 'bg-[#C9922A] text-black' :
               'bg-white/5 text-[#8A8E99]'
             }`}>
-              {isAdmin ? '∞' : `${listingCount}/${FREE_LISTING_LIMIT}`}
+              {isAdmin || unlimited ? '∞' : `${usedCount}/${allowanceTotal}`}
             </div>
           </div>
         )}

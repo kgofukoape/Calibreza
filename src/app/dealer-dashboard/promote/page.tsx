@@ -59,6 +59,8 @@ function PromoteForm() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [credits, setCredits] = useState(0);
+  const [usedCredit, setUsedCredit] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
 
@@ -91,6 +93,7 @@ function PromoteForm() {
     }
 
     setDealer(dealerData);
+    await loadCredits(dealerData.id);
 
     const { data: listingsData } = await supabase
       .from('listings')
@@ -123,6 +126,15 @@ function PromoteForm() {
     setStep(3);
   };
 
+  // Premium includes 5 free promotions per calendar month. Read from the
+  // database rather than counted here: the allowance resets by period, and a
+  // count kept in the browser would disagree with the server the moment a
+  // second tab or device was involved.
+  const loadCredits = async (dealerId: string) => {
+    const { data } = await supabase.rpc('promo_credits_remaining', { p_dealer_id: dealerId });
+    setCredits(typeof data === 'number' ? data : 0);
+  };
+
   const handleConfirm = async () => {
     if (!selectedListing || !selectedTier) return;
     setSubmitting(true);
@@ -133,6 +145,15 @@ function PromoteForm() {
 
     const featuredUntil = new Date();
     featuredUntil.setDate(featuredUntil.getDate() + tier.duration);
+
+    // Claims a credit atomically. The database function locks the dealer row
+    // for the transaction, so two tabs cannot both read the same balance and
+    // each spend it — a read-then-write from here could not prevent that.
+    // Returns false when no credits remain, in which case this is a paid
+    // promotion.
+    const { data: claimed } = await supabase
+      .rpc('consume_promo_credit', { p_dealer_id: dealer!.id });
+    const usingCredit = claimed === true;
 
     const { error: updateError } = await supabase
       .from('listings')
@@ -149,9 +170,28 @@ function PromoteForm() {
       return;
     }
 
+    // The credit was already spent by consume_promo_credit above; this just
+    // refreshes the number shown on screen.
+    if (usingCredit) await loadCredits(dealer!.id);
+
+    setUsedCredit(usingCredit);
     setSuccess(true);
     setSubmitting(false);
   };
+
+  // Rendered above the flow so a Premium dealer knows the promotion is free
+  // before choosing a package, not after.
+  const CreditBanner = () =>
+    credits > 0 ? (
+      <div className="mb-6 border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3 rounded-r-sm">
+        <p className="text-[13px] text-[#C4C0B8] leading-relaxed">
+          <span className="text-[#C9922A] font-bold">
+            {credits} free promotion{credits !== 1 ? 's' : ''} left this month
+          </span>
+          {' '}on your Premium plan. This one costs you nothing.
+        </p>
+      </div>
+    ) : null;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -535,7 +575,9 @@ function PromoteForm() {
                       <div className="flex justify-between items-center py-3">
                         <span className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99]">Total</span>
                         <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">
-                          R{PROMOTION_TIERS.find((t) => t.id === selectedTier)?.price}
+                          {credits > 0
+                          ? 'FREE'
+                          : `R${PROMOTION_TIERS.find((t) => t.id === selectedTier)?.price}`}
                         </span>
                       </div>
                     </div>
