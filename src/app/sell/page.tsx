@@ -1,4 +1,5 @@
 'use client';
+import { DEALER_PLANS, PROMOTION_PRICES } from '@/lib/plans';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,8 +18,8 @@ const BLADE_TYPES = [
   'Other',
 ];
 
-const FREE_LISTING_LIMIT = 5;
-const PAID_LISTING_PRICE = 29;
+const FREE_LISTING_LIMIT = DEALER_PLANS.free.listingLimit ?? 5;
+const PAID_LISTING_PRICE = PROMOTION_PRICES.national.price;
 const ADMIN_IDS = ['faeca651-cae2-47d1-b866-2cbc02c41dd0']; // Add more admin user IDs here if needed
 
 export default function SellPage() {

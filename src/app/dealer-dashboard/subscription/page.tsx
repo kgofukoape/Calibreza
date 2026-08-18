@@ -1,4 +1,5 @@
 'use client';
+import { DEALER_PLANS } from '@/lib/plans';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -52,8 +53,8 @@ const PLANS = [
     price: 499,
     priceLabel: 'R499',
     billingLabel: 'per month',
-    listingLimit: 50,
-    listingLimitLabel: '50 listings',
+    listingLimit: DEALER_PLANS.pro.listingLimit,
+    listingLimitLabel: DEALER_PLANS.pro.listingLimitLabel,
     icon: '⚡',
     features: [
       { label: 'Storefront page', included: true },

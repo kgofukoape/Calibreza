@@ -110,6 +110,12 @@ function MainBrowseInner() {
     if (activeSellerTypes.length > 0)  query = query.in('listing_type', activeSellerTypes);
 
     query = query.order('is_featured', { ascending: false, nullsFirst: false });
+    // Premium placement applies to the default relevance order only. When the
+    // buyer explicitly sorts by price they get price — paid placement must not
+    // override an instruction the user gave.
+    if (sortBy !== 'price_asc' && sortBy !== 'price_desc') {
+      query = query.order('dealer_tier_rank', { ascending: false, nullsFirst: false });
+    }
     switch (sortBy) {
       case 'price_asc':  query = query.order('price', { ascending: true });  break;
       case 'price_desc': query = query.order('price', { ascending: false }); break;

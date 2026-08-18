@@ -62,7 +62,12 @@ function SearchContent() {
       supabase.from('listings')
         .select(`*, makes:make_id(name), calibres:calibre_id(name), conditions:condition_id(name), provinces:province_id(name)`)
         .eq('status', 'active').ilike('title', `%${q}%`)
-        .order('is_featured', { ascending: false }).order('created_at', { ascending: false }).limit(50),
+        .order('is_featured', { ascending: false })
+        // Premium dealers rank above Pro and free sellers. A paid promotion
+        // (is_featured) still outranks plan, so a Pro dealer who pays for a
+        // boost is not buried beneath Premium dealers who paid nothing extra.
+        .order('dealer_tier_rank', { ascending: false })
+        .order('created_at', { ascending: false }).limit(50),
       supabase.from('dealers').select('*').eq('status', 'approved')
         .or(`business_name.ilike.%${q}%,city.ilike.%${q}%,description.ilike.%${q}%`).limit(20),
     ]);

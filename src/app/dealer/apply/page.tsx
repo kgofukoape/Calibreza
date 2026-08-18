@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { recordConsent } from '@/lib/auth';
 import { LEGAL_DOCUMENTS } from '@/lib/legal';
 import { BUSINESS_TYPES } from '@/lib/business';
+import { PLAN_LIST } from '@/lib/plans';
 
 // ─── DEALER APPLICATION ──────────────────────────────────────────────────────
 // This page previously allowed anonymous submission, which caused three faults:
@@ -567,9 +568,12 @@ export default function DealerApplyPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { value: 'free', label: 'FREE', price: 'R0', listings: '5 listings' },
-                { value: 'pro', label: 'PRO', price: 'R499', listings: '50 listings' },
-                { value: 'premium', label: 'PREMIUM', price: 'R799', listings: 'Unlimited' },
+                ...PLAN_LIST.map(p => ({
+                  value: p.id,
+                  label: p.label.toUpperCase(),
+                  price: p.priceLabel,
+                  listings: p.listingLimitLabel,
+                })),
               ].map(tier => (
                 <label key={tier.value} className={`cursor-pointer border-2 rounded-sm p-6 transition-all ${formData.selectedTier === tier.value ? 'border-[#C9922A] bg-[#C9922A]/10' : 'border-white/10 hover:border-white/20'}`}>
                   <input type="radio" name="selectedTier" value={tier.value} checked={formData.selectedTier === tier.value} onChange={handleInputChange} className="sr-only" />

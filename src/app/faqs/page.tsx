@@ -1,4 +1,5 @@
 'use client';
+import { DEALER_PLANS } from '@/lib/plans';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -75,7 +76,7 @@ const FAQS = [
       },
       {
         q: 'What are the dealer subscription plans?',
-        a: 'Free plan: up to 10 listings per year at no cost. Pro plan: R499/month for up to 50 active listings, verified badge, featured listings, and priority support. Premium plan: R799/month for unlimited listings and all Pro features. You can also pay R29 per listing beyond your plan limit.',
+        a: `Free plan: ${DEALER_PLANS.free.listingLimitLabel} at no cost. Pro plan: ${DEALER_PLANS.pro.priceLabel}/month for ${DEALER_PLANS.pro.listingLimitLabel}, verified badge and lead analytics. Premium plan: ${DEALER_PLANS.premium.priceLabel}/month for unlimited listings, priority placement in search and category results, and ${DEALER_PLANS.premium.monthlyPromotionCredits} free listing promotions every month. Beyond your plan limit you can promote individual listings from R19.`,
       },
       {
         q: 'What does the dealer storefront include?',

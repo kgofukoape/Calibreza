@@ -1,4 +1,5 @@
 'use client';
+import { DEALER_PLANS } from '@/lib/plans';
 
 import React from 'react';
 import Link from 'next/link';
@@ -32,9 +33,8 @@ const PRICING_TIERS = [
     period: 'per month',
     description: 'Perfect for established dealers',
     features: [
-      '50 active listings',
+      DEALER_PLANS.pro.listingLimitLabel,
       'Verified Dealer badge (✓)',
-      'Priority search placement',
       'Bulk CSV upload',
       'Basic analytics dashboard',
       'Promote listings (R19/R29)',
@@ -55,7 +55,8 @@ const PRICING_TIERS = [
     features: [
       'Unlimited listings',
       'Premium Partner badge (⭐)',
-      'Top priority placement',
+      'Priority placement in search & category results',
+      `${DEALER_PLANS.premium.monthlyPromotionCredits} free listing promotions every month`,
       'Bulk CSV upload',
       'Advanced analytics & insights',
       'Promote listings (R19/R29)',

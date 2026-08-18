@@ -27,8 +27,11 @@ const supabase = createClient(
 );
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
+import { DEALER_PLANS } from '@/lib/plans';
 
-const FREE_TIER_LISTING_LIMIT = 5;
+// Read from the plan registry so the cron cannot enforce a different limit
+// than the one advertised on the pricing pages.
+const FREE_TIER_LISTING_LIMIT = DEALER_PLANS.free.listingLimit ?? 5;
 
 async function notify(type: string, data: Record<string, any>) {
   try {

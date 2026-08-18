@@ -7,6 +7,7 @@ import Footer from '@/components/layout/Footer';
 import AdBanner from '@/components/AdBanner';
 import SmartImage from '@/components/SmartImage';
 import { supabase } from '@/lib/supabase';
+import { DEALER_PLANS } from '@/lib/plans';
 
 const CATEGORIES = [
   { n: 'Pistols',          slug: 'pistols',     i: '🎯', href: '/browse/pistols' },
@@ -42,7 +43,7 @@ const OFFERS = [
   {
     icon: '🏪',
     headline: 'Gun Dealers — 2 Months Free on Pro',
-    detail: '50 listings, storefront, featured slots & lead analytics. R499/month after trial.',
+    detail: `${DEALER_PLANS.pro.listingLimitLabel}, storefront, featured slots & lead analytics. ${DEALER_PLANS.pro.priceLabel}/month after trial.`,
     cta: 'Apply Free →',
     href: '/dealer/apply',
   },

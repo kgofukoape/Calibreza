@@ -1,25 +1,34 @@
-// ─── DEALER SUBSCRIPTION PLANS ───────────────────────────────────────────────
+// ─── DEALER SUBSCRIPTION PLANS AND FREE ALLOWANCES ───────────────────────────
 // One definition of what each plan includes.
 //
-// The listing limit was previously written as literal text in six files — the
-// homepage, the FAQ, the pricing page, the dealer application, the dashboard
-// subscription page and the cron job. They had already drifted: the FAQ
-// advertised "up to 10 listings per year" on the free plan while the code
-// enforced 5 active listings. A dealer reading the FAQ and a dealer hitting the
-// limit were being told different things.
+// The listing limit was previously written as literal text in six files. They
+// had already drifted: the FAQ advertised "up to 10 listings per year" on the
+// free plan while the code enforced 5 active listings. Anything user-facing
+// about a plan reads from here.
 //
-// Anything user-facing about a plan reads from here. If a number changes, it
-// changes once.
+// TWO DIFFERENT KINDS OF LIMIT, and it matters that they are not confused:
+//
+//   ALLOWANCE  How many listings you may CREATE in a period. Counted at
+//              creation and never refunded — if deleting a listing returned
+//              the credit, the limit would be defeated by delete-and-relist.
+//              Applies to free accounts.
+//
+//   CAPACITY   How many listings may be ACTIVE at once. A paid-plan concept:
+//              Pro may hold 25 live at a time, however many it posts over the
+//              year.
+//
+// Free private sellers get 5 per calendar year. Free dealers get 5 per month,
+// because a dealer with stock turning over is a customer in the making and 60
+// listings a year is a real trial rather than a tease.
 
 export type PlanId = 'free' | 'pro' | 'premium';
 
 export interface DealerPlan {
   id: PlanId;
   label: string;
-  /** Monthly price in Rand. 0 for free. */
   price: number;
   priceLabel: string;
-  /** Maximum active listings. null means unlimited. */
+  /** Active listings allowed at once. null means unlimited. */
   listingLimit: number | null;
   listingLimitLabel: string;
   /** Free listing promotions included each calendar month. */
@@ -27,7 +36,7 @@ export interface DealerPlan {
   /**
    * Whether this plan's listings rank above lower plans in search and category
    * results. Deliberately NOT applied to the homepage: a front page made
-   * entirely of paid placement is the thing buyers notice and stop trusting.
+   * entirely of paid placement is what buyers notice and stop trusting.
    */
   priorityPlacement: boolean;
   /** Sort weight used by search and category ordering. Higher ranks first. */
@@ -41,13 +50,14 @@ export const DEALER_PLANS: Record<PlanId, DealerPlan> = {
     label: 'Free',
     price: 0,
     priceLabel: 'R0',
-    listingLimit: 5,
-    listingLimitLabel: '5 active listings',
+    // Capacity is not what constrains a free dealer — the monthly allowance is.
+    listingLimit: null,
+    listingLimitLabel: '5 listings per month',
     monthlyPromotionCredits: 0,
     priorityPlacement: false,
     rank: 0,
     features: [
-      '5 active listings',
+      '5 listings per month',
       'Basic dealer profile',
       'Buyer enquiries',
     ],
@@ -58,7 +68,7 @@ export const DEALER_PLANS: Record<PlanId, DealerPlan> = {
     price: 499,
     priceLabel: 'R499',
     // Reduced from 50. At 50, a mid-sized dealer never had a reason to reach
-    // Premium — the tier above was buying something they did not need.
+    // Premium — the tier above was selling something they did not need.
     listingLimit: 25,
     listingLimitLabel: '25 active listings',
     monthlyPromotionCredits: 0,
@@ -100,18 +110,30 @@ export const PLAN_LIST: DealerPlan[] = [
   DEALER_PLANS.premium,
 ];
 
-/** Falls back to free for an unknown or missing tier. */
 export function planFor(tier: string | null | undefined): DealerPlan {
   return DEALER_PLANS[(tier as PlanId)] ?? DEALER_PLANS.free;
 }
 
-/** True when the dealer is at or over their active listing allowance. */
 export function atListingLimit(tier: string | null | undefined, activeCount: number): boolean {
   const limit = planFor(tier).listingLimit;
   return limit !== null && activeCount >= limit;
 }
 
-/** Cost of promoting one listing beyond any included credits. */
+// ─── FREE LISTING ALLOWANCES ─────────────────────────────────────────────────
+// Enforced by a database trigger, not here — a limit the browser applies is a
+// limit the browser can skip. These values exist so the interface can tell
+// someone what they have left before they fill in a form and get refused.
+
+export const FREE_ALLOWANCE = {
+  /** Private sellers: 5 per calendar year, resetting 1 January. */
+  personal: { count: 5, period: 'year' as const, label: '5 free listings per year' },
+  /** Free-tier dealers: 5 per calendar month, resetting on the 1st. */
+  dealer:   { count: 5, period: 'month' as const, label: '5 free listings per month' },
+};
+
+/** What a listing costs once the free allowance for the period is used up. */
+export const PAID_LISTING_PRICE = 29;
+
 export const PROMOTION_PRICES = {
   provincial: { label: 'Provincial', price: 19, days: 5 },
   national:   { label: 'National',   price: 29, days: 5 },
