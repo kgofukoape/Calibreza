@@ -30,7 +30,7 @@ export default function CollectionClient() {
     const load = async () => {
       const { data } = await supabase
         .from('listings')
-        .select('*, makes(name)')
+        .select('*, makes(name), calibres(name), conditions(name), dealers(business_name)')
         .eq('status', 'active')
         .order('is_featured', { ascending: false, nullsFirst: false })
         .order('dealer_tier_rank', { ascending: false, nullsFirst: false })
@@ -135,9 +135,14 @@ export default function CollectionClient() {
                 key={listing.id}
                 id={listing.id}
                 title={listing.title}
+                make={listing.makes?.name || ''}
+                calibre={listing.calibres?.name || ''}
                 price={listing.price}
-                city={listing.city}
-                province={listing.province}
+                province={listing.province || ''}
+                condition={listing.conditions?.name || ''}
+                category={listing.category_id}
+                listingType={listing.listing_type}
+                sellerName={listing.dealers?.business_name || 'Private Seller'}
                 images={listing.images}
                 featured={listing.is_featured}
               />
