@@ -58,12 +58,12 @@ export default function AdminOverviewPage() {
     ] = await Promise.all([
       supabase.from('listings').select('id, status, views_count'),
       supabase.from('dealers').select('id, status'),
-      supabase.from('dealers').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
+      supabase.from('dealers').select('*').eq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5),
       supabase.from('clubs').select('id, status, is_verified'),
       supabase.from('services').select('id, status'),
-      supabase.from('services').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
-      supabase.from('jobs').select('id, status'),
-      supabase.from('jobs').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
+      supabase.from('services').select('*').eq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5),
+      supabase.from('job_listings').select('id, status'),
+      supabase.from('job_listings').select('*').eq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5),
       supabase.from('users').select('id', { count: 'exact', head: true }),
     ]);
 
@@ -124,12 +124,12 @@ export default function AdminOverviewPage() {
     setStats(s => ({ ...s, pendingServices: s.pendingServices - 1 }));
   };
   const quickApproveJob = async (id: string) => {
-    await supabase.from('jobs').update({ status: 'active' }).eq('id', id);
+    await supabase.from('job_listings').update({ status: 'active' }).eq('id', id);
     setPendingJobs(p => p.filter(j => j.id !== id));
     setStats(s => ({ ...s, pendingJobs: s.pendingJobs - 1, totalJobs: s.totalJobs + 1 }));
   };
   const quickRejectJob = async (id: string) => {
-    await supabase.from('jobs').update({ status: 'rejected' }).eq('id', id);
+    await supabase.from('job_listings').update({ status: 'rejected' }).eq('id', id);
     setPendingJobs(p => p.filter(j => j.id !== id));
     setStats(s => ({ ...s, pendingJobs: s.pendingJobs - 1 }));
   };

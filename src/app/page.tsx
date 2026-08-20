@@ -2,451 +2,392 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import AdBanner from '@/components/AdBanner';
+import SmartImage from '@/components/SmartImage';
 import { supabase } from '@/lib/supabase';
+import { DEALER_PLANS } from '@/lib/plans';
 
-const NAV = [
-  { href: '/admin',           icon: '⚡', label: 'Overview',      active: true },
-  { href: '/admin/dealers',   icon: '🏪', label: 'Dealers',       key: 'pendingDealers'   },
-  { href: '/admin/clubs',     icon: '⊕',  label: 'Clubs',         key: 'pendingClubs'     },
-  { href: '/admin/services',  icon: '🔧', label: 'Services',      key: 'pendingServices'  },
-  { href: '/admin/jobs',      icon: '💼', label: 'Jobs',          key: 'pendingJobs'      },
-  { href: '/admin/listings',  icon: '📋', label: 'Listings'                               },
-  { href: '/admin/users',     icon: '👥', label: 'Users'                                  },
-  { href: '/admin/analytics', icon: '📈', label: 'Analytics'                              },
-  { href: '/admin/crm',       icon: '💰', label: 'CRM'                                    },
-  { href: '/admin/subscriptions', icon: '🔄', label: 'Subscriptions'                      },
-  { href: '/admin/sentinel',  icon: '👁️', label: 'Tokoloshe'                              },
+const CATEGORIES = [
+  { n: 'Pistols',          slug: 'pistols',     i: '🎯', href: '/browse/pistols' },
+  { n: 'Rifles',           slug: 'rifles',      i: '🔭', href: '/browse/rifles' },
+  { n: 'Shotguns',         slug: 'shotguns',    i: '♾️', href: '/browse/shotguns' },
+  { n: 'Revolvers',        slug: 'revolvers',   i: '🎡', href: '/browse/revolvers' },
+  { n: 'Air Guns',         slug: 'air-guns',    i: '💨', href: '/browse/air-guns' },
+  { n: 'Airsoft',          slug: 'airsoft',     i: '⚡', href: '/browse/airsoft' },
+  { n: 'Optics',           slug: 'optics',      i: '🔬', href: '/browse/optics' },
+  { n: 'Holsters & Carry', slug: 'holsters',    i: '∪',  href: '/browse/holsters' },
+  { n: 'Magazines',        slug: 'magazines',   i: '⋮',  href: '/browse/magazines' },
+  { n: 'Ammunition',       slug: 'ammunition',  i: '⦊',  href: '/browse/ammunition' },
+  { n: 'Reloading',        slug: 'reloading',   i: '🔧', href: '/browse/reloading' },
+  { n: 'Knives & Blades',  slug: 'knives',      i: '🖋️', href: '/browse/knives' },
+  { n: 'Accessories',      slug: 'accessories', i: '🛠️', href: '/browse/accessories' },
+  { n: 'Dealers',          slug: 'dealers',     i: '🏪', href: '/dealers' },
+  { n: 'Clubs & Ranges',   slug: 'clubs',       i: '⊕',  href: '/clubs' },
+  { n: 'Services',         slug: 'services',    i: '🏠', href: '/services' },
+  { n: 'Wanted',           slug: 'wanted',      i: '🔍', href: '/wanted' },
+  { n: 'Industry Jobs',    slug: 'jobs',        i: '💼', href: '/jobs' },
 ];
 
-export default function AdminOverviewPage() {
-  const router = useRouter();
-  const [loading, setLoading]     = useState(true);
-  const [stats, setStats]         = useState({
-    totalListings:    0,
-    activeListings:   0,
-    totalViews:       0,
-    totalDealers:     0,
-    pendingDealers:   0,
-    totalClubs:       0,
-    pendingClubs:     0,
-    totalServices:    0,
-    pendingServices:  0,
-    totalJobs:        0,
-    pendingJobs:      0,
-    totalUsers:       0,
-  });
-  const [pendingDealers,  setPendingDealers]  = useState<any[]>([]);
-  const [pendingServices, setPendingServices] = useState<any[]>([]);
-  const [pendingJobs,     setPendingJobs]     = useState<any[]>([]);
-  const [recentListings,  setRecentListings]  = useState<any[]>([]);
+// ─── ROTATING LAUNCH OFFERS ──────────────────────────────────────────────────
+// Both the range and dealer free-trial offers, shown in turn in the top bar.
+const OFFERS = [
+  {
+    icon: '🎯',
+    headline: 'Shooting Ranges — List Free for 2 Months',
+    detail: 'Booking system, live status & results board. R399/month after trial.',
+    cta: 'Start Free →',
+    href: '/clubs/pricing',
+  },
+  {
+    icon: '🏪',
+    headline: 'Gun Dealers — 2 Months Free on Pro',
+    detail: `${DEALER_PLANS.pro.listingLimitLabel}, storefront, featured slots & lead analytics. ${DEALER_PLANS.pro.priceLabel}/month after trial.`,
+    cta: 'Apply Free →',
+    href: '/dealer/apply',
+  },
+];
 
+export default function HomePage() {
+  const [reelListings, setReelListings]             = useState<any[]>([]);
+  const [categoryCounts, setCategoryCounts]         = useState<Record<string, number>>({});
+  const [totalListings, setTotalListings]           = useState(0);
+  const [announcementVisible, setAnnouncementVisible] = useState(true);
+  const [offerIndex, setOfferIndex] = useState(0);
+
+  // Rotate between the two free-trial offers so both get equal billing without
+  // cluttering the bar. Pauses when the bar is dismissed.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (localStorage.getItem('gunx_admin_session') !== 'authenticated') {
-        router.push('/admin/login'); return;
-      }
-    }
-    loadData();
-  }, []);
+    if (!announcementVisible) return;
+    const t = setInterval(() => setOfferIndex(i => (i + 1) % OFFERS.length), 7000);
+    return () => clearInterval(t);
+  }, [announcementVisible]);
 
-  const loadData = async () => {
-    const [
-      listingsRes, dealersRes, pendingDealersRes,
-      clubsRes, servicesRes, pendingServicesRes,
-      jobsRes, pendingJobsRes, usersRes,
-    ] = await Promise.all([
-      supabase.from('listings').select('id, status, views_count'),
-      supabase.from('dealers').select('id, status'),
-      supabase.from('dealers').select('*').eq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5),
-      supabase.from('clubs').select('id, status, is_verified'),
-      supabase.from('services').select('id, status'),
-      supabase.from('services').select('*').eq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5),
-      supabase.from('job_listings').select('id, status'),
-      supabase.from('job_listings').select('*').eq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5),
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-    ]);
+  useEffect(() => { fetchReelListings(); fetchCategoryCounts(); }, []);
 
-    const listings  = listingsRes.data  || [];
-    const dealers   = dealersRes.data   || [];
-    const clubs     = clubsRes.data     || [];
-    const services  = servicesRes.data  || [];
-    const jobs      = jobsRes.data      || [];
-
-    setStats({
-      totalListings:   listings.length,
-      activeListings:  listings.filter(l => l.status === 'active').length,
-      totalViews:      listings.reduce((s, l) => s + (l.views_count || 0), 0),
-      totalDealers:    dealers.filter(d => d.status === 'approved').length,
-      pendingDealers:  dealers.filter(d => d.status === 'pending').length,
-      totalClubs:      clubs.length,
-      pendingClubs:    clubs.filter(c => !c.is_verified).length,
-      totalServices:   services.filter(s => s.status === 'active').length,
-      pendingServices: services.filter(s => s.status === 'pending').length,
-      totalJobs:       jobs.filter(j => j.status === 'active').length,
-      pendingJobs:     jobs.filter(j => j.status === 'pending').length,
-      totalUsers:      usersRes.count || 0,
-    });
-
-    setPendingDealers(pendingDealersRes.data   || []);
-    setPendingServices(pendingServicesRes.data || []);
-    setPendingJobs(pendingJobsRes.data         || []);
-
-    const { data: recentL } = await supabase
-      .from('listings')
-      .select('id, title, status, category_id, price, created_at')
+  const fetchReelListings = async () => {
+    const { data } = await supabase.from('listings')
+      .select('id, title, price, category_id, images, city, listing_type, is_featured')
+      .eq('status', 'active')
+      .order('is_featured', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(6);
-    setRecentListings(recentL || []);
-
-    setLoading(false);
+      .limit(16);
+    setReelListings(data || []);
   };
 
-  // ── Quick actions ────────────────────────────────────────────────────────
-  const quickApproveDealer = async (id: string) => {
-    await supabase.from('dealers').update({ status: 'approved' }).eq('id', id);
-    setPendingDealers(p => p.filter(d => d.id !== id));
-    setStats(s => ({ ...s, pendingDealers: s.pendingDealers - 1, totalDealers: s.totalDealers + 1 }));
-  };
-  const quickRejectDealer = async (id: string) => {
-    await supabase.from('dealers').update({ status: 'rejected' }).eq('id', id);
-    setPendingDealers(p => p.filter(d => d.id !== id));
-    setStats(s => ({ ...s, pendingDealers: s.pendingDealers - 1 }));
-  };
-  const quickApproveService = async (id: string) => {
-    await supabase.from('services').update({ status: 'active' }).eq('id', id);
-    setPendingServices(p => p.filter(s => s.id !== id));
-    setStats(s => ({ ...s, pendingServices: s.pendingServices - 1, totalServices: s.totalServices + 1 }));
-  };
-  const quickRejectService = async (id: string) => {
-    await supabase.from('services').update({ status: 'rejected' }).eq('id', id);
-    setPendingServices(p => p.filter(s => s.id !== id));
-    setStats(s => ({ ...s, pendingServices: s.pendingServices - 1 }));
-  };
-  const quickApproveJob = async (id: string) => {
-    await supabase.from('job_listings').update({ status: 'active' }).eq('id', id);
-    setPendingJobs(p => p.filter(j => j.id !== id));
-    setStats(s => ({ ...s, pendingJobs: s.pendingJobs - 1, totalJobs: s.totalJobs + 1 }));
-  };
-  const quickRejectJob = async (id: string) => {
-    await supabase.from('job_listings').update({ status: 'rejected' }).eq('id', id);
-    setPendingJobs(p => p.filter(j => j.id !== id));
-    setStats(s => ({ ...s, pendingJobs: s.pendingJobs - 1 }));
+  const fetchCategoryCounts = async () => {
+    const { data } = await supabase.from('listings').select('category_id').eq('status', 'active');
+    if (!data) return;
+    setTotalListings(data.length);
+    const counts: Record<string, number> = {};
+    data.forEach(l => { if (l.category_id) counts[l.category_id] = (counts[l.category_id] || 0) + 1; });
+    setCategoryCounts(counts);
   };
 
-  const handleLogout = async () => {
-    // Clear the signed httpOnly session cookie server-side. Removing the
-    // localStorage flag alone does NOT end the session — the cookie is what
-    // the middleware actually checks.
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-    } catch {
-      /* still clear local state below */
-    }
-    localStorage.removeItem('gunx_admin_session');
-    router.push('/admin/login');
-    router.refresh();
-  };
-  const fmt    = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
-  const fmtCat = (c: string) => c?.replace(/-/g, ' ').replace(/\b\w/g, x => x.toUpperCase()) || '—';
+  const formatCategory = (cat: string) =>
+    cat ? cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
-  const badges: Record<string, number> = {
-    pendingDealers:  stats.pendingDealers,
-    pendingClubs:    stats.pendingClubs,
-    pendingServices: stats.pendingServices,
-    pendingJobs:     stats.pendingJobs,
-  };
-
-  const totalPending = stats.pendingDealers + stats.pendingServices + stats.pendingJobs;
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#080B12] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-2 border-[#E63946] border-t-transparent rounded-full animate-spin" />
-        <span className="text-[#E63946] font-black uppercase tracking-widest text-sm">Loading Command Center...</span>
-      </div>
-    </div>
-  );
+  const displayReel = reelListings.length > 0 ? [...reelListings, ...reelListings] : [];
 
   return (
-    <div className="min-h-screen bg-[#080B12] text-[#E8EAF0] flex">
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] overflow-x-hidden flex flex-col">
 
-      {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <aside className="w-[260px] bg-[#0D1420] border-r border-white/5 flex flex-col fixed h-full z-50">
-        <div className="p-6 border-b border-white/5 flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#E63946] rounded-sm flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-black text-sm">GX</span>
-          </div>
-          <div>
-            <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase tracking-widest text-white leading-none">Command Center</p>
-            <p className="text-[9px] font-bold text-[#E63946] uppercase tracking-[0.3em]">Admin Access</p>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-b border-white/5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#E63946] flex items-center justify-center text-white font-black text-xs flex-shrink-0">K</div>
-          <div>
-            <p className="text-xs font-black text-white uppercase tracking-widest">Kgofu</p>
-            <p className="text-[9px] text-[#E63946] font-bold uppercase tracking-widest">Super Admin</p>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Main</p>
-          <ul className="space-y-1">
-            {NAV.map(item => {
-              const badge = item.key ? badges[item.key] : 0;
-              return (
-                <li key={item.href}>
-                  <Link href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${
-                    item.active ? 'bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946]' : 'text-white/50 hover:bg-white/5 hover:text-white'
-                  }`}>
-                    <span>{item.icon}</span>
-                    <span className="flex-1">{item.label}</span>
-                    {badge > 0 && (
-                      <span className="bg-[#F59E0B] text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">{badge}</span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="mt-6">
-            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Quick Links</p>
-            <ul className="space-y-1">
-              {[
-                ['🌐', 'View Site',     '/'],
-                ['🔧', 'Services Page', '/services'],
-                ['🗄️', 'Supabase',     'https://supabase.com/dashboard/project/xklyirzvbjncedymrjqj'],
-              ].map(([icon, label, href]) => (
-                <li key={label}>
-                  <Link href={href} target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-white/50 hover:bg-white/5 hover:text-white font-black text-[11px] uppercase tracking-widest transition-all">
-                    <span>{icon}</span><span>{label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </nav>
-
-        <div className="p-4 border-t border-white/5 space-y-1">
-          <Link href="/" className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-[#C9922A] hover:bg-[#C9922A]/10 font-black text-[11px] uppercase tracking-widest transition-all">
-            <span>🏠</span><span>Back to Gun X Home</span>
-          </Link>
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-red-400 hover:bg-red-500/10 font-black text-[11px] uppercase tracking-widest transition-all">
-            <span>🚪</span><span>Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* ── MAIN ─────────────────────────────────────────────────────────── */}
-      <main className="flex-1 ml-[260px] overflow-y-auto">
-
-        <header className="bg-[#0D1420] border-b border-white/5 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
-          <div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight text-white">
-              Command <span className="text-[#E63946]">Overview</span>
-            </h1>
-            <p className="text-white/40 text-xs mt-0.5 uppercase tracking-widest font-bold">
-              {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+      {/* ANNOUNCEMENT BAR — rotates between the range and dealer offers */}
+      {announcementVisible && (
+        <div className="bg-[#C9922A] text-black relative z-50 overflow-hidden">
+          <div key={offerIndex} className="max-w-[1400px] mx-auto px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap animate-offer">
+            <span className="text-sm">{OFFERS[offerIndex].icon}</span>
+            <p className="text-[12px] font-black uppercase tracking-widest">{OFFERS[offerIndex].headline}</p>
+            <span className="hidden sm:inline text-black/40">·</span>
+            <p className="text-[12px] font-bold text-black/80 hidden sm:block">
+              {OFFERS[offerIndex].detail}
             </p>
+            <Link href={OFFERS[offerIndex].href} className="text-[11px] font-black uppercase tracking-widest underline hover:text-black/70 whitespace-nowrap">
+              {OFFERS[offerIndex].cta}
+            </Link>
+
+            {/* Which offer is showing */}
+            <span className="hidden md:flex items-center gap-1.5 absolute left-4 top-1/2 -translate-y-1/2">
+              {OFFERS.map((_, i) => (
+                <button key={i} onClick={() => setOfferIndex(i)} aria-label={`Show offer ${i + 1}`}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === offerIndex ? 'bg-black' : 'bg-black/25 hover:bg-black/50'}`} />
+              ))}
+            </span>
+
+            <button onClick={() => setAnnouncementVisible(false)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-black/50 hover:text-black text-lg leading-none font-bold">×</button>
           </div>
-          {totalPending > 0 && (
-            <div className="flex items-center gap-2 bg-[#F59E0B]/10 border border-[#F59E0B]/30 px-4 py-2 rounded-sm animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-[#F59E0B]" />
-              <span className="text-[#F59E0B] font-black text-[11px] uppercase tracking-widest">{totalPending} Item{totalPending !== 1 ? 's' : ''} Awaiting Approval</span>
+        </div>
+      )}
+
+      <Navbar />
+
+      {/* TOP LEADERBOARD AD */}
+      <div className="w-full flex justify-center pt-3 pb-2 px-4">
+        <AdBanner slot="leaderboard_top" page="home" />
+      </div>
+
+      <main className="flex-1 w-full">
+        <div className="flex w-full items-start">
+
+          {/* LEFT AD */}
+          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2">
+            <div className="sticky top-4 flex justify-center">
+              <AdBanner slot="sidebar_left" page="home" />
             </div>
-          )}
-        </header>
+          </aside>
 
-        <div className="p-8 space-y-8">
+          {/* CENTER */}
+          <div className="flex-1 min-w-0">
 
-          {/* ── STATS GRID ────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            {[
-              { label: 'Active Listings',   value: stats.activeListings,  color: 'text-[#4CC9F0]', border: 'border-[#4CC9F0]/20', icon: '📋' },
-              { label: 'Total Views',       value: stats.totalViews.toLocaleString(), color: 'text-[#10B981]', border: 'border-[#10B981]/20', icon: '👁️' },
-              { label: 'Active Dealers',    value: stats.totalDealers,    color: 'text-[#C9922A]', border: 'border-[#C9922A]/20', icon: '🏪' },
-              { label: 'Active Services',   value: stats.totalServices,   color: 'text-[#8B5CF6]', border: 'border-[#8B5CF6]/20', icon: '🔧' },
-              { label: 'Active Jobs',       value: stats.totalJobs,       color: 'text-[#F59E0B]', border: 'border-[#F59E0B]/20', icon: '💼' },
-              { label: 'Total Users',       value: stats.totalUsers,      color: 'text-[#E63946]', border: 'border-[#E63946]/20', icon: '👥' },
-            ].map(stat => (
-              <div key={stat.label} className={`bg-[#0D1420] border ${stat.border} rounded-sm p-4`}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-white/40 leading-tight">{stat.label}</p>
-                  <span className="text-base">{stat.icon}</span>
-                </div>
-                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className={`text-3xl font-black ${stat.color}`}>{stat.value}</p>
+            {/* HERO */}
+            <section className="relative pt-3 pb-2 px-4 md:px-6 text-center max-w-[900px] mx-auto">
+              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="text-[28px] sm:text-[38px] md:text-[48px] lg:text-[54px] xl:text-[60px] font-black uppercase tracking-tighter leading-[0.85] mb-2 lg:mb-3">
+                SOUTH AFRICA&apos;S <br className="hidden sm:block" />
+                <span className="text-[#C9922A]">PREMIER FIREARMS</span> <br />
+                CLASSIFIEDS
+              </h1>
+              {totalListings > 0 && (
+                <p className="text-[#8A8E99] text-[11px] uppercase tracking-widest font-bold mb-3">
+                  <span className="text-[#C9922A] font-black">{totalListings.toLocaleString()}</span> active listings across South Africa
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row justify-center gap-3 mb-3 lg:mb-4">
+                <Link href="/browse" className="bg-[#C9922A] text-black px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.2)]">
+                  BROWSE LISTINGS
+                </Link>
+                <Link href="/sell" className="border border-white/10 text-white px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-white/5 transition-all">
+                  POST FREE LISTING
+                </Link>
+                <Link href="/advisor" className="border border-[#C9922A]/40 text-[#C9922A] px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-[#C9922A]/10 transition-all">
+                  🎯 FIND MY GUN
+                </Link>
+                <Link href="/advertise" className="border border-white/10 text-white px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-white/5 transition-all">
+                  📢 ADVERTISE HERE
+                </Link>
               </div>
-            ))}
-          </div>
+            </section>
 
-          {/* ── PENDING COUNTS ROW ────────────────────────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'Dealers Pending',  value: stats.pendingDealers,  href: '/admin/dealers',  color: 'border-[#E63946]/30 text-[#E63946]'  },
-              { label: 'Clubs Unverified', value: stats.pendingClubs,    href: '/admin/clubs',    color: 'border-[#C9922A]/30 text-[#C9922A]'  },
-              { label: 'Services Pending', value: stats.pendingServices, href: '/admin/services', color: 'border-[#8B5CF6]/30 text-[#8B5CF6]'  },
-              { label: 'Jobs Pending',     value: stats.pendingJobs,     href: '/admin/jobs',     color: 'border-[#F59E0B]/30 text-[#F59E0B]'  },
-            ].map(item => (
-              <Link key={item.label} href={item.href}
-                className={`bg-[#0D1420] border ${item.color} rounded-sm p-4 flex items-center justify-between hover:brightness-125 transition-all group`}>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-white/40">{item.label}</p>
-                  <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className={`text-4xl font-black ${item.color.split(' ')[1]}`}>{item.value}</p>
-                </div>
-                <span className="text-white/20 group-hover:text-white/60 text-lg transition-colors">→</span>
-              </Link>
-            ))}
-          </div>
-
-          {/* ── PENDING DEALERS ───────────────────────────────────────── */}
-          {pendingDealers.length > 0 && (
-            <PendingSection
-              title="Pending Dealer Applications"
-              color="text-[#E63946]"
-              borderColor="border-[#E63946]/20"
-              viewAllHref="/admin/dealers"
-              items={pendingDealers}
-              onApprove={quickApproveDealer}
-              onReject={quickRejectDealer}
-              getTitle={d => d.business_name}
-              getSub={d => `${d.city}, ${d.province} · ${fmt(d.created_at)}`}
-            />
-          )}
-
-          {/* ── PENDING SERVICES ──────────────────────────────────────── */}
-          {pendingServices.length > 0 && (
-            <PendingSection
-              title="Pending Service Provider Applications"
-              color="text-[#8B5CF6]"
-              borderColor="border-[#8B5CF6]/20"
-              viewAllHref="/admin/services"
-              items={pendingServices}
-              onApprove={quickApproveService}
-              onReject={quickRejectService}
-              getTitle={s => s.name}
-              getSub={s => `${s.type} · ${s.city}, ${s.province} · ${fmt(s.created_at)}`}
-            />
-          )}
-
-          {/* ── PENDING JOBS ──────────────────────────────────────────── */}
-          {pendingJobs.length > 0 && (
-            <PendingSection
-              title="Pending Job Listings"
-              color="text-[#F59E0B]"
-              borderColor="border-[#F59E0B]/20"
-              viewAllHref="/admin/jobs"
-              items={pendingJobs}
-              onApprove={quickApproveJob}
-              onReject={quickRejectJob}
-              getTitle={j => j.title}
-              getSub={j => `${j.company} · ${j.location} · ${fmt(j.created_at)}`}
-            />
-          )}
-
-          {/* ── ALL CLEAR ─────────────────────────────────────────────── */}
-          {totalPending === 0 && (
-            <div className="bg-[#0D1420] border border-[#10B981]/20 rounded-sm p-8 text-center">
-              <div className="text-4xl mb-3">✅</div>
-              <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase text-[#10B981]">All Clear</p>
-              <p className="text-white/40 text-sm mt-1">No pending applications — you're up to date.</p>
-            </div>
-          )}
-
-          {/* ── RECENT LISTINGS ───────────────────────────────────────── */}
-          <div className="bg-[#0D1420] border border-white/5 rounded-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase text-white">
-                Recent <span className="text-[#4CC9F0]">Listings</span>
-              </h2>
-              <Link href="/admin/listings" className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white">All Listings →</Link>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-[#080B12]">
-                    {['Title', 'Category', 'Price', 'Status', 'Date'].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-[9px] font-black uppercase tracking-widest text-white/30">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {recentListings.map(l => (
-                    <tr key={l.id} className="hover:bg-white/[0.02]">
-                      <td className="px-5 py-3 text-[13px] font-bold text-white max-w-[200px] truncate">{l.title}</td>
-                      <td className="px-5 py-3 text-[12px] text-white/40 uppercase tracking-wider">{fmtCat(l.category_id)}</td>
-                      <td className="px-5 py-3 text-[13px] font-black text-[#C9922A]">R{l.price?.toLocaleString()}</td>
-                      <td className="px-5 py-3">
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-sm ${
-                          l.status === 'active' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-white/5 text-white/40'
-                        }`}>{l.status}</span>
-                      </td>
-                      <td className="px-5 py-3 text-[12px] text-white/40">{fmt(l.created_at)}</td>
-                    </tr>
+            {/* REEL */}
+            {displayReel.length > 0 && (
+              <div className="relative w-full py-3 border-y border-white/5 bg-[#12141a]/50 overflow-hidden">
+                <div className="flex gap-3 animate-scroll whitespace-nowrap px-4">
+                  {displayReel.map((item, idx) => (
+                    <Link key={idx} href={`/listings/${item.id}`}
+                      style={{ width: '250px', minWidth: '250px', maxWidth: '250px' }}
+                      className="bg-[#191C23] border border-white/5 p-2 rounded-sm shrink-0 flex-none text-left hover:border-[#C9922A]/40 transition-colors block">
+                      <div className="relative overflow-hidden bg-[#0D0F13] mb-1.5" style={{ height: '160px' }}>
+                        {item.images?.length > 0
+                          ? <SmartImage src={item.images[0]} alt={item.title} width={250} priority={idx < 4} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center text-lg opacity-20">🔫</div>}
+                        <div className="absolute top-1 left-1 bg-[#C9922A] text-black text-[7px] font-black px-1 py-0.5 uppercase tracking-tighter z-10 leading-none">
+                          {formatCategory(item.category_id)}
+                        </div>
+                        {item.is_featured && <div className="absolute top-1 right-1 text-[9px] z-10">⭐</div>}
+                      </div>
+                      <h4 className="font-bold text-[10px] uppercase mb-0.5 truncate text-[#F0EDE8] leading-tight">{item.title}</h4>
+                      <p className="text-[#C9922A] font-black text-[11px] leading-none mb-0.5">R {item.price?.toLocaleString('en-ZA')}</p>
+                      <p className="text-[8px] text-[#8A8E99] uppercase tracking-widest font-bold">
+                        {item.listing_type === 'dealer' ? '🏪 Dealer' : '👤 Private'}
+                      </p>
+                    </Link>
                   ))}
-                  {recentListings.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-10 text-center text-white/30 text-sm">No listings yet</td></tr>
-                  )}
-                </tbody>
-              </table>
+                </div>
+              </div>
+            )}
+
+            {/* SIDEBAR BOOKINGS, MOBILE PLACEMENT — the homepage sidebars are
+                hidden below 1280px, so on phones the same bookings run here
+                as wide banners instead of not running at all. */}
+            <div className="xl:hidden px-4 md:px-6 py-3 flex justify-center">
+              <AdBanner slot="sidebar_left" page="home" variant="infeed" />
             </div>
+
+            {/* RANGE CTA STRIP */}
+            <div className="px-4 md:px-6 py-4">
+              <div className="bg-gradient-to-r from-[#C9922A]/10 via-[#C9922A]/5 to-transparent border border-[#C9922A]/20 rounded-sm px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-2xl">🎯</span>
+                  <div>
+                    <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="font-black text-[16px] uppercase">Own a Shooting Range?</p>
+                    <p className="text-[11px] text-[#8A8E99]">Online booking · Live status · Results board · 2 months free · Then R399/month</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Link href="/clubs/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+                    className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[11px] px-4 py-2 rounded-sm hover:brightness-110 whitespace-nowrap">
+                    Start 2 Months Free
+                  </Link>
+                  <Link href="/clubs" className="border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[11px] px-4 py-2 rounded-sm hover:bg-white/5 whitespace-nowrap">
+                    Browse Ranges
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* AI ADVISOR CTA */}
+            <div className="px-4 md:px-6 py-2">
+              <div className="bg-[#191C23] border border-[#C9922A]/30 rounded-sm px-5 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm flex items-center justify-center text-xl flex-shrink-0">🎯</div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C9922A] animate-pulse" />
+                      <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#C9922A]">AI-Powered</p>
+                    </div>
+                    <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="font-black text-[18px] uppercase leading-tight">Not Sure Which Firearm to Buy?</p>
+                    <p className="text-[11px] text-[#8A8E99]">Answer 4 questions · Claude analyses your profile · Live listings matched to you</p>
+                  </div>
+                </div>
+                <Link href="/advisor" style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+                  className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3 rounded-sm hover:brightness-110 transition-all whitespace-nowrap flex-shrink-0">
+                  Start Free Assessment →
+                </Link>
+              </div>
+            </div>
+
+            <div className="xl:hidden px-4 md:px-6 py-3 flex justify-center">
+              <AdBanner slot="sidebar_right" page="home" variant="infeed" />
+            </div>
+
+            {/* BROWSE BY CATEGORY */}
+            <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12">
+              <div className="text-center mb-6 lg:mb-10">
+                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                  className="text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-tight mb-2 text-[#F0EDE8]">
+                  Browse By <span className="text-[#C9922A]">Category</span>
+                </h2>
+                <p className="text-[#8A8E99] text-[11px] uppercase tracking-[0.3em] font-bold">Explore listings across all firearm categories</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                {CATEGORIES.map(cat => (
+                  <Link key={cat.slug} href={cat.href}
+                    className="bg-[#13151A] border border-white/5 p-3 lg:p-4 flex flex-col items-center group hover:border-[#C9922A]/30 transition-all rounded-sm text-center">
+                    <span className="text-lg mb-1.5 opacity-60 group-hover:opacity-100 transition-opacity">{cat.i}</span>
+                    <h3 className="font-bold uppercase tracking-widest text-[9px] lg:text-[10px] mb-0.5 leading-tight">{cat.n}</h3>
+                    <p className="text-[8px] text-[#C9922A] font-black uppercase tracking-tighter">
+                      {categoryCounts[cat.slug] ? `${categoryCounts[cat.slug].toLocaleString()} listing${categoryCounts[cat.slug] !== 1 ? 's' : ''}` : 'Browse'}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+
+            {/* ── COLLECTIONS ──────────────────────────────────────────────
+                A full-width feature rather than a tile in the category grid.
+                A collection is an identity, not a category — someone looking
+                for a 1911 is not browsing pistols, they know exactly what they
+                want. Sitting it below the categories keeps the front page from
+                becoming a wall of equal-weight boxes.
+
+                Deliberately not paid placement: this is editorial, and the
+                moment the homepage becomes entirely paid slots is the moment
+                buyers stop trusting what they see. */}
+            <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12 border-t border-white/5">
+              <Link href="/1911"
+                className="block relative bg-[#13151A] border border-white/5 rounded-sm overflow-hidden group hover:border-[#C9922A]/40 transition-all">
+                <div className="absolute inset-0 bg-gradient-to-r from-[#C9922A]/[0.08] to-transparent pointer-events-none" />
+                <div className="relative px-6 py-8 md:px-10 md:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                  <div>
+                    <p className="text-[#C9922A] text-[10px] font-black uppercase tracking-[0.4em] mb-2">
+                      Collection
+                    </p>
+                    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                      className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none mb-3">
+                      The <span className="text-[#C9922A]">1911</span>
+                    </h2>
+                    <p className="text-[#8A8E99] text-[13px] md:text-[14px] leading-relaxed max-w-xl">
+                      Every 1911-pattern pistol on Gun X in one place — Government,
+                      Commander and Officer, Mil-Spec through full custom.
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 self-start md:self-auto bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-6 py-3.5 rounded-sm group-hover:brightness-110 transition-all">
+                    View Collection →
+                  </span>
+                </div>
+              </Link>
+            </section>
+
+            {/* WHY CHOOSE */}
+            <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12 border-t border-white/5">
+              <div className="text-center mb-6 lg:mb-10">
+                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                  className="text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-tight mb-2">
+                  Why Choose <span className="text-[#C9922A]">Gun X?</span>
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { t: 'Verified Sellers',  d: 'Every dealer and private seller goes through identity verification before listing.', i: '🛡️' },
+                  { t: 'Provincial Search', d: 'Find firearms close to home. Filter by province and city across all 9 provinces.',   i: '📍' },
+                  { t: 'FCA Compliant',     d: 'All listings comply with the Firearms Control Act. We take legal responsibility seriously.', i: '📋' },
+                ].map(item => (
+                  <div key={item.t} className="bg-[#13151A] p-5 lg:p-6 border border-white/5 rounded-sm">
+                    <div className="w-10 h-10 bg-[#191C23] border border-[#C9922A]/20 flex items-center justify-center rounded-sm mb-4 text-lg">{item.i}</div>
+                    <h3 className="text-base font-bold uppercase tracking-tight mb-2">{item.t}</h3>
+                    <p className="text-[#8A8E99] text-sm leading-relaxed">{item.d}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* DEALER CTA */}
+            <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12">
+              <div className="bg-[#13151A] border border-[#C9922A]/20 p-6 md:p-10 lg:p-14 rounded-sm flex flex-col lg:flex-row justify-between items-center gap-6 lg:gap-10">
+                <div className="max-w-2xl text-center lg:text-left">
+                  <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                    className="text-3xl md:text-4xl lg:text-5xl font-black uppercase leading-none mb-3">
+                    Grow Your <span className="text-[#C9922A]">Dealership</span> Online.
+                  </h2>
+                  <p className="text-[#8A8E99] text-sm md:text-base mb-5">List your inventory and reach thousands of buyers across South Africa.</p>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-bold uppercase tracking-wider text-[#F0EDE8]">
+                    {['Dedicated storefront', 'Unlimited listings', 'Priority search', 'Lead analytics'].map(li => (
+                      <div key={li} className="flex items-center gap-2"><span className="text-[#C9922A]">✓</span> {li}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3 w-full sm:w-auto">
+                  <Link href="/dealer/apply" className="bg-[#C9922A] text-black px-8 py-3 font-black uppercase tracking-widest text-[13px] hover:brightness-110 transition-all text-center whitespace-nowrap">
+                    Apply for Dealer Account
+                  </Link>
+                  <Link href="/dealer/pricing" className="border border-white/10 text-white px-8 py-3 font-black uppercase tracking-widest text-[13px] hover:bg-white/5 transition-all text-center whitespace-nowrap">
+                    View Pricing
+                  </Link>
+                </div>
+              </div>
+            </section>
+
+{/* (inline footer removed — using shared <Footer /> below) */}
+
           </div>
+
+          {/* RIGHT AD */}
+          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2">
+            <div className="sticky top-4 flex justify-center">
+              <AdBanner slot="sidebar_right" page="home" />
+            </div>
+          </aside>
 
         </div>
       </main>
-    </div>
-  );
-}
 
-// ── Reusable pending section ───────────────────────────────────────────────
-function PendingSection({ title, color, borderColor, viewAllHref, items, onApprove, onReject, getTitle, getSub }: {
-  title: string;
-  color: string;
-  borderColor: string;
-  viewAllHref: string;
-  items: any[];
-  onApprove: (id: string) => void;
-  onReject:  (id: string) => void;
-  getTitle: (item: any) => string;
-  getSub:   (item: any) => string;
-}) {
-  return (
-    <div className={`bg-[#0D1420] border ${borderColor} rounded-sm overflow-hidden`}>
-      <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className={`w-2 h-2 rounded-full ${color.replace('text-', 'bg-')} animate-pulse`} />
-          <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className={`text-xl font-black uppercase ${color}`}>{title}</h2>
-        </div>
-        <Link href={viewAllHref} className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white">View All →</Link>
-      </div>
-      <div className="divide-y divide-white/5">
-        {items.map(item => (
-          <div key={item.id} className="px-6 py-4 flex items-center gap-4">
-            <div className={`w-10 h-10 ${borderColor.replace('border-', 'border ')} border rounded-sm flex items-center justify-center ${color} font-black flex-shrink-0`}>
-              {getTitle(item)?.charAt(0)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-black text-sm text-white truncate">{getTitle(item)}</p>
-              <p className="text-[11px] text-white/40 uppercase tracking-wider">{getSub(item)}</p>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Link href={viewAllHref} className="text-[10px] font-black uppercase tracking-widest text-[#4CC9F0] border border-[#4CC9F0]/30 px-3 py-1.5 rounded-sm hover:bg-[#4CC9F0]/10 transition-all">
-                Review
-              </Link>
-              <button onClick={() => onApprove(item.id)}
-                className="text-[10px] font-black uppercase tracking-widest text-[#10B981] border border-[#10B981]/30 px-3 py-1.5 rounded-sm hover:bg-[#10B981]/10 transition-all">
-                ✓ Approve
-              </button>
-              <button onClick={() => onReject(item.id)}
-                className="text-[10px] font-black uppercase tracking-widest text-[#E63946] border border-[#E63946]/30 px-3 py-1.5 rounded-sm hover:bg-[#E63946]/10 transition-all">
-                ✗ Reject
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+      <Footer />
+
+      <style jsx global>{`
+        @keyframes scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(calc(-253px * 16)); }
+        }
+        .animate-scroll { animation: scroll 45s linear infinite; }
+        @keyframes offerIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-offer { animation: offerIn 400ms ease-out; }
+        .animate-scroll:hover { animation-play-state: paused; }
+      `}</style>
     </div>
   );
 }
