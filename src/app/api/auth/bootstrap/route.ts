@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { writeConsent, ensureUserProfile } from '@/lib/consentServer';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 // ─── ACCOUNT BOOTSTRAP ───────────────────────────────────────────────────────
 // POST /api/auth/bootstrap
@@ -27,6 +28,17 @@ const admin = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  // Rate limited: this route costs money or writes records, so it should not
+  // accept unlimited calls from one source.
+  const _ip = getClientIp(req as any);
+  const _limit = rateLimit(`auth-bootstrap:${_ip}`, 30, 60 * 60 * 1000);
+  if (!_limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429 },
+    );
+  }
+
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.toLowerCase().startsWith('bearer ')
     ? authHeader.slice(7).trim()

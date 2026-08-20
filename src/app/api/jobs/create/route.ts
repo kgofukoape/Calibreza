@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { jobPackageFor, type JobPackage } from '@/lib/jobPackages';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +27,17 @@ const supabase = createClient(
 // declared in this file, so the pricing page and this route cannot disagree.
 
 export async function POST(req: Request) {
+  // Rate limited: this route costs money or writes records, so it should not
+  // accept unlimited calls from one source.
+  const _ip = getClientIp(req as any);
+  const _limit = rateLimit(`jobs-create:${_ip}`, 20, 60 * 60 * 1000);
+  if (!_limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429 },
+    );
+  }
+
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

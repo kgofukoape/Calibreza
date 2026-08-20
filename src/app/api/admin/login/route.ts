@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSession, ADMIN_SESSION_COOKIE } from '@/lib/adminSession';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 // ─── ADMIN LOGIN ─────────────────────────────────────────────────────────────
 // Verifies the admin password SERVER-SIDE. The password never reaches the
@@ -14,6 +15,23 @@ import { createAdminSession, ADMIN_SESSION_COOKIE } from '@/lib/adminSession';
 //   ADMIN_SESSION_SECRET  — a long random string used to sign sessions
 
 export async function POST(req: NextRequest) {
+  // ── Brute force protection ───────────────────────────────────────────────
+  // The 600ms delay below slows a single attacker but does nothing against a
+  // script running requests in parallel. This console can delete users and
+  // approve dealers; it should not accept unlimited password guesses.
+  //
+  // 10 attempts per IP per 15 minutes. Generous for a person who has forgotten
+  // their password, useless for a dictionary attack.
+  const ip = getClientIp(req);
+  const limit = rateLimit(`admin-login:${ip}`, 10, 15 * 60 * 1000);
+  if (!limit.allowed) {
+    console.warn(`[admin-login] rate limit hit from ${ip}`);
+    return NextResponse.json(
+      { ok: false, error: 'Too many attempts. Try again shortly.' },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+    );
+  }
+
   const adminPassword = process.env.ADMIN_PASSWORD;
   const sessionSecret = process.env.ADMIN_SESSION_SECRET;
 

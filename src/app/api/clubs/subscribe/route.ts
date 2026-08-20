@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +30,17 @@ function generateSignature(params: Record<string, string>): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limited: this route costs money or writes records, so it should not
+  // accept unlimited calls from one source.
+  const _ip = getClientIp(req as any);
+  const _limit = rateLimit(`clubs-subscribe:${_ip}`, 10, 60 * 60 * 1000);
+  if (!_limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429 },
+    );
+  }
+
   try {
     const { clubId, clubName, contactEmail, contactName } = await req.json();
 
