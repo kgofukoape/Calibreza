@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
+import { JOB_BOOST } from '@/lib/jobPackages';
 
 // ─── PAYFAST ITN (Instant Transaction Notification) ──────────────────────────
 // SECURITY: this endpoint grants paid features, so it must never trust the
@@ -286,7 +287,35 @@ export async function POST(req: NextRequest) {
         console.log(`Range subscription cancelled: ${clubId}`);
       }
 
-      // ── CASE E: INDUSTRY JOBS ──
+      // ── CASE E: URGENT HIRE BOOST ──
+      // MUST be tested before the plain JOB_ case below: 'JOB_BOOST_<id>' also
+      // starts with 'JOB_', so the generic branch used to catch boosts first
+      // and then update a job whose id was literally 'BOOST_<uuid>' — matching
+      // nothing. The money was taken and the badge never appeared.
+      else if (promoId.startsWith('JOB_BOOST_')) {
+        const jid = promoId.replace('JOB_BOOST_', '');
+
+        if (Math.abs(amountGross - JOB_BOOST.price) > 0.01) {
+          console.error(`Job boost REJECTED — expected R${JOB_BOOST.price}, got R${amountGross}`);
+          return new NextResponse('OK', { status: 200 });
+        }
+
+        const boostedUntil = new Date();
+        boostedUntil.setDate(boostedUntil.getDate() + JOB_BOOST.days);
+
+        await supabase
+          .from('job_listings')
+          .update({
+            is_boosted: true,
+            boosted_until: boostedUntil.toISOString(),
+            boost_pending_until: null,
+          })
+          .eq('id', jid);
+
+        console.log(`Job boost activated: ${jid} until ${boostedUntil.toISOString()}`);
+      }
+
+      // ── CASE F: INDUSTRY JOBS ──
       else if (promoId.startsWith('JOB_')) {
         const jid = promoId.replace('JOB_', '');
 
@@ -314,6 +343,14 @@ export async function POST(req: NextRequest) {
             .eq('id', clubId);
           console.log(`Range subscription failed/cancelled: ${clubId}`);
         }
+      } else if (promoId.startsWith('JOB_BOOST_')) {
+        // Clear the marker, otherwise the dashboard shows "awaiting payment"
+        // indefinitely for a boost that was abandoned.
+        await supabase
+          .from('job_listings')
+          .update({ boost_pending_until: null })
+          .eq('id', promoId.replace('JOB_BOOST_', ''));
+        console.log(`Job boost failed/cancelled: ${promoId.replace('JOB_BOOST_', '')}`);
       } else if (promoId.startsWith('JOB_')) {
         console.log(`Job payment failed/cancelled, remaining pending: ${promoId.replace('JOB_', '')}`);
       } else if (customStr1 !== 'dealer_subscription') {
