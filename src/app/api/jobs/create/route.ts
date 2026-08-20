@@ -1,19 +1,29 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { jobPackageFor, type JobPackage } from '@/lib/jobPackages';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const TIER_LOGIC = {
-  free: { quota: 2, period: 'year', price: 69.00 },
-  pro: { quota: 5, period: 'month', price: 29.00 },
-  premium: { quota: 10, period: 'month', price: 29.00 },
-  club: { quota: 2, period: 'month', price: 69.00 },
-  service: { quota: 0, period: 'month', price: 69.00 }
-};
+// ─── CREATE A JOB LISTING ────────────────────────────────────────────────────
+// POST /api/jobs/create
+//
+// TWO ACCESS BUGS FIXED HERE, both of which blocked people entirely:
+//
+//   CLUBS. The check was `club.status === 'approved'`. Clubs and ranges use
+//   'active' — 'approved' is the dealer vocabulary, and the admin API will not
+//   even accept 'approved' for a club. So every club posting a job was told
+//   "Access Denied" and no setting could have fixed it.
+//
+//   SERVICE PROVIDERS. The old tier table had an entry for them, and the error
+//   message told them services were welcome, but the gatekeeper only ever
+//   looked at dealers and clubs. A service provider could never get past it.
+//
+// Quotas and prices now come from src/lib/jobPackages.ts rather than a table
+// declared in this file, so the pricing page and this route cannot disagree.
 
 export async function POST(req: Request) {
   try {
@@ -25,40 +35,59 @@ export async function POST(req: Request) {
 
     const jobData = await req.json();
 
-    // STRICT GATEKEEPER: Check if they are an APPROVED business
-    let userTier = null;
-    let isEmployer = false;
-    
-    const { data: dealer } = await supabase.from('dealers').select('subscription_tier, status').eq('user_id', user.id).maybeSingle();
+    // ── Who is this, and are they entitled to post? ──────────────────────
+    let pkg: JobPackage | null = null;
+
+    const { data: dealer } = await supabase
+      .from('dealers').select('subscription_tier, status')
+      .eq('user_id', user.id).maybeSingle();
+
     if (dealer && dealer.status === 'approved') {
-      userTier = dealer.subscription_tier.toLowerCase();
-      isEmployer = true;
-    } else {
-      const { data: club } = await supabase.from('clubs').select('id, status').eq('user_id', user.id).maybeSingle();
-      if (club && club.status === 'approved') {
-        userTier = 'club';
-        isEmployer = true;
+      pkg = jobPackageFor('dealer', dealer.subscription_tier);
+    }
+
+    if (!pkg) {
+      const { data: club } = await supabase
+        .from('clubs').select('subscription_tier, status')
+        .eq('user_id', user.id).maybeSingle();
+
+      // 'active' is the club vocabulary. See the note at the top of this file.
+      if (club && club.status === 'active') {
+        pkg = jobPackageFor('club', club.subscription_tier);
       }
     }
-    
-    // THE KILL SWITCH
-    if (!isEmployer) {
-      return NextResponse.json({ 
-        error: 'Access Denied: Only verified Dealers, Clubs, and Services can post industry jobs.' 
+
+    if (!pkg) {
+      const { data: service } = await supabase
+        .from('services').select('status')
+        .eq('user_id', user.id).maybeSingle();
+
+      if (service && service.status === 'active') {
+        pkg = jobPackageFor('service', null);
+      }
+    }
+
+    if (!pkg) {
+      return NextResponse.json({
+        error: 'Only approved dealers, clubs, ranges and service providers can post industry jobs.',
       }, { status: 403 });
     }
 
-    if (!userTier || !TIER_LOGIC[userTier as keyof typeof TIER_LOGIC]) userTier = 'free';
-    const logic = TIER_LOGIC[userTier as keyof typeof TIER_LOGIC];
+    // ── How many have they posted this period? ───────────────────────────
+    let hasQuota = pkg.quota === null;
 
-    const timeLimit = new Date();
-    if (logic.period === 'year') timeLimit.setFullYear(timeLimit.getFullYear() - 1);
-    else timeLimit.setMonth(timeLimit.getMonth() - 1);
+    if (!hasQuota) {
+      const timeLimit = new Date();
+      if (pkg.period === 'year') timeLimit.setFullYear(timeLimit.getFullYear() - 1);
+      else timeLimit.setMonth(timeLimit.getMonth() - 1);
 
-    const { count } = await supabase.from('job_listings').select('id', { count: 'exact', head: true }).eq('employer_id', user.id).gte('created_at', timeLimit.toISOString());
+      const { count } = await supabase
+        .from('job_listings').select('id', { count: 'exact', head: true })
+        .eq('employer_id', user.id)
+        .gte('created_at', timeLimit.toISOString());
 
-    const jobsUsed = count || 0;
-    const hasQuota = jobsUsed < logic.quota;
+      hasQuota = (count || 0) < (pkg.quota as number);
+    }
 
     const { data: newJob, error: insertError } = await supabase.from('job_listings')
       .insert({
@@ -73,32 +102,45 @@ export async function POST(req: Request) {
         description: jobData.description,
         fca_competencies_required: jobData.fca_competencies_required,
         requirements: jobData.requirements.split(',').map((r: string) => r.trim()),
-        status: hasQuota ? 'active' : 'pending_payment'
+        status: hasQuota ? 'active' : 'pending_payment',
       }).select('id').single();
 
     if (insertError) throw insertError;
 
     if (hasQuota) {
-      return NextResponse.json({ success: true, action: 'published', message: 'Job published successfully using your tier quota!' });
-    } else {
-      const payfastData: Record<string, string> = {
-        merchant_id: process.env.PAYFAST_MERCHANT_ID!,
-        merchant_key: process.env.PAYFAST_MERCHANT_KEY!,
-        return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/jobs?payment=success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/jobs/post?payment=cancelled`,
-        notify_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payfast/notify`,
-        m_payment_id: `JOB_${newJob.id}`,
-        amount: logic.price.toFixed(2),
-        item_name: `Gun X Job: ${jobData.title}`,
-      };
-
-      let signatureString = Object.entries(payfastData).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
-      if (process.env.PAYFAST_PASSPHRASE) signatureString += `&passphrase=${encodeURIComponent(process.env.PAYFAST_PASSPHRASE)}`;
-      payfastData.signature = crypto.createHash('md5').update(signatureString).digest('hex');
-      const payfastParams = new URLSearchParams(payfastData);
-      
-      return NextResponse.json({ success: true, action: 'payfast', redirectUrl: `https://www.payfast.co.za/eng/process?${payfastParams.toString()}` });
+      return NextResponse.json({
+        success: true,
+        action: 'published',
+        message: `Job published — included in your ${pkg.label} package.`,
+      });
     }
+
+    const payfastData: Record<string, string> = {
+      merchant_id: process.env.PAYFAST_MERCHANT_ID!,
+      merchant_key: process.env.PAYFAST_MERCHANT_KEY!,
+      return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/jobs?payment=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/jobs/post?payment=cancelled`,
+      notify_url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/payfast/notify`,
+      m_payment_id: `JOB_${newJob.id}`,
+      amount: pkg.priceBeyondQuota.toFixed(2),
+      item_name: `Gun X Job: ${jobData.title}`,
+    };
+
+    let signatureString = Object.entries(payfastData)
+      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+    if (process.env.PAYFAST_PASSPHRASE) {
+      signatureString += `&passphrase=${encodeURIComponent(process.env.PAYFAST_PASSPHRASE)}`;
+    }
+    payfastData.signature = crypto.createHash('md5').update(signatureString).digest('hex');
+    const payfastParams = new URLSearchParams(payfastData);
+
+    return NextResponse.json({
+      success: true,
+      action: 'payfast',
+      amount: pkg.priceBeyondQuota,
+      redirectUrl: `https://www.payfast.co.za/eng/process?${payfastParams.toString()}`,
+    });
+
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
