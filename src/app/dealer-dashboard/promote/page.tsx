@@ -140,43 +140,41 @@ function PromoteForm() {
     setSubmitting(true);
     setError('');
 
-    const tier = PROMOTION_TIERS.find((t) => t.id === selectedTier);
-    if (!tier) return;
+    // The promotion is created server-side. Setting is_featured from here —
+    // which is what this page used to do — meant every promotion was free and
+    // the price was whatever the browser said it was.
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
 
-    const featuredUntil = new Date();
-    featuredUntil.setDate(featuredUntil.getDate() + tier.duration);
+      const res = await fetch('/api/listings/promote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ listingId: selectedListing.id, tierId: selectedTier }),
+      });
 
-    // Claims a credit atomically. The database function locks the dealer row
-    // for the transaction, so two tabs cannot both read the same balance and
-    // each spend it — a read-then-write from here could not prevent that.
-    // Returns false when no credits remain, in which case this is a paid
-    // promotion.
-    const { data: claimed } = await supabase
-      .rpc('consume_promo_credit', { p_dealer_id: dealer!.id });
-    const usingCredit = claimed === true;
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Could not start the promotion');
 
-    const { error: updateError } = await supabase
-      .from('listings')
-      .update({
-        is_featured: true,
-        featured_until: featuredUntil.toISOString(),
-      })
-      .eq('id', selectedListing.id)
-      .eq('dealer_id', dealer!.id);
+      if (result.action === 'payfast') {
+        // Nothing is live yet. The promotion activates when PayFast confirms.
+        window.location.href = result.redirectUrl;
+        return;
+      }
 
-    if (updateError) {
-      setError(updateError.message);
+      // A Premium credit covered it — already applied.
+      setUsedCredit(true);
+      await loadCredits(dealer!.id);
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    // The credit was already spent by consume_promo_credit above; this just
-    // refreshes the number shown on screen.
-    if (usingCredit) await loadCredits(dealer!.id);
-
-    setUsedCredit(usingCredit);
-    setSuccess(true);
-    setSubmitting(false);
   };
 
   // Rendered above the flow so a Premium dealer knows the promotion is free
@@ -588,7 +586,7 @@ function PromoteForm() {
                         💳 Payment Coming Soon
                       </h3>
                       <p className="text-sm text-[#8A8E99] leading-relaxed">
-                        Online payment processing is being set up. By confirming, your listing will be featured immediately and our team will contact you regarding payment. Thank you for your patience.
+                        You'll be redirected to PayFast to complete payment. Your promotion goes live as soon as payment is confirmed.
                       </p>
                     </div>
 

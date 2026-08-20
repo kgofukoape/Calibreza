@@ -91,35 +91,17 @@ export default function SellPage() {
     setAllowance(countData.data || null);
     setListingCountLoading(false);
 
-    // Someone returning from PayFast: rebuild the listing they paid for.
-    if (new URLSearchParams(window.location.search).get('paid') === 'true') {
-      await restorePaidListing();
-    }
   };
 
-  // Without this, a seller pays R29, returns to /sell?paid=true and nothing
-  // happens — the payload sits in sessionStorage and is never used. They have
-  // paid and have no listing.
-  const restorePaidListing = async () => {
-    const stored = sessionStorage.getItem('pendingListing');
-    if (!stored) return;
-
-    try {
-      const payload = JSON.parse(stored);
-      const { data, error } = await supabase.from('listings')
-        .insert({ ...payload, is_paid: true })
-        .select('id').single();
-
-      if (error) throw error;
-
-      sessionStorage.removeItem('pendingListing');
-      setListingId(data.id);
-      setSubmitted(true);
-    } catch (err: any) {
-      console.error('[sell] paid listing could not be created', err);
-      alert('Your payment went through but the listing could not be created. Please contact support@gunx.co.za and we will sort it out — do not pay again.');
-    }
-  };
+  // The client-side restore that used to live here has been removed. It read a
+  // payload out of sessionStorage on ?paid=true and inserted the listing with
+  // is_paid true — without checking that PayFast had taken any money. Cancelling
+  // at the payment screen and navigating back produced a free listing outside
+  // the allowance.
+  //
+  // The listing is now created as pending_payment BEFORE the redirect and
+  // activated only by the verified PayFast notification, the same pattern used
+  // by jobs, subscriptions and promotions.
 
   const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
 
@@ -209,26 +191,44 @@ const ACTION_TYPES: Record<string, string[]> = {
         province_id: formData.province_id,
         city: formData.city,
         listing_type: 'private',
-        status: 'active',
+        // Paid listings are created invisible and published only when PayFast
+        // confirms. Free ones publish immediately.
+        status: isPaid ? 'pending_payment' : 'active',
+        is_paid: isPaid,
         blade_type: isKnives ? (formData.blade_type || null) : null,
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
       };
 
+      // ── PAID LISTING ──────────────────────────────────────────────────
+      // Created first as pending_payment, then paid for. The listing carries
+      // its own id into PayFast so the verified notification knows exactly what
+      // to publish — no sessionStorage, and nothing goes live on the strength
+      // of the browser arriving back at a URL.
       if (isPaid) {
-        sessionStorage.setItem('pendingListing', JSON.stringify(payload));
+        const paidImages = await uploadImages();
+
+        const { data: pending, error: pendingError } = await supabase
+          .from('listings')
+          .insert({ ...payload, images: paidImages })
+          .select('id').single();
+
+        if (pendingError) throw new Error(`Could not prepare listing: ${pendingError.message}`);
+
         const payfastData: Record<string, string> = {
           merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
           merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '',
-          return_url: `${window.location.origin}/sell?paid=true`,
-          cancel_url: `${window.location.origin}/sell`,
+          return_url: `${window.location.origin}/dashboard/listings?payment=success`,
+          cancel_url: `${window.location.origin}/dashboard/listings?payment=cancelled`,
           notify_url: `${window.location.origin}/api/payfast/notify`,
           name_first: user.user_metadata?.full_name?.split(' ')[0] || 'User',
           email_address: user.email,
+          m_payment_id: `LISTING_${pending.id}`,
           amount: PAID_LISTING_PRICE.toFixed(2),
           item_name: 'Gun X Listing Fee',
           custom_str1: 'private_listing',
-          custom_str2: user.id,
+          custom_str2: pending.id,
         };
+
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'

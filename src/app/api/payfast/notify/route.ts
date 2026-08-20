@@ -287,7 +287,31 @@ export async function POST(req: NextRequest) {
         console.log(`Range subscription cancelled: ${clubId}`);
       }
 
-      // ── CASE E: URGENT HIRE BOOST ──
+      // ── CASE E: PRIVATE PAID LISTING ──
+      // /sell sends custom_str1 'private_listing'. There was no branch for it,
+      // so the ITN arrived, matched nothing and did nothing — while the listing
+      // was being created client-side on return from PayFast regardless of
+      // whether payment succeeded. Anyone could cancel at the payment screen,
+      // navigate back to /sell?paid=true, and receive a free listing outside
+      // their allowance.
+      else if (customStr1 === 'private_listing') {
+        const listingId = customStr2;
+
+        if (Math.abs(amountGross - 29) > 0.01) {
+          console.error(`Private listing REJECTED — expected R29, got R${amountGross}`);
+          return new NextResponse('OK', { status: 200 });
+        }
+
+        await supabase
+          .from('listings')
+          .update({ status: 'active', is_paid: true })
+          .eq('id', listingId)
+          .eq('status', 'pending_payment');
+
+        console.log(`Private paid listing activated: ${listingId}`);
+      }
+
+      // ── CASE F: URGENT HIRE BOOST ──
       // MUST be tested before the plain JOB_ case below: 'JOB_BOOST_<id>' also
       // starts with 'JOB_', so the generic branch used to catch boosts first
       // and then update a job whose id was literally 'BOOST_<uuid>' — matching
@@ -315,7 +339,7 @@ export async function POST(req: NextRequest) {
         console.log(`Job boost activated: ${jid} until ${boostedUntil.toISOString()}`);
       }
 
-      // ── CASE F: INDUSTRY JOBS ──
+      // ── CASE G: INDUSTRY JOBS ──
       else if (promoId.startsWith('JOB_')) {
         const jid = promoId.replace('JOB_', '');
 
@@ -343,6 +367,10 @@ export async function POST(req: NextRequest) {
             .eq('id', clubId);
           console.log(`Range subscription failed/cancelled: ${clubId}`);
         }
+      } else if (customStr1 === 'private_listing') {
+        // Left as pending_payment. It stays invisible and the seller can retry
+        // from their dashboard without re-entering everything.
+        console.log(`Private listing payment failed/cancelled: ${data['custom_str2']}`);
       } else if (promoId.startsWith('JOB_BOOST_')) {
         // Clear the marker, otherwise the dashboard shows "awaiting payment"
         // indefinitely for a boost that was abandoned.
