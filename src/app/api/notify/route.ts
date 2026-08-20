@@ -53,6 +53,68 @@ const adminAlert = (entity: string, name: string, detail: string, link: string) 
   </p>
 </div>`;
 
+// ─── AD BOOKING: EVERYTHING NEEDED TO RAISE AN INVOICE ──────────────────────
+// The generic adminAlert is a nudge to go and look. For an ad booking that is
+// not enough: the next action is to raise an invoice, which needs the billing
+// details in front of you. Putting them in the email means you can invoice from
+// your phone without opening the admin panel.
+const adBookingTemplate = (d: any) => {
+  const row = (label: string, value: any) =>
+    value === undefined || value === null || value === ''
+      ? ''
+      : `<tr>
+           <td style="padding:7px 0;color:#8A8E99;font-size:13px;vertical-align:top;width:170px;">${label}</td>
+           <td style="padding:7px 0;color:#F0EDE8;font-size:13px;font-weight:bold;">${value}</td>
+         </tr>`;
+
+  return `
+<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
+  <h1 style="color:#C9922A;font-size:26px;margin-bottom:4px;">Ad booking — invoice required</h1>
+  <p style="color:#8A8E99;margin-top:0;font-size:14px;">
+    Nothing has been charged. Approve the creative, raise the invoice, and mark it paid when the EFT reflects.
+  </p>
+
+  <div style="background:#13151A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px;margin:24px 0;">
+    <p style="font-size:11px;font-weight:bold;color:#C9922A;letter-spacing:2px;text-transform:uppercase;margin:0 0 12px;">Bill to</p>
+    <table style="width:100%;border-collapse:collapse;">
+      ${row('Company', d.company)}
+      ${row('Registration no.', d.registration)}
+      ${row('VAT no.', d.vat)}
+      ${row('Contact', d.contact)}
+      ${row('Email', d.email)}
+      ${row('Phone', d.phone)}
+    </table>
+  </div>
+
+  <div style="background:#13151A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px;margin:24px 0;">
+    <p style="font-size:11px;font-weight:bold;color:#C9922A;letter-spacing:2px;text-transform:uppercase;margin:0 0 12px;">Campaign</p>
+    <table style="width:100%;border-collapse:collapse;">
+      ${row('Campaign title', d.title)}
+      ${row('Slot', d.slot)}
+      ${row('Page', d.page)}
+      ${row('Format', d.adType)}
+      ${row('Starts', d.startsAt)}
+      ${row('Ends', d.expiresAt)}
+      ${row('Duration', d.duration ? `${d.duration} month${d.duration > 1 ? 's' : ''}` : '')}
+      ${row('Rate', d.monthlyRate ? `R${Number(d.monthlyRate).toLocaleString('en-ZA')} / month` : '')}
+      ${row('Click-through URL', d.clickUrl)}
+    </table>
+    <table style="width:100%;border-collapse:collapse;border-top:1px solid rgba(255,255,255,0.08);margin-top:12px;">
+      ${row('AMOUNT DUE', d.total ? `<span style="color:#C9922A;font-size:19px;">R${Number(d.total).toLocaleString('en-ZA')}</span>` : '')}
+    </table>
+    <p style="color:#5A5E69;font-size:11px;margin:10px 0 0;">Amounts include VAT where applicable.</p>
+  </div>
+
+  <a href="${BASE_URL}/admin/ads" style="display:inline-block;background:#C9922A;color:black;font-weight:bold;font-size:14px;text-transform:uppercase;letter-spacing:2px;padding:14px 28px;border-radius:4px;text-decoration:none;">
+    Review creative →
+  </a>
+
+  <p style="color:#5A5E69;font-size:12px;margin-top:32px;border-top:1px solid rgba(255,255,255,0.05);padding-top:16px;">
+    Gun X · <a href="${BASE_URL}" style="color:#C9922A;text-decoration:none;">calibreza.vercel.app</a>
+  </p>
+</div>`;
+};
+
 const approvedTemplate = (heading: string, body: string, btnText: string, btnUrl: string) => `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
   <h1 style="color:#2A9C6E;font-size:26px;margin-bottom:4px;">${heading}</h1>
@@ -179,13 +241,8 @@ export async function POST(req: NextRequest) {
       case 'ad_submitted':
         await sendEmail(
           ADMIN_EMAIL,
-          `📢 New Ad Submission — ${body.data?.company || body.data?.title || 'Advertiser'}`,
-          adminAlert(
-            'Ad Submission',
-            body.data?.title || 'Untitled campaign',
-            `${body.data?.slot || ''} on ${body.data?.page || ''} · R${(body.data?.total || 0).toLocaleString()} · awaiting review`,
-            `${BASE_URL}/admin/ads`
-          )
+          `Ad booking — invoice required — ${body.data?.company || body.data?.title || 'Advertiser'} — R${(body.data?.total || 0).toLocaleString('en-ZA')}`,
+          adBookingTemplate(body.data || {})
         );
         break;
 

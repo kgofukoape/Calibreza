@@ -102,6 +102,10 @@ export default function AdvertiseBookPage() {
   const [clientName, setClientName]       = useState('');
   const [clientCompany, setClientCompany] = useState('');
   const [clientPhone, setClientPhone]     = useState('');
+  // Needed to raise a valid tax invoice. Optional, because a sole trader
+  // advertising their gunsmithing business may have neither.
+  const [clientReg, setClientReg]         = useState('');
+  const [clientVat, setClientVat]         = useState('');
   const [consented, setConsented]         = useState(false);
 
   // ── Auth gate ──────────────────────────────────────────────────────────────
@@ -208,6 +212,8 @@ export default function AdvertiseBookPage() {
       client_email:   user.email,
       client_phone:   clientPhone,
       client_company: clientCompany,
+      client_registration: clientReg || null,
+      client_vat:          clientVat || null,
       title,
       slot,
       page,
@@ -239,7 +245,26 @@ export default function AdvertiseBookPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'ad_submitted',
-          data: { title, slot, page: pageLabel, company: clientCompany || clientName, total: totalCost },
+          // Everything needed to raise the invoice without opening the admin
+          // panel — the next action after this email is billing, not browsing.
+          data: {
+            company:      clientCompany || clientName,
+            registration: clientReg,
+            vat:          clientVat,
+            contact:      clientName,
+            email:        user.email,
+            phone:        clientPhone,
+            title,
+            slot:         slotInfo?.label || slot,
+            page:         pageLabel,
+            adType,
+            startsAt:     new Date(startDate).toLocaleDateString('en-ZA'),
+            expiresAt:    new Date(expiresIso).toLocaleDateString('en-ZA'),
+            duration,
+            monthlyRate,
+            clickUrl,
+            total:        totalCost,
+          },
         }),
       });
     } catch { /* email failure shouldn't block the booking */ }
@@ -516,6 +541,15 @@ export default function AdvertiseBookPage() {
               <div>
                 <label className={labelClass}>Phone</label>
                 <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={inputClass} placeholder="082 123 4567" />
+              </div>
+              <div>
+                <label className={labelClass}>Company Registration No.</label>
+                <input value={clientReg} onChange={e => setClientReg(e.target.value)} className={inputClass} placeholder="2020/123456/07 (optional)" />
+              </div>
+              <div>
+                <label className={labelClass}>VAT Number</label>
+                <input value={clientVat} onChange={e => setClientVat(e.target.value)} className={inputClass} placeholder="4123456789 (optional)" />
+                <p className="text-[11px] text-[#8A8E99] mt-1.5">Both appear on your invoice. Leave blank if not registered.</p>
               </div>
             </div>
 
