@@ -30,6 +30,9 @@ export default function AdminJobsPage() {
   const [search, setSearch]             = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // The table is job_listings. This page queried a table called 'jobs' that
+  // does not exist, so every read returned nothing and every approve, reject
+  // and delete failed silently — the jobs board has had no working moderation.
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (localStorage.getItem('gunx_admin_session') !== 'authenticated') {
@@ -52,7 +55,7 @@ export default function AdminJobsPage() {
 
   const loadJobs = async () => {
     const { data } = await supabase
-      .from('jobs')
+      .from('job_listings')
       .select('*')
       .order('created_at', { ascending: false });
     setJobs(data || []);
@@ -61,7 +64,7 @@ export default function AdminJobsPage() {
 
   const handleApprove = async (id: string) => {
     setActionLoading(id);
-    await supabase.from('jobs').update({ status: 'active' }).eq('id', id);
+    await supabase.from('job_listings').update({ status: 'active' }).eq('id', id);
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'active' } : j));
     if (selected?.id === id) setSelected((p: any) => ({ ...p, status: 'active' }));
     setActionLoading(null);
@@ -70,7 +73,7 @@ export default function AdminJobsPage() {
   const handleReject = async (id: string) => {
     if (!confirm('Reject this job listing?')) return;
     setActionLoading(id);
-    await supabase.from('jobs').update({ status: 'rejected' }).eq('id', id);
+    await supabase.from('job_listings').update({ status: 'rejected' }).eq('id', id);
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'rejected' } : j));
     if (selected?.id === id) setSelected((p: any) => ({ ...p, status: 'rejected' }));
     setActionLoading(null);
@@ -79,7 +82,7 @@ export default function AdminJobsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Permanently delete this job listing?')) return;
     setActionLoading(id);
-    await supabase.from('jobs').delete().eq('id', id);
+    await supabase.from('job_listings').delete().eq('id', id);
     setJobs(prev => prev.filter(j => j.id !== id));
     if (selected?.id === id) setSelected(null);
     setActionLoading(null);

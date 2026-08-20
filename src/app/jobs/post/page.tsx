@@ -26,7 +26,10 @@ export default function PostJobPage() {
         setAccessStatus('granted'); return; 
       }
 
-      const { data: club } = await supabase.from('clubs').select('id, name, email').eq('user_id', session.user.id).eq('status', 'approved').maybeSingle();
+      // Clubs and ranges use 'active'. 'approved' is the dealer vocabulary and
+      // the admin API will not even accept it for a club, so this check could
+      // never pass and no club could reach the form.
+      const { data: club } = await supabase.from('clubs').select('id, name, email').eq('user_id', session.user.id).eq('status', 'active').maybeSingle();
       if (club) { 
         setFormData(p => ({ ...p, company: club.name, employer_email: club.email }));
         setAccessStatus('granted'); return; 

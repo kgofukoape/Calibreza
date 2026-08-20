@@ -29,7 +29,57 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
-  const result = { reminders_sent: 0, expired: 0, errors: [] as string[] };
+  const result = {
+    reminders_sent: 0,
+    expired: 0,
+    promotions_expired: 0,
+    job_boosts_expired: 0,
+    errors: [] as string[],
+  };
+
+  // ── EXPIRE PAID PROMOTIONS ───────────────────────────────────────────────
+  // Nothing cleared is_featured when featured_until passed, so every promotion
+  // ever bought was permanent. A dealer paying R29 once stayed at the top of
+  // the results forever, and there was no reason to ever pay again.
+  try {
+    const { data: expiredPromos, error: promoErr } = await supabaseAdmin
+      .from('listings')
+      .update({ is_featured: false })
+      .eq('is_featured', true)
+      .not('featured_until', 'is', null)
+      .lt('featured_until', now.toISOString())
+      .select('id');
+
+    if (promoErr) result.errors.push(`promotions: ${promoErr.message}`);
+    else result.promotions_expired = expiredPromos?.length || 0;
+
+    // Mark the promotion records too, so reporting shows what actually ran
+    // rather than everything looking permanently active.
+    await supabaseAdmin
+      .from('promoted_listings')
+      .update({ status: 'expired' })
+      .eq('status', 'active')
+      .not('expires_at', 'is', null)
+      .lt('expires_at', now.toISOString());
+  } catch (e: any) {
+    result.errors.push(`promotions: ${e.message}`);
+  }
+
+  // ── EXPIRE URGENT HIRE BOOSTS ────────────────────────────────────────────
+  try {
+    const { data: expiredBoosts, error: boostErr } = await supabaseAdmin
+      .from('job_listings')
+      .update({ is_boosted: false })
+      .eq('is_boosted', true)
+      .not('boosted_until', 'is', null)
+      .lt('boosted_until', now.toISOString())
+      .select('id');
+
+    if (boostErr) result.errors.push(`job boosts: ${boostErr.message}`);
+    else result.job_boosts_expired = expiredBoosts?.length || 0;
+  } catch (e: any) {
+    result.errors.push(`job boosts: ${e.message}`);
+  }
 
   // ── Fetch all ads awaiting payment ─────────────────────────────────────────
   const { data: ads, error } = await supabaseAdmin

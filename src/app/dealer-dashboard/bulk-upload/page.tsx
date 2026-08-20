@@ -222,6 +222,9 @@ export default function BulkUploadPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number } | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  // How many listings this dealer may still create. Read from the database so
+  // it matches the trigger that actually enforces it.
+  const [allowance, setAllowance] = useState<any>(null);
 
   useEffect(() => {
     checkAuth();
@@ -455,11 +458,50 @@ export default function BulkUploadPage() {
     const validRows = parsedRows.filter((r) => !r._error);
     if (validRows.length === 0) return;
 
+    // ── Allowance check BEFORE importing ────────────────────────────────
+    // Without this, a free-tier dealer uploads forty rows, the database trigger
+    // refuses at row six, and they are left with a partial import and a raw
+    // Postgres error with no indication of which rows landed.
+    const { data: { user } } = await supabase.auth.getUser();
+    let remaining: number | null = null;
+
+    if (user) {
+      const { data: allow } = await supabase
+        .rpc('listing_allowance', { p_user_id: user.id });
+      setAllowance(allow);
+
+      if (allow && allow.unlimited !== true) {
+        remaining = allow.remaining ?? 0;
+
+        if (remaining <= 0) {
+          alert(
+            `Your free listing allowance for this ${allow.period} is used up ` +
+            `(${allow.used} of ${allow.allowance}). Upgrade your plan to import in bulk.`
+          );
+          return;
+        }
+
+        if (validRows.length > remaining) {
+          const proceed = confirm(
+            `You have ${remaining} listing${remaining !== 1 ? 's' : ''} left in your allowance ` +
+            `but this file has ${validRows.length} rows.\n\n` +
+            `Import the first ${remaining} now, or cancel and upgrade your plan?`
+          );
+          if (!proceed) return;
+        }
+      }
+    }
+
+    // Only import what the allowance covers. Attempting the rest would fail at
+    // the database and leave the dealer guessing which rows made it.
+    const rowsToImport = remaining === null ? validRows : validRows.slice(0, remaining);
+
     setUploading(true);
     let success = 0;
     let failed = 0;
+    const skipped = validRows.length - rowsToImport.length;
 
-    for (const row of validRows) {
+    for (const row of rowsToImport) {
       try {
         const makeId = findId(makes, row.make);
         const calibreId = findId(calibres, row.calibre);
@@ -493,7 +535,7 @@ export default function BulkUploadPage() {
       } catch { failed++; }
     }
 
-    setUploadResults({ success, failed });
+    setUploadResults({ success, failed: failed + skipped });
     setUploading(false);
     setStep(3);
   };
