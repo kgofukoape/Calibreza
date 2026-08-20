@@ -217,12 +217,17 @@ export default function AdvertiseBookPage() {
       click_url:      clickUrl,
       starts_at:      startsIso,
       expires_at:     expiresIso,
-      amount_paid:    totalCost,
+      // amount_due, not amount_paid. Writing the total into amount_paid at
+      // booking meant the database recorded money as received before anyone had
+      // been invoiced, let alone paid. amount_paid is set by an administrator
+      // when the EFT lands.
+      amount_due:     totalCost,
+      amount_paid:    0,
       rate_per_day:   Math.round(monthlyRate / 30),
       status:         'pending_review',
       consent_at:     new Date().toISOString(),
       policy_version: '1.1',
-      notes:          `Self-service booking · ${duration} month(s) · submitted by ${user.email}`,
+      notes:          `Booking request · ${duration} month(s) · submitted by ${user.email} · invoice to follow`,
     });
 
     if (insErr) { setError('Submission failed: ' + insErr.message); setSubmitting(false); return; }
@@ -269,7 +274,7 @@ export default function AdvertiseBookPage() {
               Your ad has been submitted for review. Our team checks every submission to keep the platform brand-safe — this usually takes under 24 hours.
             </p>
             <p className="text-[#8A8E99] mb-8 leading-relaxed">
-              We'll email <span className="text-[#C9922A] font-bold">{user.email}</span> with payment details and confirmation once it's approved.
+              Once approved we'll email an invoice to <span className="text-[#C9922A] font-bold">{user.email}</span>. Your campaign goes live as soon as payment reflects — nothing is charged now.
             </p>
             <div className="bg-[#13151A] border border-white/5 rounded-sm p-5 mb-8 text-left">
               <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">Summary</p>
@@ -277,7 +282,7 @@ export default function AdvertiseBookPage() {
                 <p className="flex justify-between"><span className="text-[#8A8E99]">Slot</span><span className="font-bold">{slotInfo?.label}</span></p>
                 <p className="flex justify-between"><span className="text-[#8A8E99]">Page</span><span className="font-bold">{pageLabel}</span></p>
                 <p className="flex justify-between"><span className="text-[#8A8E99]">Duration</span><span className="font-bold">{duration} month{duration > 1 ? 's' : ''}</span></p>
-                <p className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5"><span className="text-[#8A8E99]">Total</span><span className="font-black text-[#C9922A]">R{totalCost.toLocaleString()}</span></p>
+                <p className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5"><span className="text-[#8A8E99]">Total due</span><span className="font-black text-[#C9922A]">R{totalCost.toLocaleString()}</span></p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
