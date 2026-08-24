@@ -37,6 +37,8 @@ type Listing = {
 // an ordinary visitor made it — which is why several of these buttons used to
 // report success and change nothing.
 async function adminAction(payload: Record<string, any>) {
+  // Throws on failure so callers must handle it. Several handlers used to call
+  // this bare, which meant a rejected request produced no visible effect at all.
   const res = await fetch('/api/admin/suspend', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -114,13 +116,56 @@ export default function AdminListingsPage() {
     setActionLoading(null);
   };
 
+  // ── REMOVE A LISTING ───────────────────────────────────────────────────
+  // Archives rather than deletes, for two reasons.
+  //
+  // Practically: other tables reference listings — saved_listings, enquiries,
+  // promoted_listings, listing_reports. Where those foreign keys are NO ACTION,
+  // Postgres refuses the delete outright, which is why this button appeared to
+  // work and changed nothing.
+  //
+  // And on a firearms platform a hard delete is the wrong instinct anyway. If
+  // SAPS later asks about a listing you removed, "we destroyed it" is a worse
+  // answer than producing it. Archived listings leave the public site
+  // immediately — the read policy is status = 'active' — but the record, the
+  // seller's history and any enquiry trail survive.
   const handleDelete = async (listingId: string) => {
     setActionLoading(listingId);
-    await adminAction({ entityType: 'listing', entityId: listingId, action: 'delete' });
-    setListings((prev) => prev.filter((l) => l.id !== listingId));
-    if (selectedListing?.id === listingId) setSelectedListing(null);
-    setConfirmDelete(null);
-    setActionLoading(null);
+    try {
+      await adminAction({
+        entityType: 'listing',
+        entityId: listingId,
+        action: 'set_status',
+        status: 'archived',
+      });
+
+      setListings((prev) => prev.filter((l) => l.id !== listingId));
+      if (selectedListing?.id === listingId) setSelectedListing(null);
+      setConfirmDelete(null);
+    } catch (err: any) {
+      // Previously this threw into nothing: the request failed, the page said
+      // nothing, and the listing stayed live while appearing to have gone.
+      alert(`Could not remove the listing: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  /** Permanently destroys the record. Kept separate and explicit. */
+  const handleHardDelete = async (listingId: string) => {
+    if (!confirm('Permanently delete this listing? Archiving is usually the right choice — a deleted listing cannot be produced later if it is ever asked about.')) return;
+
+    setActionLoading(listingId);
+    try {
+      await adminAction({ entityType: 'listing', entityId: listingId, action: 'delete' });
+      setListings((prev) => prev.filter((l) => l.id !== listingId));
+      if (selectedListing?.id === listingId) setSelectedListing(null);
+      setConfirmDelete(null);
+    } catch (err: any) {
+      alert(`Could not delete: ${err.message}\n\nThis usually means another record references the listing. Archive it instead.`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleLogout = () => {
