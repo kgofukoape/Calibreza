@@ -20,6 +20,22 @@ const NAV = [
 
 const STATUS_FILTERS = ['all', 'pending', 'active', 'rejected', 'expired'];
 
+
+// Every privileged write goes through the service-role route. Doing it from the
+// browser with the anon key means row-level security judges the request as if
+// an ordinary visitor made it — which is why several of these buttons used to
+// report success and change nothing.
+async function adminAction(payload: Record<string, any>) {
+  const res = await fetch('/api/admin/suspend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Action failed');
+  return json;
+}
+
 export default function AdminJobsPage() {
   const router = useRouter();
   const [jobs, setJobs]                 = useState<any[]>([]);
@@ -30,9 +46,6 @@ export default function AdminJobsPage() {
   const [search, setSearch]             = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // The table is job_listings. This page queried a table called 'jobs' that
-  // does not exist, so every read returned nothing and every approve, reject
-  // and delete failed silently — the jobs board has had no working moderation.
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (localStorage.getItem('gunx_admin_session') !== 'authenticated') {
@@ -64,7 +77,10 @@ export default function AdminJobsPage() {
 
   const handleApprove = async (id: string) => {
     setActionLoading(id);
-    await supabase.from('job_listings').update({ status: 'active' }).eq('id', id);
+    // Through the admin route, not straight from the browser: the anon key has
+    // no business updating other people's job listings, and this way the change
+    // is whitelisted and audited.
+    await adminAction({ entityType: 'job', entityId: id, action: 'set_status', status: 'active' });
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'active' } : j));
     if (selected?.id === id) setSelected((p: any) => ({ ...p, status: 'active' }));
     setActionLoading(null);
@@ -73,7 +89,7 @@ export default function AdminJobsPage() {
   const handleReject = async (id: string) => {
     if (!confirm('Reject this job listing?')) return;
     setActionLoading(id);
-    await supabase.from('job_listings').update({ status: 'rejected' }).eq('id', id);
+    await adminAction({ entityType: 'job', entityId: id, action: 'set_status', status: 'rejected' });
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'rejected' } : j));
     if (selected?.id === id) setSelected((p: any) => ({ ...p, status: 'rejected' }));
     setActionLoading(null);
@@ -82,7 +98,7 @@ export default function AdminJobsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Permanently delete this job listing?')) return;
     setActionLoading(id);
-    await supabase.from('job_listings').delete().eq('id', id);
+    await adminAction({ entityType: 'job', entityId: id, action: 'delete' });
     setJobs(prev => prev.filter(j => j.id !== id));
     if (selected?.id === id) setSelected(null);
     setActionLoading(null);

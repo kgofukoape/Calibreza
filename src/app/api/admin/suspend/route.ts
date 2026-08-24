@@ -44,7 +44,9 @@ const TABLES: Record<string, {
     table: 'dealers',
     activeStatus: 'approved',
     statuses: ['pending', 'approved', 'rejected'],
-    fields: [],
+    // is_verified was missing, so the verification page could not award a
+    // dealer their badge through this route even though it could for a club.
+    fields: ['is_verified'],
   },
   club: {
     table: 'clubs',
@@ -62,6 +64,34 @@ const TABLES: Record<string, {
     table: 'users',
     activeStatus: 'active',
     statuses: ['active'],
+    fields: [],
+  },
+
+  // ── ADDED: entities whose admin pages still wrote directly ───────────────
+  // /admin/listings, /admin/jobs and /admin/verification were calling
+  // supabase.from(...).update()/.delete() straight from the browser with the
+  // anon key. Registering them here moves those writes onto the same
+  // service-role path that dealers, clubs and services already use, so they get
+  // the same status whitelist, the same audit trail and the same guard.
+
+  listing: {
+    table: 'listings',
+    activeStatus: 'active',
+    statuses: ['active', 'sold', 'under_offer', 'inactive', 'expired', 'archived'],
+    fields: ['is_featured'],
+  },
+  job: {
+    table: 'job_listings',
+    activeStatus: 'active',
+    // 'jobs' does not exist — the table is job_listings. The admin page spent
+    // its life querying a table that was never there.
+    statuses: ['active', 'pending_payment', 'rejected', 'expired', 'filled'],
+    fields: ['is_boosted'],
+  },
+  verification_doc: {
+    table: 'verification_documents',
+    activeStatus: 'approved',
+    statuses: ['pending', 'approved', 'rejected'],
     fields: [],
   },
 };

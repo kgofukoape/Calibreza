@@ -31,6 +31,22 @@ type Listing = {
   dealers?: { business_name: string } | null;
 };
 
+
+// Every privileged write goes through the service-role route. Doing it from the
+// browser with the anon key means row-level security judges the request as if
+// an ordinary visitor made it — which is why several of these buttons used to
+// report success and change nothing.
+async function adminAction(payload: Record<string, any>) {
+  const res = await fetch('/api/admin/suspend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Action failed');
+  return json;
+}
+
 export default function AdminListingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -100,7 +116,7 @@ export default function AdminListingsPage() {
 
   const handleDelete = async (listingId: string) => {
     setActionLoading(listingId);
-    await supabase.from('listings').delete().eq('id', listingId);
+    await adminAction({ entityType: 'listing', entityId: listingId, action: 'delete' });
     setListings((prev) => prev.filter((l) => l.id !== listingId));
     if (selectedListing?.id === listingId) setSelectedListing(null);
     setConfirmDelete(null);

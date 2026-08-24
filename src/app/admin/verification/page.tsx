@@ -23,6 +23,22 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: 'bg-red-500/10 text-red-400 border border-red-500/20',
 };
 
+
+// Every privileged write goes through the service-role route. Doing it from the
+// browser with the anon key means row-level security judges the request as if
+// an ordinary visitor made it — which is why several of these buttons used to
+// report success and change nothing.
+async function adminAction(payload: Record<string, any>) {
+  const res = await fetch('/api/admin/suspend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Action failed');
+  return json;
+}
+
 export default function AdminVerificationPage() {
   const router = useRouter();
   const [docs, setDocs] = useState<any[]>([]);
@@ -92,9 +108,9 @@ export default function AdminVerificationPage() {
     const allApproved = entityDocs && entityDocs.length >= 3 && entityDocs.every(d => d.status === 'approved');
     if (allApproved) {
       if (entityType === 'dealer') {
-        await supabase.from('dealers').update({ is_verified: true }).eq('id', entityId);
+        await adminAction({ entityType: 'dealer', entityId, action: 'set_field', field: 'is_verified', value: true });
       } else {
-        await supabase.from('clubs').update({ is_verified: true }).eq('id', entityId);
+        await adminAction({ entityType: 'club', entityId, action: 'set_field', field: 'is_verified', value: true });
       }
     }
   };
