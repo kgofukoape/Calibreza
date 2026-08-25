@@ -153,20 +153,84 @@ export default function AdminUsersPage() {
     setActionLoading(null);
   };
 
+  // ── DELETE AN ACCOUNT ───────────────────────────────────────────────────
+  // This used to delete the user's listings directly and then the user, both
+  // with the anon key. The users table has no DELETE policy, so the account
+  // deletion silently did nothing — while the listings deletion could well
+  // succeed first. The outcome was the worst available: a seller whose entire
+  // stock had been destroyed, still holding an account.
+  //
+  // /api/admin/account holds the service key and deletes the auth user, which
+  // cascades to the profile and everything keyed to it. Listings are not
+  // deleted separately — they either cascade or are deliberately kept.
   const handleDeleteUser = async (userId: string) => {
+    const reason = prompt(
+      'Deleting an account is permanent. Why is it being deleted?\n\n' +
+      '(Recorded in the audit log. At least 5 characters.)',
+    );
+    if (!reason || reason.trim().length < 5) return;
+
     setActionLoading(userId);
-    // Delete all listings first
-    await supabase.from('listings').delete().eq('seller_id', userId);
-    // Delete user record
-    await supabase.from('users').delete().eq('id', userId);
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-    if (selectedUser?.id === userId) setSelectedUser(null);
-    setConfirmDelete(null);
-    setActionLoading(null);
+    try {
+      const res = await fetch('/api/admin/account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', userId, reason: reason.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Delete failed');
+
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      if (selectedUser?.id === userId) setSelectedUser(null);
+      setConfirmDelete(null);
+    } catch (err: any) {
+      alert(`Could not delete the account: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
+  // ── PASSWORD RESET ──────────────────────────────────────────────────────
+  // Sends a recovery link. Deliberately cannot set a password: an administrator
+  // who can do that can enter any account, which removes your ability to say
+  // the account holder must have acted themselves.
+  const handleSendReset = async (email: string) => {
+    setActionLoading(email);
+    try {
+      const res = await fetch('/api/admin/account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send_reset_link', email }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not send');
+      alert(json.message);
+    } catch (err: any) {
+      alert(`Could not send the reset link: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Archives rather than deletes, matching /admin/listings: the record, the
+  // seller's history and any enquiry trail survive, and the listing leaves the
+  // public site immediately because the read policy is status = 'active'.
   const handleDeleteListing = async (listingId: string) => {
-    await supabase.from('listings').delete().eq('id', listingId);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: 'listing', entityId: listingId,
+          action: 'set_status', status: 'archived',
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not archive');
+    } catch (err: any) {
+      alert(`Could not remove the listing: ${err.message}`);
+      return;
+    }
     setUserListings((prev) => prev.filter((l) => l.id !== listingId));
     if (selectedUser) {
       setUsers((prev) => prev.map((u) => u.id === selectedUser.id
