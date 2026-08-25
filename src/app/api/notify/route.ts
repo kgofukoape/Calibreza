@@ -238,6 +238,40 @@ export async function POST(req: NextRequest) {
         break;
 
       // ── New self-service ad submission → alert admin ──────────────────────
+      // ── LISTING ABOUT TO EXPIRE ──────────────────────────────────────────
+      // Sent 14 days out. One click renews for another 120 days; ignoring it
+      // lets the listing drop off on its own, which is exactly what should
+      // happen when something has sold elsewhere.
+      case 'listing_expiring':
+        await sendEmail(
+          body.data?.email,
+          `Still available? "${body.data?.title}" expires ${body.data?.expiresAt}`,
+          `
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
+  <h1 style="color:#C9922A;font-size:24px;margin-bottom:8px;">Is this still available?</h1>
+  <p style="color:#8A8E99;font-size:15px;line-height:1.6;margin-top:0;">
+    Hi ${body.data?.name || 'there'} — your listing
+    <strong style="color:#F0EDE8;">${body.data?.title}</strong>
+    expires on <strong style="color:#F0EDE8;">${body.data?.expiresAt}</strong>.
+  </p>
+  <p style="color:#8A8E99;font-size:15px;line-height:1.6;">
+    If it is still for sale, renew it in one click and it stays live for another
+    120 days. If it has sold, do nothing and it will come down on its own.
+  </p>
+
+  <a href="${BASE_URL}/dashboard/listings?renew=${body.data?.listingId}"
+     style="display:inline-block;background:#C9922A;color:black;font-weight:bold;font-size:14px;text-transform:uppercase;letter-spacing:2px;padding:14px 28px;border-radius:4px;text-decoration:none;margin:16px 0;">
+    Yes, keep it listed →
+  </a>
+
+  <p style="color:#5A5E69;font-size:12px;margin-top:28px;border-top:1px solid rgba(255,255,255,0.05);padding-top:16px;">
+    We expire listings after 120 days so buyers can trust that what they see is
+    genuinely for sale. It is why searching Gun X is worth doing.
+  </p>
+</div>`
+        );
+        break;
+
       case 'ad_submitted':
         await sendEmail(
           ADMIN_EMAIL,
