@@ -43,7 +43,11 @@ export async function GET(req: NextRequest) {
     if (error) return fail(error.message, 500);
 
     const rows = visitors || [];
-    const userIds = [...new Set(rows.map(v => v.user_id).filter(Boolean))] as string[];
+    c    // Array.from rather than [...new Set(...)]: spreading a Set requires an
+    // ES2015 target and this project compiles below that.
+    const userIds = Array.from(
+      new Set(rows.map(v => v.user_id).filter(Boolean)),
+    ) as string[];onst userIds = [...new Set(rows.map(v => v.user_id).filter(Boolean))] as string[];
 
     // Resolve signed-in visitors to a name, and to the business they hold where
     // there is one — a dealer browsing your site is worth recognising.
