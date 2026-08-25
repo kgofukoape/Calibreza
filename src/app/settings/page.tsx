@@ -25,6 +25,10 @@ export default function SettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('');
   const [uploading, setUploading] = useState(false);
+  // Live marketing state. legal_consents records what was agreed at signup;
+  // this is the current position and the person controls it.
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [savingMarketing, setSavingMarketing] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -50,6 +54,7 @@ export default function SettingsPage() {
         setFullName(profileData.full_name || '');
         setPhone(profileData.phone || '');
         setAvatarUrl(profileData.avatar_url || '');
+        setMarketingConsent(profileData.marketing_consent === true);
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -92,6 +97,35 @@ export default function SettingsPage() {
     setSelectedPreset(emoji);
     setAvatarUrl(`preset:${emoji}`);
     setMessage('Preset selected! Click Save Changes to update your profile.');
+  };
+
+  // Saved on its own, immediately, rather than waiting for "Save Changes".
+  // Someone turning marketing off has asked to stop receiving email — making
+  // that depend on remembering to press another button is the kind of friction
+  // the Privacy Policy's "we action withdrawals within 2 business days" promise
+  // does not survive.
+  const handleMarketingToggle = async (next: boolean) => {
+    if (!user) return;
+    setSavingMarketing(true);
+    setMarketingConsent(next);
+
+    const { error } = await supabase.rpc('set_marketing_consent', {
+      p_user_id: user.id,
+      p_consent: next,
+      p_source: 'dashboard',
+    });
+
+    if (error) {
+      setMarketingConsent(!next);
+      setMessage('Could not update your preference. Please try again.');
+    } else {
+      setMessage(next
+        ? 'You will receive occasional marketing emails.'
+        : 'You have been unsubscribed from marketing emails.');
+    }
+
+    setSavingMarketing(false);
+    setTimeout(() => setMessage(''), 4000);
   };
 
   const handleSave = async () => {
@@ -228,6 +262,51 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ── EMAIL PREFERENCES ────────────────────────────────────────
+              The Terms of Use and Privacy Policy both state that marketing
+              consent can be withdrawn from the dashboard. Until this existed,
+              it could not be — which under POPIA means the consent captured at
+              signup was not valid consent at all. */}
+          <div className="bg-[#191C23] border border-white/5 rounded-md p-6 md:p-8">
+            <h2 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-bold text-2xl uppercase text-[#F0EDE8] mb-6 border-b border-white/5 pb-4">
+              Email Preferences
+            </h2>
+
+            <label className="flex items-start gap-4 cursor-pointer group">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={marketingConsent}
+                disabled={savingMarketing}
+                onClick={() => handleMarketingToggle(!marketingConsent)}
+                className={`relative flex-shrink-0 w-12 h-7 rounded-full transition-colors mt-0.5 ${
+                  marketingConsent ? 'bg-[#C9922A]' : 'bg-white/10'
+                } ${savingMarketing ? 'opacity-50' : ''}`}
+              >
+                <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                  marketingConsent ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+
+              <span>
+                <span className="block text-[15px] text-[#F0EDE8] font-semibold mb-1">
+                  Marketing emails
+                </span>
+                <span className="block text-[13px] text-[#8A8E99] leading-relaxed">
+                  Occasional emails about new features, dealer promotions and firearms
+                  industry news. You can turn this off at any time.
+                </span>
+              </span>
+            </label>
+
+            <p className="text-[12px] text-[#5A5E69] leading-relaxed mt-6 pt-5 border-t border-white/5">
+              You will still receive messages you need in order to use your account —
+              enquiry notifications, listing status, billing notices and security alerts.
+              Those are part of the service and cannot be turned off while your account
+              is open.
+            </p>
           </div>
 
           {/* Profile Information */}
