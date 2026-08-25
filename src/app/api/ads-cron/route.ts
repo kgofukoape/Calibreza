@@ -37,6 +37,73 @@ export async function GET(req: NextRequest) {
     errors: [] as string[],
   };
 
+  // ── EXPIRE LISTINGS ──────────────────────────────────────────────────────
+  // 120 days. This is the thing that keeps the index honest — without it the
+  // site slowly fills with stock that sold months ago, which is precisely what
+  // makes a competitor's 34,000 listings worth less than our few hundred.
+  try {
+    const { data: expiryResult, error: expiryErr } =
+      await supabaseAdmin.rpc('expire_listings');
+
+    if (expiryErr) result.errors.push(`listings: ${expiryErr.message}`);
+    else {
+      (result as any).listings_expired = expiryResult?.expired || 0;
+      (result as any).listings_due_reminder = expiryResult?.due_reminder || 0;
+    }
+  } catch (e: any) {
+    result.errors.push(`listings: ${e.message}`);
+  }
+
+  // ── "STILL AVAILABLE?" REMINDERS ─────────────────────────────────────────
+  // Sent 14 days out. One click renews for another 120 days. A seller who has
+  // sold elsewhere simply ignores it and the listing drops out on its own.
+  try {
+    const { data: expiring } = await supabaseAdmin
+      .from('listings')
+      .select('id, title, seller_id, dealer_id, expires_at')
+      .eq('status', 'active')
+      .not('expires_at', 'is', null)
+      .lte('expires_at', new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString())
+      .gte('expires_at', now.toISOString())
+      .is('expiry_notified_at', null)
+      .limit(100);
+
+    for (const listing of expiring || []) {
+      const ownerId = listing.seller_id || listing.dealer_id;
+      if (!ownerId) continue;
+
+      const { data: owner } = await supabaseAdmin
+        .from('users').select('email, full_name').eq('id', ownerId).maybeSingle();
+      if (!owner?.email) continue;
+
+      await fetch(`${BASE_URL}/api/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'listing_expiring',
+          data: {
+            email: owner.email,
+            name: owner.full_name,
+            title: listing.title,
+            listingId: listing.id,
+            expiresAt: new Date(listing.expires_at).toLocaleDateString('en-ZA'),
+          },
+        }),
+      }).catch(() => { /* a reminder failing must not stop the sweep */ });
+
+      // Marked whether or not the email lands, so a mail outage cannot produce
+      // a hundred reminders tomorrow.
+      await supabaseAdmin
+        .from('listings')
+        .update({ expiry_notified_at: now.toISOString() })
+        .eq('id', listing.id);
+
+      (result as any).expiry_reminders_sent = ((result as any).expiry_reminders_sent || 0) + 1;
+    }
+  } catch (e: any) {
+    result.errors.push(`expiry reminders: ${e.message}`);
+  }
+
   // ── EXPIRE PAID PROMOTIONS ───────────────────────────────────────────────
   // Nothing cleared is_featured when featured_until passed, so every promotion
   // ever bought was permanent. A dealer paying R29 once stayed at the top of

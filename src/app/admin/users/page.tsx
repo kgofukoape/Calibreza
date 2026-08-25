@@ -50,34 +50,32 @@ export default function AdminUsersPage() {
     setFiltered(result);
   }, [search, users]);
 
+  // Read through the admin API, not the browser.
+  //
+  // This page showed "0 REGISTERED USERS" because it queried the users table
+  // with the anon key. Row-level security was enabled on that table to close a
+  // real exposure — anyone holding the key could read every user's name, email
+  // and phone number — and it correctly answers "you may see your own row".
+  // The console therefore saw nothing, while the accounts were all there.
   const loadUsers = async () => {
-    // Get users from auth via admin API
-    // Since we're using anon key we query the users table instead
-    const { data: usersData } = await supabase
-      .from('users')
-      .select('*')
-      .order('member_since', { ascending: false });
+    try {
+      const res = await fetch('/api/admin/account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list', limit: 500 }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not load users');
 
-    if (!usersData) { setLoading(false); return; }
-
-    // Get listing counts per user
-    const { data: listingCounts } = await supabase
-      .from('listings')
-      .select('seller_id');
-
-    const countMap: Record<string, number> = {};
-    listingCounts?.forEach((l) => {
-      if (l.seller_id) countMap[l.seller_id] = (countMap[l.seller_id] || 0) + 1;
-    });
-
-    const enriched = usersData.map((u: any) => ({
-      ...u,
-      listingCount: countMap[u.id] || 0,
-    }));
-
-    setUsers(enriched);
-    setFiltered(enriched);
-    setLoading(false);
+      const list = json.data?.users || [];
+      setUsers(list);
+      setFiltered(list);
+    } catch (err: any) {
+      console.error('[admin/users]', err);
+      alert(`Could not load users: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadUserListings = async (userId: string) => {

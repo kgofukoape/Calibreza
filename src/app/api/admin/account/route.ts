@@ -45,6 +45,60 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
 
+      // ── LIST ACCOUNTS ────────────────────────────────────────────────────
+      // /admin/users showed "0 REGISTERED USERS" because it read the users
+      // table with the anon key. Row-level security was enabled on that table
+      // to close a real exposure — anyone with the key could read every user's
+      // name, email and phone number — and it correctly answers "you may see
+      // your own row". The console therefore saw nothing.
+      //
+      // Reading through the service key is the fix. It also means the listing
+      // can carry the business and listing counts in one call rather than the
+      // page making a query per user.
+      case 'list': {
+        const search = String(body.search || '').trim();
+        const limit = Math.min(Number(body.limit) || 100, 500);
+
+        let query = supabase
+          .from('users')
+          .select('id, email, full_name, phone, province, city, account_type, status, created_at, marketing_consent')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (search) {
+          query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
+        }
+
+        const { data: users, error } = await query;
+        if (error) return fail(error.message, 500);
+
+        const ids = (users || []).map(u => u.id);
+        let listingCounts: Record<string, number> = {};
+        let businesses: Record<string, string> = {};
+
+        if (ids.length) {
+          const [{ data: listings }, { data: dealers }, { data: clubs }] = await Promise.all([
+            supabase.from('listings').select('seller_id').in('seller_id', ids),
+            supabase.from('dealers').select('user_id, business_name').in('user_id', ids),
+            supabase.from('clubs').select('user_id, name').in('user_id', ids),
+          ]);
+
+          for (const l of listings || []) {
+            if (l.seller_id) listingCounts[l.seller_id] = (listingCounts[l.seller_id] || 0) + 1;
+          }
+          for (const d of dealers || []) businesses[d.user_id] = d.business_name;
+          for (const c of clubs || [])   businesses[c.user_id] = c.name;
+        }
+
+        return ok(`${users?.length || 0} accounts`, {
+          users: (users || []).map(u => ({
+            ...u,
+            listingCount: listingCounts[u.id] || 0,
+            businessName: businesses[u.id] || null,
+          })),
+        });
+      }
+
       // ── FIND AN ACCOUNT ──────────────────────────────────────────────────
       case 'lookup': {
         const email = String(body.email || '').trim().toLowerCase();
