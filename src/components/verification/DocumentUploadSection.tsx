@@ -114,7 +114,16 @@ export function DocumentUploadSection({ entityType, entityId, facilityType }: Do
       }
 
       await loadDocs();
-      setSuccess(`${docLabel} uploaded successfully. Our team will review it within 48 hours.`);
+
+      // Replacing a document on an approved account withdraws the verified
+      // badge until the new one is reviewed. Saying so here means it is not a
+      // surprise — a dealer who uploads a renewed licence and then finds their
+      // badge gone would reasonably think something had broken.
+      setSuccess(
+        existing
+          ? `${docLabel} replaced. If your account was verified, the badge is withdrawn until our team reviews the new document — usually within 48 hours.`
+          : `${docLabel} uploaded successfully. Our team will review it within 48 hours.`
+      );
       setTimeout(() => setSuccess(''), 5000);
     } catch (err: any) {
       setError(err.message || 'Upload failed. Please try again.');
