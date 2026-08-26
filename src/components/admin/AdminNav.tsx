@@ -49,9 +49,11 @@ const NAV: NavItem[] = [
   { href: '/admin/subscriptions', icon: '🔄', label: 'Subscriptions', group: 'manage' },
   { href: '/admin/crm',           icon: '💰', label: 'CRM & Invoices',group: 'manage' },
   { href: '/admin/ads',           icon: '📢', label: 'Ad Manager',    countKey: 'pendingAds',          group: 'manage' },
+  { href: '/admin/broadcast',     icon: '✉️',  label: 'Broadcast',     group: 'manage' },
 
   { href: '/admin/analytics',    icon: '📈', label: 'Analytics',     group: 'insight' },
   { href: '/admin/sentinel',     icon: '👁️', label: 'Tokoloshe',     group: 'insight' },
+  { href: '/admin/diagnostics',  icon: '🩺', label: 'Diagnostics',   group: 'insight' },
 ];
 
 const GROUP_LABEL: Record<NavItem['group'], string> = {
