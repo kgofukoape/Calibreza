@@ -18,6 +18,29 @@ const STATUS_STYLES: Record<string, string> = {
 // browser with the anon key means row-level security judges the request as if
 // an ordinary visitor made it — which is why several of these buttons used to
 // report success and change nothing.
+// Opens a verification document through a short-lived signed link.
+//
+// The bucket is private, so there is no permanent URL to link to — which is the
+// point. These are identity documents and licences; a link that works forever
+// is a link that leaks forever. Five minutes is enough to read one and not much
+// use to anyone else.
+async function viewDocument(doc: any) {
+  try {
+    if (doc.storage_path) {
+      const { data, error } = await supabase.storage
+        .from('verification-docs')
+        .createSignedUrl(doc.storage_path, 300);
+      if (error) throw error;
+      window.open(data.signedUrl, '_blank', 'noopener');
+      return;
+    }
+    // Documents uploaded before the bucket was made private still carry a URL.
+    if (doc.file_url) window.open(doc.file_url, '_blank', 'noopener');
+  } catch (err: any) {
+    alert(`Could not open the document: ${err.message}`);
+  }
+}
+
 async function adminAction(payload: Record<string, any>) {
   const res = await fetch('/api/admin/suspend', {
     method: 'POST',
@@ -253,8 +276,9 @@ export default function AdminVerificationPage() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {doc.file_url && (
-                        <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                      {(doc.storage_path || doc.file_url) && (
+                        <a href="#" onClick={e => { e.preventDefault(); viewDocument(doc); }}
+                          rel="noopener noreferrer"
                           className="px-3 py-2 bg-white/5 border border-white/10 rounded-sm text-[11px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-all">
                           👁 View
                         </a>

@@ -88,12 +88,19 @@ export function DocumentUploadSection({ entityType, entityId, facilityType }: Do
         .upload(filePath, file, { upsert: true });
       if (uploadErr) throw uploadErr;
 
-      const { data: { publicUrl } } = supabase.storage.from('verification-docs').getPublicUrl(filePath);
-
+      // The PATH is stored, never a public URL.
+      //
+      // This used to call getPublicUrl and save the result. These files are
+      // South African ID documents, passports and SAPS dealer licences — a
+      // stored public URL is a permanent open link to the exact documents a
+      // person is most harmed by losing. The bucket is now private and a signed
+      // link is generated on demand, for the owner or the verification team
+      // only.
       const existing = getDocStatus(docType);
       if (existing) {
         await supabase.from('verification_documents').update({
-          file_url: publicUrl, file_name: file.name, file_size: file.size,
+          storage_path: filePath, file_url: null,
+          file_name: file.name, file_size: file.size,
           status: 'pending', rejection_reason: null,
           uploaded_at: new Date().toISOString(), reviewed_at: null,
         }).eq('id', existing.id);
@@ -101,7 +108,8 @@ export function DocumentUploadSection({ entityType, entityId, facilityType }: Do
         await supabase.from('verification_documents').insert({
           entity_type: entityType, entity_id: entityId,
           doc_type: docType, doc_label: docLabel,
-          file_url: publicUrl, file_name: file.name, file_size: file.size, status: 'pending',
+          storage_path: filePath,
+          file_name: file.name, file_size: file.size, status: 'pending',
         });
       }
 
