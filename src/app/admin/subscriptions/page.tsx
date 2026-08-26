@@ -132,6 +132,47 @@ export default function AdminSubscriptionsPage() {
     }
   };
 
+  // Ends a granted tier before its period runs out — the partnership finished,
+  // or it was granted in error. Drops them to free rather than cancelling a
+  // subscription, because there is no subscription: nobody was ever billed.
+  const endComp = async (entity: any) => {
+    const label = entity.business_name || entity.name || 'this account';
+    if (!confirm(
+      `End the comped ${entity.subscription_tier} on ${label}?\n\n` +
+      `They move to the free tier immediately. No refund applies — this was granted, not paid for.`
+    )) return;
+
+    const reason = prompt('Why is the comp ending? (Recorded in the audit log.)');
+    if (!reason || reason.trim().length < 5) {
+      setMsg({ kind: 'err', text: 'A reason of at least 5 characters is required.' });
+      return;
+    }
+
+    setBusyId(entity.id);
+    try {
+      const res = await fetch('/api/admin/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel',
+          kind: tab === 'dealers' ? 'dealer' : 'club',
+          id: entity.id,
+          immediate: true,
+          reason: `Comp ended: ${reason.trim()}`,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not end the comp');
+
+      setMsg({ kind: 'ok', text: `Comped tier on ${label} ended. Moved to free.` });
+      fetchRows();
+    } catch (err: any) {
+      setMsg({ kind: 'err', text: `Failed: ${err.message}` });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const cancelSub = async (entity: any) => {
     const label = entity.business_name || entity.name || 'this account';
     if (!confirm(
@@ -177,6 +218,10 @@ export default function AdminSubscriptionsPage() {
 
   const paidCount = rows.filter(r => ['pro', 'premium', 'active'].includes(r.subscription_tier)).length;
   const cancellingCount = rows.filter(r => r.subscription_status === 'cancelling').length;
+  // Shown separately from "on a paid plan": these accounts have the features
+  // but generate nothing, and counting them as revenue is how a forecast
+  // quietly becomes fiction.
+  const compedCount = rows.filter(r => r.is_comped).length;
 
   return (
     <div className="min-h-screen bg-[#080B12] text-white flex">
@@ -234,10 +279,11 @@ export default function AdminSubscriptionsPage() {
         )}
 
         {/* STATS */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             ['Accounts', rows.length],
-            ['On a paid plan', paidCount],
+            ['On a paid plan', paidCount - compedCount],
+            ['Comped', compedCount],
             ['Cancelling', cancellingCount],
           ].map(([label, value]) => (
             <div key={String(label)} className="bg-[#0D1420] border border-white/5 rounded-sm p-4">
@@ -291,6 +337,18 @@ export default function AdminSubscriptionsPage() {
                       <span className="text-[10px] font-black uppercase px-2 py-1 rounded-sm border border-[#C9922A]/30 bg-[#C9922A]/10 text-[#C9922A]">
                         {r.subscription_tier || 'free'}
                       </span>
+                      {/* A granted tier must be visibly different from a paid
+                          one. Without this the two are indistinguishable in the
+                          table, which is the exact confusion is_comped exists
+                          to prevent — and it is how a comped account ends up
+                          counted as revenue. */}
+                      {r.is_comped && (
+                        <span
+                          title={r.comped_reason || 'Granted by an administrator'}
+                          className="ml-2 text-[9px] font-black uppercase px-2 py-1 rounded-sm border border-[#8B5CF6]/40 bg-[#8B5CF6]/10 text-[#8B5CF6] cursor-help">
+                          Comped
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-sm border ${
@@ -303,9 +361,21 @@ export default function AdminSubscriptionsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-[12px] text-white/60">
-                      {r.current_period_end
-                        ? new Date(r.current_period_end).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : '—'}
+                      {r.current_period_end ? (
+                        <>
+                          <span className={r.is_comped ? 'text-[#8B5CF6]' : ''}>
+                            {new Date(r.current_period_end).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          {r.is_comped && (
+                            <span className="block text-[10px] text-white/30 mt-0.5">
+                              {/* The grant ends on this date and the tier drops
+                                  to free. Saying "paid until" would be wrong —
+                                  nobody paid. */}
+                              Comp ends · {r.comped_reason}
+                            </span>
+                          )}
+                        </>
+                      ) : '—'}
                     </td>
                     <td className="px-4 py-4 text-[12px] text-white/60">
                       {r.pending_tier ? `→ ${r.pending_tier}` : '—'}
@@ -320,6 +390,12 @@ export default function AdminSubscriptionsPage() {
                         >
                           {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                        {r.is_comped && (
+                          <button onClick={() => endComp(r)} disabled={busyId === r.id}
+                            className="text-[10px] font-black uppercase px-2 py-1.5 border border-[#F59E0B]/40 text-[#F59E0B] hover:bg-[#F59E0B]/10 rounded-sm transition-all disabled:opacity-40">
+                            End Comp
+                          </button>
+                        )}
                         <button onClick={() => grantFree(r)} disabled={busyId === r.id}
                           className="text-[10px] font-black uppercase px-2 py-1.5 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/10 rounded-sm transition-all disabled:opacity-40">
                           Grant Free
