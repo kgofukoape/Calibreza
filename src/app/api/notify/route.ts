@@ -238,6 +238,47 @@ export async function POST(req: NextRequest) {
         break;
 
       // ── New self-service ad submission → alert admin ──────────────────────
+      // ── INVOICE ISSUED ───────────────────────────────────────────────────
+      // Raised automatically on the 1st for accounts on a paid tier. It records
+      // what is owed; it does not take money — PayFast handles collection where
+      // a recurring mandate exists.
+      case 'invoice_issued':
+        await sendEmail(
+          body.data?.email,
+          `Invoice ${body.data?.invoiceNumber} — R${Number(body.data?.total || 0).toLocaleString('en-ZA')}`,
+          `
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
+  <h1 style="color:#C9922A;font-size:24px;margin-bottom:4px;">Invoice ${body.data?.invoiceNumber}</h1>
+  <p style="color:#8A8E99;font-size:14px;margin-top:0;">${body.data?.description}</p>
+
+  <div style="background:#13151A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px;margin:24px 0;">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="color:#8A8E99;font-size:13px;padding:6px 0;">Amount due</td>
+        <td style="color:#C9922A;font-size:20px;font-weight:bold;text-align:right;">
+          R${Number(body.data?.total || 0).toLocaleString('en-ZA')}
+        </td>
+      </tr>
+      <tr>
+        <td style="color:#8A8E99;font-size:13px;padding:6px 0;">Due by</td>
+        <td style="color:#F0EDE8;font-size:13px;font-weight:bold;text-align:right;">${body.data?.dueDate}</td>
+      </tr>
+    </table>
+  </div>
+
+  <p style="color:#8A8E99;font-size:13px;line-height:1.6;">
+    If you pay by recurring card mandate, this will be collected automatically and
+    no action is needed — this is your record of the charge.
+  </p>
+
+  <p style="color:#5A5E69;font-size:12px;margin-top:28px;border-top:1px solid rgba(255,255,255,0.05);padding-top:16px;">
+    GX SA (Pty) Ltd · Reg 2025/830094/07 · 11 Howe Street, Observatory, Western Cape, 7925<br>
+    Questions? <a href="mailto:support@gunx.co.za" style="color:#C9922A;text-decoration:none;">support@gunx.co.za</a>
+  </p>
+</div>`
+        );
+        break;
+
       // ── LISTING ABOUT TO EXPIRE ──────────────────────────────────────────
       // Sent 14 days out. One click renews for another 120 days; ignoring it
       // lets the listing drop off on its own, which is exactly what should
