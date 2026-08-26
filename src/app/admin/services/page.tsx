@@ -3,19 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import AdminNav from '@/components/admin/AdminNav';
 
-const NAV = [
-  { href: '/admin',              icon: '⚡', label: 'Overview'      },
-  { href: '/admin/dealers',      icon: '🏪', label: 'Dealers'       },
-  { href: '/admin/clubs',        icon: '⊕',  label: 'Clubs'         },
-  { href: '/admin/services',     icon: '🔧', label: 'Services', active: true },
-  { href: '/admin/jobs',         icon: '💼', label: 'Jobs'          },
-  { href: '/admin/listings',     icon: '📋', label: 'Listings'      },
-  { href: '/admin/users',        icon: '👥', label: 'Users'         },
-  { href: '/admin/analytics',    icon: '📈', label: 'Analytics'     },
-  { href: '/admin/crm',          icon: '💰', label: 'CRM'           },
-  { href: '/admin/sentinel',     icon: '👁️', label: 'Tokoloshe'     },
-];
 
 const TYPE_LABEL: Record<string, string> = {
   gunsmith:  '🔧 Gunsmith',
@@ -209,21 +198,7 @@ export default function AdminServicesPage() {
           </div>
         </div>
         <nav className="flex-1 p-4 overflow-y-auto">
-          <ul className="space-y-1">
-            {NAV.map(item => (
-              <li key={item.href}>
-                <Link href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${
-                  (item as any).active ? 'bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946]' : 'text-white/50 hover:bg-white/5 hover:text-white'
-                }`}>
-                  <span>{item.icon}</span>
-                  <span className="flex-1">{item.label}</span>
-                  {item.href === '/admin/services' && counts.pending > 0 && (
-                    <span className="bg-[#F59E0B] text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">{counts.pending}</span>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <AdminNav />
         </nav>
         <div className="p-4 border-t border-white/5">
           <button onClick={() => { localStorage.removeItem('gunx_admin_session'); router.push('/admin/login'); }}

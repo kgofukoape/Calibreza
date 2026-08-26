@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import AdminNav from '@/components/admin/AdminNav';
 
 export default function AdminClubsPage() {
   const router = useRouter();
@@ -153,15 +154,6 @@ export default function AdminClubsPage() {
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  const NAV_ITEMS = [
-    { href: '/admin', icon: '⚡', label: 'Overview' },
-    { href: '/admin/dealers', icon: '🏪', label: 'Dealers' },
-    { href: '/admin/clubs', icon: '⊕', label: 'Clubs & Ranges', active: true },
-    { href: '/admin/listings', icon: '📋', label: 'Listings' },
-    { href: '/admin/users', icon: '👥', label: 'Users' },
-    { href: '/admin/analytics', icon: '📈', label: 'Analytics' },
-  ];
-
   return (
     <div className="min-h-screen bg-[#080B12] text-[#E8EAF0] flex">
 
@@ -188,15 +180,7 @@ export default function AdminClubsPage() {
         <nav className="flex-1 p-4 overflow-y-auto">
           <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Main</p>
           <ul className="space-y-1">
-            {NAV_ITEMS.map(item => (
-              <li key={item.href}>
-                <Link href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${
-                  item.active ? 'bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946]' : 'text-white/50 hover:bg-white/5 hover:text-white'
-                }`}>
-                  <span>{item.icon}</span><span>{item.label}</span>
-                </Link>
-              </li>
-            ))}
+            <AdminNav />
           </ul>
           <div className="mt-6">
             <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Quick Links</p>

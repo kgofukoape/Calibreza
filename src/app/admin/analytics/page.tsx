@@ -4,19 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import AdminNav from '@/components/admin/AdminNav';
 
-const NAV = [
-  { href: '/admin',           icon: '⚡', label: 'Overview'  },
-  { href: '/admin/dealers',   icon: '🏪', label: 'Dealers'   },
-  { href: '/admin/clubs',     icon: '⊕',  label: 'Clubs'     },
-  { href: '/admin/services',  icon: '🔧', label: 'Services'  },
-  { href: '/admin/jobs',      icon: '💼', label: 'Jobs'      },
-  { href: '/admin/listings',  icon: '📋', label: 'Listings'  },
-  { href: '/admin/users',     icon: '👥', label: 'Users'     },
-  { href: '/admin/analytics', icon: '📈', label: 'Analytics', active: true },
-  { href: '/admin/crm',       icon: '💰', label: 'CRM'       },
-  { href: '/admin/sentinel',  icon: '👁️', label: 'Tokoloshe' },
-];
 
 export default function AdminAnalyticsPage() {
   const router       = useRouter();
@@ -229,17 +218,7 @@ export default function AdminAnalyticsPage() {
 
           <nav className="flex-1 p-4 overflow-y-auto">
             <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 px-3 mb-2">Main</p>
-            <ul className="space-y-1">
-              {NAV.map(item => (
-                <li key={item.href}>
-                  <Link href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${
-                    item.active ? 'bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946]' : 'text-white/50 hover:bg-white/5 hover:text-white'
-                  }`}>
-                    <span>{item.icon}</span><span>{item.label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <AdminNav />
           </nav>
 
           <div className="p-4 border-t border-white/5">

@@ -4,17 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import AdminNav from '@/components/admin/AdminNav';
 
-const NAV = [
-  { href: '/admin', icon: '⚡', label: 'Overview' },
-  { href: '/admin/dealers', icon: '🏪', label: 'Dealers' },
-  { href: '/admin/clubs', icon: '⊕', label: 'Clubs' },
-  { href: '/admin/listings', icon: '📋', label: 'Listings' },
-  { href: '/admin/analytics', icon: '📈', label: 'Analytics' },
-  { href: '/admin/ads', icon: '📢', label: 'Ad Manager' },
-  { href: '/admin/crm', icon: '💰', label: 'CRM' },
-  { href: '/admin/sentinel', icon: '👁️', label: 'Tokoloshe', active: true },
-];
 
 const TASKS = [
   { id: 'security_scan', label: 'Security Scan', icon: '🛡️', desc: 'Scan for bots, scrapers and suspicious sessions' },
@@ -241,16 +232,7 @@ export default function SentinelPage() {
           </div>
         </div>
         <nav className="flex-1 p-4 overflow-y-auto">
-          <ul className="space-y-1">
-            {NAV.map(item => (
-              <li key={item.href}>
-                <Link href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-sm font-black text-[11px] uppercase tracking-widest transition-all ${(item as any).active ? 'bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946]' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}>
-                  <span>{item.icon}</span><span>{item.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <AdminNav />
         </nav>
         <div className="p-4 border-t border-white/5">
           <button onClick={() => { localStorage.removeItem('gunx_admin_session'); router.push('/admin/login'); }}
