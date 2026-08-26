@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { VAT_REGISTERED, VAT_RATE } from '@/lib/invoices';
 import AdminNav from '@/components/admin/AdminNav';
 
 
@@ -17,7 +18,12 @@ const PLANS = {
 
 const EMPTY_INVOICE = {
   client_type: 'dealer', client_name: '', client_email: '',
-  description: '', subtotal: '', vat_pct: '15',
+  // Defaults to no VAT. GX SA (Pty) Ltd is not a registered VAT vendor, and
+  // charging VAT while unregistered is an offence under section 58 of the VAT
+  // Act — you would be collecting money you have no right to and no way to
+  // remit. Flip VAT_REGISTERED in src/lib/invoices.ts on the day registration
+  // completes and this follows.
+  description: '', subtotal: '', vat_pct: VAT_REGISTERED ? String(VAT_RATE) : '0',
   due_date: '', notes: '', line_items: [{ description: '', amount: '' }],
 };
 
@@ -480,9 +486,11 @@ export default function CRMPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>VAT %</label>
-                    <select value={invoice.vat_pct} onChange={e => setInvoice({ ...invoice, vat_pct: e.target.value })} className={inputClass}>
+                    <select value={invoice.vat_pct} onChange={e => setInvoice({ ...invoice, vat_pct: e.target.value })}
+                      disabled={!VAT_REGISTERED} className={inputClass}>
                       <option value="0">0% — No VAT</option>
                       <option value="15">15% — Standard VAT</option>
+                      {/* Selectable only once registered — see the note above. */}
                     </select>
                   </div>
                   <div>
