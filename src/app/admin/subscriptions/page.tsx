@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import AdminNav from '@/components/admin/AdminNav';
 
 // ─── ADMIN: SUBSCRIPTION MANAGEMENT ──────────────────────────────────────────
 // Gives you direct control over dealer and club/range subscriptions:
@@ -40,18 +41,14 @@ export default function AdminSubscriptionsPage() {
     setLoading(false);
   };
 
-  const logEvent = async (entity: any, eventType: string, fromTier: string, toTier: string, notes: string) => {
-    await supabase.from('subscription_events').insert({
-      entity_type: tab === 'dealers' ? 'dealer' : 'club',
-      entity_id: entity.id,
-      event_type: eventType,
-      from_tier: fromTier,
-      to_tier: toTier,
-      actor: 'admin',
-      notes,
-    });
-  };
+  // logEvent removed: the admin routes write their own audit entries
+  // server-side, so recording it again from the browser would either duplicate
+  // the trail or, more likely, fail against RLS and leave a gap.
 
+  // Changes go through /api/admin/subscription, which holds the service key.
+  // Written from the browser with the anon key, an update to another party's
+  // dealer row is judged as if an ordinary visitor made it — so it either
+  // failed silently or was available to anyone holding that key.
   const changeTier = async (entity: any, newTier: string) => {
     const label = entity.business_name || entity.name || 'this account';
     if (!confirm(
@@ -62,28 +59,77 @@ export default function AdminSubscriptionsPage() {
 
     setBusyId(entity.id);
     setMsg(null);
-    const table = tab === 'dealers' ? 'dealers' : 'clubs';
-    const from = entity.subscription_tier || 'free';
 
-    const { error } = await supabase
-      .from(table)
-      .update({
-        subscription_tier: newTier,
-        subscription_status: newTier === 'free' ? 'free' : 'active',
-        pending_tier: null,
-        pending_change_type: null,
-        cancellation_requested_at: null,
-      })
-      .eq('id', entity.id);
+    try {
+      const res = await fetch('/api/admin/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_tier',
+          kind: tab === 'dealers' ? 'dealer' : 'club',
+          id: entity.id,
+          tier: newTier,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Change failed');
 
-    if (error) {
-      setMsg({ kind: 'err', text: `Failed: ${error.message}` });
-    } else {
-      await logEvent(entity, 'admin_override', from, newTier, 'Tier changed by admin');
-      setMsg({ kind: 'ok', text: `${label} moved to ${newTier}. Remember to reflect this in PayFast if a recurring charge exists.` });
+      setMsg({ kind: 'ok', text: `${json.message} Remember to reflect this in PayFast if a recurring charge exists.` });
       fetchRows();
+    } catch (err: any) {
+      setMsg({ kind: 'err', text: `Failed: ${err.message}` });
+    } finally {
+      setBusyId(null);
     }
-    setBusyId(null);
+  };
+
+  // Grants a paid tier at no charge — for a launch partner, or goodwill after
+  // an outage. Marked as comped so it never looks like a payment that went
+  // missing when you reconcile revenue later.
+  const grantFree = async (entity: any) => {
+    const label = entity.business_name || entity.name || 'this account';
+    const tier = prompt(
+      `Grant ${label} a paid tier free of charge.\n\nWhich tier? (pro or premium)`,
+      'premium',
+    );
+    if (!tier) return;
+
+    const months = prompt('For how many months?', '3');
+    if (!months) return;
+
+    const reason = prompt('Why? (Recorded against the account and in the audit log.)');
+    if (!reason || reason.trim().length < 5) {
+      setMsg({ kind: 'err', text: 'A reason of at least 5 characters is required.' });
+      return;
+    }
+
+    setBusyId(entity.id);
+    try {
+      const res = await fetch('/api/admin/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'grant',
+          kind: tab === 'dealers' ? 'dealer' : 'club',
+          id: entity.id,
+          tier: tier.trim().toLowerCase(),
+          months: Number(months),
+          reason: reason.trim(),
+          // Required for money operations: a repeat within 24 hours returns the
+          // original result rather than granting twice.
+          idempotency_key: `grant-${entity.id}-${Date.now()}`,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Grant failed');
+
+      setMsg({ kind: 'ok', text: json.message });
+      fetchRows();
+    } catch (err: any) {
+      setMsg({ kind: 'err', text: `Failed: ${err.message}` });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const cancelSub = async (entity: any) => {
@@ -94,25 +140,34 @@ export default function AdminSubscriptionsPage() {
       `You must also cancel the recurring charge in the PayFast dashboard.`
     )) return;
 
-    setBusyId(entity.id);
-    const table = tab === 'dealers' ? 'dealers' : 'clubs';
-    const { error } = await supabase
-      .from(table)
-      .update({
-        subscription_status: 'cancelling',
-        pending_tier: 'free',
-        pending_change_type: 'cancel',
-        cancellation_requested_at: new Date().toISOString(),
-      })
-      .eq('id', entity.id);
-
-    if (error) setMsg({ kind: 'err', text: `Failed: ${error.message}` });
-    else {
-      await logEvent(entity, 'cancel', entity.subscription_tier || 'free', 'free', 'Cancelled by admin');
-      setMsg({ kind: 'ok', text: `${label} marked as cancelling. Now cancel the recurring charge in PayFast.` });
-      fetchRows();
+    const reason = prompt('Why is it being cancelled? (Recorded in the audit log.)');
+    if (!reason || reason.trim().length < 5) {
+      setMsg({ kind: 'err', text: 'A reason of at least 5 characters is required.' });
+      return;
     }
-    setBusyId(null);
+
+    setBusyId(entity.id);
+    try {
+      const res = await fetch('/api/admin/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel',
+          kind: tab === 'dealers' ? 'dealer' : 'club',
+          id: entity.id,
+          reason: reason.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Cancel failed');
+
+      setMsg({ kind: 'ok', text: `${json.message} Now cancel the recurring charge in PayFast.` });
+      fetchRows();
+    } catch (err: any) {
+      setMsg({ kind: 'err', text: `Failed: ${err.message}` });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const filtered = rows.filter(r => {
@@ -124,7 +179,26 @@ export default function AdminSubscriptionsPage() {
   const cancellingCount = rows.filter(r => r.subscription_status === 'cancelling').length;
 
   return (
-    <div className="min-h-screen bg-[#080B12] text-white">
+    <div className="min-h-screen bg-[#080B12] text-white flex">
+
+      {/* This page had no sidebar at all — only a "back" link — which is part of
+          why the console felt inconsistent as you moved through it. */}
+      <aside className="w-[260px] bg-[#0D1420] border-r border-white/5 flex flex-col fixed h-full z-50">
+        <div className="p-6 border-b border-white/5 flex items-center gap-3">
+          <div className="w-8 h-8 bg-[#E63946] rounded-sm flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-black text-sm">GX</span>
+          </div>
+          <div>
+            <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase tracking-widest text-white leading-none">Command Center</p>
+            <p className="text-[9px] font-bold text-[#E63946] uppercase tracking-[0.3em]">Admin Access</p>
+          </div>
+        </div>
+        <nav className="flex-1 p-4 overflow-y-auto">
+          <AdminNav />
+        </nav>
+      </aside>
+
+      <div className="flex-1 ml-[260px]">
       <header className="bg-[#0D1420] border-b border-white/5 px-8 py-5 flex items-center justify-between">
         <div>
           <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase tracking-tight">
@@ -134,9 +208,7 @@ export default function AdminSubscriptionsPage() {
             View · Change Tier · Cancel · Audit
           </p>
         </div>
-        <Link href="/admin" className="border border-white/10 text-white/60 font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-white/5 transition-all">
-          ← Command Center
-        </Link>
+
       </header>
 
       <div className="p-8 space-y-6">
@@ -248,6 +320,10 @@ export default function AdminSubscriptionsPage() {
                         >
                           {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                        <button onClick={() => grantFree(r)} disabled={busyId === r.id}
+                          className="text-[10px] font-black uppercase px-2 py-1.5 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/10 rounded-sm transition-all disabled:opacity-40">
+                          Grant Free
+                        </button>
                         {['pro', 'premium'].includes(r.subscription_tier) && r.subscription_status !== 'cancelling' && (
                           <button onClick={() => cancelSub(r)} disabled={busyId === r.id}
                             className="text-[10px] font-black uppercase px-2 py-1.5 border border-[#E63946]/30 text-[#E63946] hover:bg-[#E63946]/10 rounded-sm transition-all disabled:opacity-40">
@@ -291,5 +367,6 @@ export default function AdminSubscriptionsPage() {
         </div>
       </div>
     </div>
+      </div>
   );
 }
