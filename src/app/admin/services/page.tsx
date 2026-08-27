@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminNav from '@/components/admin/AdminNav';
+import { openDocument, DOCUMENT_BUCKETS } from '@/lib/documents';
 
 
 const TYPE_LABEL: Record<string, string> = {
@@ -357,6 +358,35 @@ export default function AdminServicesPage() {
 
                 {/* Description */}
                 {selected.description && (
+                  {/* ── PSIRA CERTIFICATE ─────────────────────────────────
+                      Security service providers must be PSIRA registered. The
+                      certificate is uploaded at application into a private
+                      bucket, so a signed link is generated on demand. */}
+                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5 mb-4">
+                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase text-white mb-3">
+                      PSIRA <span className="text-[#4CC9F0]">Registration</span>
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">PSIRA Number</p>
+                        <p className="text-[13px] text-white font-bold">
+                          {(selected as any)?.psira_number || <span className="text-white/20 font-normal">Not provided</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">Certificate</p>
+                        {(selected as any)?.psira_certificate_url ? (
+                          <button onClick={() => openDocument(DOCUMENT_BUCKETS.business, (selected as any).psira_certificate_url)}
+                            className="w-full flex items-center gap-2 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 px-3 py-2 rounded-sm text-[#4CC9F0] text-[10px] font-black uppercase tracking-widest hover:bg-[#4CC9F0]/20 transition-all">
+                            📄 View
+                          </button>
+                        ) : (
+                          <span className="text-white/20 text-xs">Not uploaded</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
                     <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase text-white mb-3">Description</h3>
                     <p className="text-[13px] text-white/60 leading-relaxed whitespace-pre-wrap">{selected.description}</p>

@@ -41,7 +41,10 @@ const NAV: NavItem[] = [
   { href: '/admin/dealers',      icon: '🏪', label: 'Dealers',       countKey: 'pendingDealers',      group: 'review' },
   { href: '/admin/clubs',        icon: '⊕',  label: 'Clubs & Ranges',countKey: 'pendingClubs',        group: 'review' },
   { href: '/admin/services',     icon: '🔧', label: 'Services',      countKey: 'pendingServices',     group: 'review' },
-  { href: '/admin/verification', icon: '📎', label: 'Verification',  countKey: 'pendingVerification', group: 'review' },
+  // Verification retired: documents are collected at application and reviewed
+  // on the Dealers, Clubs and Services pages. A second system collecting the
+  // same certificates was a maintenance cost with no extra safety, and nothing
+  // ever linked to its upload form.
   { href: '/admin/jobs',         icon: '💼', label: 'Jobs',          countKey: 'pendingJobs',         group: 'review' },
   { href: '/admin/listings',     icon: '📋', label: 'Listings',      countKey: 'pendingListings',     group: 'review' },
 

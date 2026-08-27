@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminNav from '@/components/admin/AdminNav';
+import { openDocument, DOCUMENT_BUCKETS } from '@/lib/documents';
 
 const TIERS = ['free', 'pay_per_ad', 'pro', 'premium'];
 
@@ -463,10 +464,15 @@ export default function AdminDealersPage() {
                       <div key={doc.label}>
                         <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">{doc.label}</p>
                         {doc.url ? (
-                          <a href={doc.url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 px-3 py-2 rounded-sm text-[#4CC9F0] text-[10px] font-black uppercase tracking-widest hover:bg-[#4CC9F0]/20 transition-all">
+                          // These columns hold a PATH in a private bucket, not a
+                          // URL. Linking to them directly produced a broken
+                          // relative link — the documents were uploaded and
+                          // simply could not be opened. A signed link is
+                          // generated on demand instead.
+                          <button onClick={() => openDocument(DOCUMENT_BUCKETS.dealer, doc.url)}
+                            className="w-full flex items-center gap-2 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 px-3 py-2 rounded-sm text-[#4CC9F0] text-[10px] font-black uppercase tracking-widest hover:bg-[#4CC9F0]/20 transition-all">
                             📄 View
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-white/20 text-xs">Not uploaded</span>
                         )}
