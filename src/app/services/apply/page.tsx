@@ -7,6 +7,7 @@ import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import { recordConsent } from '@/lib/auth';
 import { LEGAL_DOCUMENTS } from '@/lib/legal';
+import { documentsFor, mandatoryDocumentsFor, basisFor } from '@/lib/serviceRequirements';
 
 const PROVINCES = [
   'Gauteng','Western Cape','KwaZulu-Natal','Eastern Cape',
@@ -130,6 +131,10 @@ export default function ServiceApplyPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acknowledgePrivacy, setAcknowledgePrivacy] = useState(false);
   const [psiraFile, setPsiraFile] = useState<File | null>(null);
+  // Documents keyed by requirement. Which ones appear depends on the category —
+  // a gunsmith and a security company are regulated under different Acts and
+  // asking both for the same paperwork is useless to everybody.
+  const [docFiles, setDocFiles] = useState<Record<string, File | null>>({});
 
   useEffect(() => {
     const check = async () => {
@@ -223,35 +228,46 @@ export default function ServiceApplyPage() {
       return;
     }
 
-    // A security business must be registered with PSIRA under the Private
-    // Security Industry Regulation Act 56 of 2001. This is a licensing
-    // requirement, not a nice-to-have, so it is enforced rather than optional.
-    if (isSecurity) {
-      if (!form.psira_number.trim()) {
-        alert('A PSIRA registration number is required for security service providers.');
+    // Whatever the category requires, it must be here. The requirement is not a
+    // formality: a security provider without PSIRA registration is committing
+    // an offence by trading, and listing them makes that partly ours.
+    const required = mandatoryDocumentsFor(form.type);
+    for (const doc of required) {
+      const file = docFiles[doc.key];
+      if (!file) {
+        alert(`${doc.label} is required for ${form.type} providers.\n\n${doc.help}`);
         return;
       }
-      if (!psiraFile) {
-        alert('Please upload your PSIRA registration certificate.');
-        return;
-      }
-      if (psiraFile.size > MAX_FILE_BYTES) {
-        alert('The PSIRA certificate must be smaller than 5MB.');
+      if (file.size > MAX_FILE_BYTES) {
+        alert(`${doc.label} must be smaller than 5MB.`);
         return;
       }
     }
 
+    if (isSecurity && !form.psira_number.trim()) {
+      alert('A PSIRA registration number is required for security service providers.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // Private bucket, scoped to this account's own folder. Never a public URL.
+      // Private bucket, scoped to this account's own folder. Paths are stored,
+      // never public URLs — these are licences and identity documents.
+      const documents: Record<string, string> = {};
       let psira_certificate_url = '';
-      if (psiraFile) {
-        const pext = psiraFile.name.split('.').pop()?.toLowerCase() || 'bin';
-        const ppath = `${userId}/psira-certificate-${Date.now()}.${pext}`;
-        const { error: pErr } = await supabase.storage
-          .from('business-documents').upload(ppath, psiraFile, { upsert: false });
-        if (pErr) throw pErr;
-        psira_certificate_url = ppath;
+
+      for (const [key, file] of Object.entries(docFiles)) {
+        if (!file) continue;
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+        const path = `${userId}/${key}-${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from('business-documents').upload(path, file, { upsert: false });
+        if (upErr) throw upErr;
+
+        documents[key] = path;
+        // Kept in its own column too: the admin panel and existing records read
+        // it, and breaking that today buys nothing.
+        if (key === 'psira_certificate') psira_certificate_url = path;
       }
 
       // Upload logo
@@ -298,6 +314,7 @@ export default function ServiceApplyPage() {
         responsible_person_email: form.responsible_person_email,
         psira_number:         form.psira_number || null,
         psira_certificate_url: psira_certificate_url || null,
+        documents,
         logo_url,
         slug,
         user_id:              userId,
@@ -635,35 +652,59 @@ export default function ServiceApplyPage() {
             </div>
           </div>
 
-          {/* PSIRA — security service providers only */}
-          {isSecurity && (
+          {/* ── REQUIRED DOCUMENTS ────────────────────────────────────────
+              Driven by the chosen category. Everyone used to be shown the same
+              fields regardless of what they do, which asked a gunsmith for
+              paperwork they have no reason to hold and told you nothing useful
+              about whether they are entitled to trade. */}
+          {form.type && (
             <div className={sec}>
               <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase pb-3 border-b border-white/5">
-                PSIRA Registration
+                Required Documents
               </h2>
 
               <div className="border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3">
                 <p className="text-[12.5px] text-[#C4C0B8] leading-relaxed">
-                  A security business must be registered with the Private Security Industry
-                  Regulatory Authority under the Private Security Industry Regulation Act 56 of
-                  2001. We cannot list a security provider without it. Your certificate is stored
-                  privately and is visible only to you and our verification team.
+                  {basisFor(form.type)}
+                </p>
+                <p className="text-[11.5px] text-[#8A8E99] leading-relaxed mt-2">
+                  Documents are stored privately and are visible only to you and our
+                  verification team. They are never published on your profile.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isSecurity && (
                 <div>
                   <label className={lbl}>PSIRA Registration Number <span className="text-red-400">*</span></label>
                   <input value={form.psira_number} onChange={e => set('psira_number', e.target.value)} className={inp} placeholder="e.g. 1234567" />
                 </div>
-                <div>
-                  <label className={lbl}>PSIRA Certificate <span className="text-red-400">*</span></label>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={e => setPsiraFile(e.target.files?.[0] || null)}
-                    className={inp + " file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-bold file:bg-[#C9922A] file:text-black"} />
-                  <p className="text-[11px] text-[#8A8E99] mt-1.5">PDF, JPG or PNG — max 5MB.</p>
-                </div>
+              )}
+
+              <div className="space-y-4">
+                {documentsFor(form.type).map(doc => (
+                  <div key={doc.key}>
+                    <label className={lbl}>
+                      {doc.label}{' '}
+                      {doc.required
+                        ? <span className="text-red-400">*</span>
+                        : <span className="text-[#8A8E99] font-normal normal-case tracking-normal">(optional)</span>}
+                    </label>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={e => setDocFiles(prev => ({ ...prev, [doc.key]: e.target.files?.[0] || null }))}
+                      className={inp + " file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-bold file:bg-[#C9922A] file:text-black"} />
+                    <p className="text-[11px] text-[#8A8E99] mt-1.5 leading-relaxed">
+                      {doc.help}
+                      {doc.issuer && <span className="text-[#5A5E69]"> · Issued by {doc.issuer}</span>}
+                    </p>
+                  </div>
+                ))}
               </div>
+
+              <p className="text-[11px] text-[#5A5E69] leading-relaxed">
+                PDF, JPG or PNG — max 5MB each. Optional documents are not required to
+                apply, but a provider who supplies them is easier to verify and reaches
+                approval faster.
+              </p>
             </div>
           )}
 

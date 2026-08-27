@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminNav from '@/components/admin/AdminNav';
 import { openDocument, DOCUMENT_BUCKETS } from '@/lib/documents';
+import { documentsFor, mandatoryDocumentsFor } from '@/lib/serviceRequirements';
 
 
 const TYPE_LABEL: Record<string, string> = {
@@ -355,6 +356,66 @@ export default function AdminServicesPage() {
                     ) : null)}
                   </div>
                 </div>
+
+                {/* ── REQUIRED DOCUMENTS ────────────────────────────────
+                    What this provider must hold depends on their category.
+                    Anything mandatory and missing is flagged in red — a
+                    security provider without PSIRA registration is trading
+                    unlawfully, and approving them makes that partly ours. */}
+                {(() => {
+                  const cat = (selected as any)?.category || (selected as any)?.type || 'other';
+                  const docs = documentsFor(cat);
+                  const stored = ((selected as any)?.documents || {}) as Record<string, string>;
+                  const missing = mandatoryDocumentsFor(cat).filter(d => !stored[d.key]);
+
+                  return (
+                    <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase text-white">
+                          Required <span className="text-[#4CC9F0]">Documents</span>
+                        </h3>
+                        {missing.length > 0 && (
+                          <span className="text-[9px] font-black uppercase tracking-widest bg-[#E63946]/10 border border-[#E63946]/40 text-[#E63946] px-2 py-1 rounded-sm">
+                            {missing.length} missing
+                          </span>
+                        )}
+                      </div>
+
+                      {missing.length > 0 && (
+                        <div className="border-l-2 border-[#E63946] bg-[#E63946]/[0.07] pl-3 pr-3 py-2 mb-4">
+                          <p className="text-[11.5px] text-[#E63946] leading-relaxed">
+                            Missing: {missing.map(d => d.label).join(', ')}. This provider
+                            should not be approved until these are produced.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {docs.map(doc => {
+                          const path = stored[doc.key];
+                          return (
+                            <div key={doc.key}>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">
+                                {doc.label}
+                                {doc.required && <span className="text-[#E63946] ml-1">*</span>}
+                              </p>
+                              {path ? (
+                                <button onClick={() => openDocument(DOCUMENT_BUCKETS.business, path)}
+                                  className="w-full flex items-center gap-2 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 px-3 py-2 rounded-sm text-[#4CC9F0] text-[10px] font-black uppercase tracking-widest hover:bg-[#4CC9F0]/20 transition-all">
+                                  📄 View
+                                </button>
+                              ) : (
+                                <span className={`text-xs ${doc.required ? 'text-[#E63946]' : 'text-white/20'}`}>
+                                  Not uploaded
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* ── PSIRA REGISTRATION ────────────────────────────────
                     Security service providers must be PSIRA registered. The
