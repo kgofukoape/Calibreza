@@ -374,37 +374,38 @@ export default function AdminClubsPage() {
                   </div>
                 )}
 
+                {/* ── APPLICATION DOCUMENTS ─────────────────────────────
+                    Uploaded at application into a private bucket, so the column
+                    holds a path rather than a URL and a signed link is created
+                    on demand. This panel showed no documents at all before —
+                    clubs and ranges were being approved without anyone seeing
+                    the compliance certificate the approval rested on. */}
+                <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
+                  <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">
+                    Uploaded <span className="text-[#4CC9F0]">Documents</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'SAPS Registration', path: (selected as any)?.saps_registration_url },
+                      { label: 'Compliance Certificate', path: (selected as any)?.compliance_cert_url },
+                    ].map(doc => (
+                      <div key={doc.label}>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">{doc.label}</p>
+                        {doc.path ? (
+                          <button onClick={() => openDocument(DOCUMENT_BUCKETS.business, doc.path)}
+                            className="w-full flex items-center gap-2 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 px-3 py-2 rounded-sm text-[#4CC9F0] text-[10px] font-black uppercase tracking-widest hover:bg-[#4CC9F0]/20 transition-all">
+                            📄 View
+                          </button>
+                        ) : (
+                          <span className="text-white/20 text-xs">Not uploaded</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Club Info */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* ── APPLICATION DOCUMENTS ─────────────────────────────
-                      Uploaded at application into a private bucket. The column
-                      holds a path, so a signed link is generated on demand —
-                      these are compliance certificates and should not carry
-                      permanent public URLs. */}
-                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5 mb-4">
-                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">
-                      Uploaded <span className="text-[#4CC9F0]">Documents</span>
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { label: 'SAPS Registration', path: (selected as any)?.saps_registration_url },
-                        { label: 'Compliance Certificate', path: (selected as any)?.compliance_cert_url },
-                      ].map(doc => (
-                        <div key={doc.label}>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">{doc.label}</p>
-                          {doc.path ? (
-                            <button onClick={() => openDocument(DOCUMENT_BUCKETS.business, doc.path)}
-                              className="w-full flex items-center gap-2 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 px-3 py-2 rounded-sm text-[#4CC9F0] text-[10px] font-black uppercase tracking-widest hover:bg-[#4CC9F0]/20 transition-all">
-                              📄 View
-                            </button>
-                          ) : (
-                            <span className="text-white/20 text-xs">Not uploaded</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
                     <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">Contact</h3>
                     <div className="space-y-3">
