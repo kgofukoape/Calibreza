@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/adminGuard';
-import { ok, fail, missingField, audit } from '@/lib/adminApi';
+import { ok, fail, missingField, requireReason, withIdempotency, audit } from '@/lib/adminApi';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const supabase = createClient(
@@ -48,21 +48,56 @@ export async function POST(req: NextRequest) {
     switch (action) {
 
       // ── RAISE AN INVOICE ─────────────────────────────────────────────────
+      // Fields are copied one by one from a whitelist. This used to pass the
+      // browser's object straight to insert(), which meant any column on the
+      // invoices table could be set by whatever the page happened to send —
+      // including status 'paid' and a paid_at date on an invoice nobody paid.
       case 'create_invoice': {
         const { invoice } = body;
         if (!invoice?.client_email) return fail('client_email is required');
+        if (!invoice?.invoice_number) return fail('invoice_number is required');
+
+        const total = Number(invoice.total);
+        if (!Number.isFinite(total) || total < 0) return fail('A valid total is required');
+
+        const row = {
+          invoice_number: String(invoice.invoice_number),
+          client_type:  String(invoice.client_type || 'other'),
+          client_id:    invoice.client_id || null,
+          client_name:  String(invoice.client_name || ''),
+          client_email: String(invoice.client_email),
+          description:  String(invoice.description || ''),
+          line_items:   Array.isArray(invoice.line_items) ? invoice.line_items : [],
+          subtotal:     Number(invoice.subtotal) || 0,
+          vat:          Number(invoice.vat) || 0,
+          total,
+          // Always unpaid on creation. An invoice is a request for money; it
+          // becomes paid through mark_paid, when the money has actually landed.
+          status:       'unpaid',
+          due_date:     invoice.due_date || null,
+          notes:        String(invoice.notes || ''),
+          auto_generated: invoice.auto_generated === true,
+        };
 
         const { data, error } = await supabase
-          .from('invoices').insert(invoice).select('id, invoice_number').single();
-        if (error) return fail(error.message);
+          .from('invoices').insert(row).select('id, invoice_number').single();
+
+        if (error) {
+          // The invoice number is uniquely indexed, so a duplicate is a repeat
+          // rather than a failure worth alarming anyone about.
+          if (error.code === '23505') {
+            return fail(`Invoice ${row.invoice_number} already exists.`, 409, 'duplicate');
+          }
+          return fail(error.message);
+        }
 
         await audit(supabase, {
           action: 'billing.create_invoice',
           entity: 'invoice',
           entityId: data.id,
           entityName: data.invoice_number,
-          reason: invoice.description || 'Invoice raised',
-          after: { total: invoice.total, client: invoice.client_email },
+          reason: row.description || 'Invoice raised',
+          after: { total: row.total, client: row.client_email },
         });
 
         return ok(`Invoice ${data.invoice_number} created.`, data);
@@ -72,58 +107,90 @@ export async function POST(req: NextRequest) {
       // Also reinstates a subscription suspended for non-payment and restores
       // the dealer's tier. Kept in one server call so a failure halfway cannot
       // leave the invoice paid and the dealer still downgraded.
+      //
+      // IDEMPOTENT. Marking an invoice paid is a money operation: a double
+      // click would otherwise record the payment twice and reinstate twice. A
+      // repeat within 24 hours returns the original result.
       case 'mark_paid': {
-        const { invoiceId, clientEmail } = body;
+        const { invoiceId, clientEmail, idempotency_key } = body;
         if (!invoiceId) return fail('invoiceId is required');
+        if (!idempotency_key) {
+          return fail('idempotency_key is required for this action', 400, 'idempotency_required');
+        }
 
-        const paidAt = new Date().toISOString();
+        // A payment reference — EFT reference, deposit slip, whatever ties this
+        // to a real movement of money. Without it, "paid" is an assertion with
+        // nothing behind it, which is exactly the thing a dispute turns on.
+        const reference = requireReason(body);
+        if (!reference) {
+          return fail('A payment reference of at least 5 characters is required', 400, 'reason_required');
+        }
 
-        const { error } = await supabase
-          .from('invoices')
-          .update({ status: 'paid', paid_at: paidAt })
-          .eq('id', invoiceId);
-        if (error) return fail(error.message);
+        const run = async () => {
+          const paidAt = new Date().toISOString();
 
-        let reinstated: string | null = null;
+          const { error } = await supabase
+            .from('invoices')
+            .update({ status: 'paid', paid_at: paidAt, notes: reference })
+            .eq('id', invoiceId)
+            // Only an unpaid or overdue invoice can be paid. A second attempt
+            // matches nothing rather than rewriting a settled record.
+            .in('status', ['unpaid', 'overdue']);
 
-        if (clientEmail) {
-          const { data: sub } = await supabase
-            .from('subscriptions')
-            .select('id, client_type, client_id, plan')
-            .eq('client_email', clientEmail)
-            .eq('status', 'suspended')
-            .maybeSingle();
+          if (error) return { error: error.message };
 
-          if (sub) {
-            await supabase.from('subscriptions')
-              .update({ status: 'active', payment_failures: 0 })
-              .eq('id', sub.id);
+          let reinstated: string | null = null;
 
-            if (sub.client_type === 'dealer') {
-              const tier = String(sub.plan || '').replace('dealer_', '');
-              if (['free', 'pro', 'premium'].includes(tier)) {
-                await supabase.from('dealers')
-                  .update({ subscription_tier: tier })
-                  .eq('id', sub.client_id);
-                reinstated = tier;
+          if (clientEmail) {
+            const { data: sub } = await supabase
+              .from('subscriptions')
+              .select('id, client_type, client_id, plan')
+              .eq('client_email', clientEmail)
+              .eq('status', 'suspended')
+              .maybeSingle();
+
+            if (sub) {
+              await supabase.from('subscriptions')
+                .update({ status: 'active', payment_failures: 0 })
+                .eq('id', sub.id);
+
+              if (sub.client_type === 'dealer') {
+                const tier = String(sub.plan || '').replace('dealer_', '');
+                if (['free', 'pro', 'premium'].includes(tier)) {
+                  await supabase.from('dealers')
+                    .update({ subscription_tier: tier })
+                    .eq('id', sub.client_id);
+                  reinstated = tier;
+                }
               }
             }
           }
-        }
 
-        await audit(supabase, {
-          action: 'billing.mark_paid',
-          entity: 'invoice',
-          entityId: invoiceId,
-          reason: 'Payment received',
-          after: { paidAt, reinstatedTier: reinstated },
-        });
+          await audit(supabase, {
+            action: 'billing.mark_paid',
+            entity: 'invoice',
+            entityId: invoiceId,
+            reason: reference,
+            after: { paidAt, reinstatedTier: reinstated },
+          });
+
+          return {
+            message: reinstated
+              ? `Marked paid. Subscription reinstated on ${reinstated}.`
+              : 'Marked paid.',
+            reinstated,
+          };
+        };
+
+        const { replayed, result } = await withIdempotency(
+          supabase, idempotency_key, 'billing.mark_paid', run,
+        );
+
+        if (result?.error) return fail(result.error);
 
         return ok(
-          reinstated
-            ? `Marked paid. Subscription reinstated on ${reinstated}.`
-            : 'Marked paid.',
-          { reinstated },
+          replayed ? `${result.message} (already recorded — no change made)` : result.message,
+          { reinstated: result.reinstated, replayed },
         );
       }
 

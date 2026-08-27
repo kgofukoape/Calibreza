@@ -27,6 +27,22 @@ const EMPTY_INVOICE = {
   due_date: '', notes: '', line_items: [{ description: '', amount: '' }],
 };
 
+
+// Billing runs through the service-role route. These operations create
+// invoices, mark them paid and change subscription state — the money surface of
+// the platform. Written from the browser with the anon key, whether each one
+// happened at all depended on whichever row-level policy it met.
+async function billing(payload: Record<string, any>) {
+  const res = await fetch('/api/admin/billing', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Action failed');
+  return json;
+}
+
 export default function CRMPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'invoices' | 'create'>('overview');
@@ -67,7 +83,7 @@ export default function CRMPage() {
     const overdue = invList.filter(i => i.status === 'unpaid' && i.due_date < today);
     if (overdue.length > 0) {
       for (const inv of overdue) {
-        await supabase.from('invoices').update({ status: 'overdue' }).eq('id', inv.id);
+        await billing({ action: 'mark_overdue', invoiceId: inv.id });
       }
     }
   };
@@ -95,35 +111,69 @@ export default function CRMPage() {
 
   const handleSuspend = async (sub: any) => {
     const next = sub.status === 'active' ? 'suspended' : 'active';
-    await supabase.from('subscriptions').update({ status: next }).eq('id', sub.id);
-    // Also update dealer tier if suspending
-    if (next === 'suspended' && sub.client_type === 'dealer') {
-      await supabase.from('dealers').update({ subscription_tier: 'free' }).eq('id', sub.client_id);
+    try {
+      await billing({
+        action: 'suspend_sub', subId: sub.id, next,
+        clientType: sub.client_type, clientId: sub.client_id,
+      });
+      setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: next } : s));
+    } catch (err: any) {
+      alert(`Could not change the subscription: ${err.message}`);
     }
-    setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: next } : s));
   };
 
   const handleCancelSub = async (sub: any) => {
     if (!confirm(`Cancel ${sub.client_name}'s subscription? This will downgrade them to Free.`)) return;
-    await supabase.from('subscriptions').update({ status: 'cancelled', cancellation_reason: 'Admin cancelled' }).eq('id', sub.id);
-    if (sub.client_type === 'dealer') {
-      await supabase.from('dealers').update({ subscription_tier: 'free' }).eq('id', sub.client_id);
+    const reason = prompt('Why is it being cancelled? (Recorded in the audit log.)') || 'Cancelled by administrator';
+    try {
+      await billing({
+        action: 'cancel_sub', subId: sub.id, reason,
+        clientType: sub.client_type, clientId: sub.client_id,
+      });
+      setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: 'cancelled' } : s));
+    } catch (err: any) {
+      alert(`Could not cancel: ${err.message}`);
     }
-    setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: 'cancelled' } : s));
   };
 
+  // Marking paid also reinstates a suspended subscription and restores the
+  // dealer's tier. All three happen in one server call, so a failure halfway
+  // cannot leave the invoice paid and the dealer still on the free tier.
   const handleMarkPaid = async (inv: any) => {
-    await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', inv.id);
-    // Reactivate subscription if it was suspended
-    const sub = subscriptions.find(s => s.client_email === inv.client_email && s.status === 'suspended');
-    if (sub) {
-      await supabase.from('subscriptions').update({ status: 'active', payment_failures: 0 }).eq('id', sub.id);
-      if (sub.client_type === 'dealer') {
-        const tier = sub.plan.replace('dealer_', '');
-        await supabase.from('dealers').update({ subscription_tier: tier }).eq('id', sub.client_id);
-      }
+    // A payment reference ties this to an actual movement of money. Without
+    // one, "paid" is an assertion with nothing behind it — which is exactly
+    // what a billing dispute turns on.
+    const reference = prompt(
+      `Mark invoice ${inv.invoice_number} as paid.\n\n` +
+      `Payment reference (EFT reference, deposit slip number):`
+    );
+    if (!reference || reference.trim().length < 5) {
+      if (reference !== null) alert('A payment reference of at least 5 characters is required.');
+      return;
     }
-    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paid_at: new Date().toISOString() } : i));
+
+    try {
+      const result = await billing({
+        action: 'mark_paid',
+        invoiceId: inv.id,
+        clientEmail: inv.client_email,
+        reason: reference.trim(),
+        // A repeat within 24 hours returns the original result rather than
+        // recording a second payment.
+        idempotency_key: `paid-${inv.id}`,
+      });
+
+      const paidAt = new Date().toISOString();
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paid_at: paidAt } : i));
+
+      if (result?.data?.reinstated) {
+        setSubscriptions(prev => prev.map(s =>
+          s.client_email === inv.client_email && s.status === 'suspended'
+            ? { ...s, status: 'active' } : s));
+      }
+    } catch (err: any) {
+      alert(`Could not mark the invoice paid: ${err.message}`);
+    }
   };
 
   const createInvoice = async (e: React.FormEvent) => {
@@ -134,19 +184,24 @@ export default function CRMPage() {
     const vat = Math.round(subtotal * (parseFloat(invoice.vat_pct) / 100));
     const total = subtotal + vat;
     const invNumber = `GX-${Date.now().toString().slice(-6)}`;
-    const { error: err } = await supabase.from('invoices').insert({
-      invoice_number: invNumber,
-      client_type: invoice.client_type,
-      client_name: invoice.client_name,
-      client_email: invoice.client_email,
-      description: invoice.description,
-      line_items: lineItems.map(li => ({ description: li.description, amount: parseFloat(li.amount) })),
-      subtotal, vat, total,
-      status: 'unpaid',
-      due_date: invoice.due_date,
-      notes: invoice.notes,
-    });
-    if (err) { setError(err.message); setSaving(false); return; }
+    try {
+      await billing({
+        action: 'create_invoice',
+        invoice: {
+          invoice_number: invNumber,
+          client_type: invoice.client_type,
+          client_name: invoice.client_name,
+          client_email: invoice.client_email,
+          description: invoice.description,
+          line_items: lineItems.map(li => ({ description: li.description, amount: parseFloat(li.amount) })),
+          subtotal, vat, total,
+          due_date: invoice.due_date,
+          notes: invoice.notes,
+        },
+      });
+    } catch (e: any) {
+      setError(e.message); setSaving(false); return;
+    }
     setSuccess(`Invoice ${invNumber} created for R${total.toLocaleString()}`);
     setSaving(false);
     setInvoice({ ...EMPTY_INVOICE });
