@@ -137,6 +137,48 @@ export default function DealerInventoryPage() {
     setRestoringId(null);
   };
 
+  // ── MARK SOLD ───────────────────────────────────────────────────────────
+  // A dealer could deactivate a listing but never mark it sold — the status
+  // existed and was checked for, but nothing set it. Deactivating is not the
+  // same thing: it says "hidden for now", not "this one is gone", so stock that
+  // had actually sold stayed indistinguishable from stock held back.
+  //
+  // It also matters beyond bookkeeping. A sold listing leaves the public site
+  // immediately, which is the whole reason a buyer can trust that what they see
+  // on Gun X is genuinely for sale.
+  const handleMarkSold = async (listing: Listing) => {
+    if (!confirm(
+      `Mark "${listing.title}" as sold?\n\n` +
+      `It comes off the site straight away. You can put it back if the sale falls through.`
+    )) return;
+
+    setTogglingId(listing.id);
+    const { error } = await supabase
+      .from('listings')
+      .update({ status: 'sold' })
+      .eq('id', listing.id);
+
+    if (error) alert(`Could not mark it sold: ${error.message}`);
+    else setListings(prev => prev.map(l => l.id === listing.id ? { ...l, status: 'sold' } : l));
+
+    setTogglingId(null);
+  };
+
+  // Sales fall through. Relisting restores it rather than making the dealer
+  // type everything again.
+  const handleRelist = async (listing: Listing) => {
+    setTogglingId(listing.id);
+    const { error } = await supabase
+      .from('listings')
+      .update({ status: 'active' })
+      .eq('id', listing.id);
+
+    if (error) alert(`Could not relist: ${error.message}`);
+    else setListings(prev => prev.map(l => l.id === listing.id ? { ...l, status: 'active' } : l));
+
+    setTogglingId(null);
+  };
+
   const handleToggleStatus = async (listing: Listing) => {
     if (listing.status === 'sold') return;
     setTogglingId(listing.id);
@@ -469,6 +511,28 @@ export default function DealerInventoryPage() {
                         className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-[#C9922A]/40 bg-[#C9922A]/10 text-[#C9922A] rounded-sm hover:bg-[#C9922A]/20 transition-all disabled:opacity-40"
                       >
                         {restoringId === listing.id ? '...' : '↩ Restore'}
+                      </button>
+                    )}
+
+                    {/* Mark Sold — the action a dealer actually needs when
+                        stock moves, and the one that was missing. */}
+                    {listing.status !== 'sold' && listing.status !== 'archived' && (
+                      <button
+                        onClick={() => handleMarkSold(listing)}
+                        disabled={togglingId === listing.id}
+                        className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-[#C9922A]/30 text-[#C9922A] rounded-sm hover:bg-[#C9922A]/10 transition-all disabled:opacity-40"
+                      >
+                        {togglingId === listing.id ? '...' : 'Mark Sold'}
+                      </button>
+                    )}
+
+                    {listing.status === 'sold' && (
+                      <button
+                        onClick={() => handleRelist(listing)}
+                        disabled={togglingId === listing.id}
+                        className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-[#2A9C6E]/30 text-[#2A9C6E] rounded-sm hover:bg-[#2A9C6E]/10 transition-all disabled:opacity-40"
+                      >
+                        {togglingId === listing.id ? '...' : 'Relist'}
                       </button>
                     )}
 
