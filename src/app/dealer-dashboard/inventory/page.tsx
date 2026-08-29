@@ -251,18 +251,43 @@ export default function DealerInventoryPage() {
     );
   };
 
+  // ── DELETE ──────────────────────────────────────────────────────────────
+  // Same reasoning as the status updates: a delete that row-level security
+  // disallows matches zero rows, and Postgres calls that success. Asking for
+  // the deleted rows back is the only way to know it happened.
   const handleDelete = async (id: string) => {
     setDeletingId(id);
-    const { error } = await supabase
+
+    const { data, error } = await supabase
       .from('listings')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
-    if (!error) {
-      setListings((prev) => prev.filter((l) => l.id !== id));
-    }
     setDeletingId(null);
     setConfirmDeleteId(null);
+
+    if (error) {
+      // A foreign key complaint means something still references the listing —
+      // an enquiry, a saved search, a promotion. Archiving is the better answer
+      // in that case anyway, so say so rather than leaving them stuck.
+      alert(
+        `Could not delete the listing: ${error.message}\n\n` +
+        `If something still references it, mark it sold or deactivate it instead — ` +
+        `it comes off the site either way.`
+      );
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert(
+        'The listing was not deleted — your account does not appear to have permission to remove it.\n\n' +
+        'Nothing has been changed. Please send this to support@gunx.co.za so we can look at it.'
+      );
+      return;
+    }
+
+    setListings((prev) => prev.filter((l) => l.id !== id));
   };
 
   const handleLogout = async () => {
