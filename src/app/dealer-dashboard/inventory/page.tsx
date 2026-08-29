@@ -252,9 +252,18 @@ export default function DealerInventoryPage() {
   };
 
   // ── DELETE ──────────────────────────────────────────────────────────────
-  // Same reasoning as the status updates: a delete that row-level security
-  // disallows matches zero rows, and Postgres calls that success. Asking for
-  // the deleted rows back is the only way to know it happened.
+  // Genuinely deletes.
+  //
+  // Gun X does not verify listings before they go up, so keeping every listing
+  // a dealer ever posted is not evidence of anything — it is a pile of
+  // unverified personal information held for no stated purpose, which is the
+  // opposite of what POPIA asks of you. A dealer who takes a listing down
+  // should have it gone.
+  //
+  // The exception is a listing that has been reported. Deleting something after
+  // being put on notice about it is a different act from ordinary tidying up,
+  // and the database refuses it — see the trigger in listing_delete_guard.sql.
+  // That refusal surfaces here as a plain message rather than a silent failure.
   const handleDelete = async (id: string) => {
     setDeletingId(id);
 
@@ -268,14 +277,7 @@ export default function DealerInventoryPage() {
     setConfirmDeleteId(null);
 
     if (error) {
-      // A foreign key complaint means something still references the listing —
-      // an enquiry, a saved search, a promotion. Archiving is the better answer
-      // in that case anyway, so say so rather than leaving them stuck.
-      alert(
-        `Could not delete the listing: ${error.message}\n\n` +
-        `If something still references it, mark it sold or deactivate it instead — ` +
-        `it comes off the site either way.`
-      );
+      alert(`Could not delete the listing: ${error.message}`);
       return;
     }
 
@@ -287,7 +289,7 @@ export default function DealerInventoryPage() {
       return;
     }
 
-    setListings((prev) => prev.filter((l) => l.id !== id));
+    setListings(prev => prev.filter(l => l.id !== id));
   };
 
   const handleLogout = async () => {
@@ -661,9 +663,7 @@ export default function DealerInventoryPage() {
                       <button
                         onClick={() => setConfirmDeleteId(listing.id)}
                         className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] hover:text-red-400 transition-colors border border-white/10 px-3 py-1.5 rounded-sm hover:border-red-400/30"
-                      >
-                        Delete
-                      </button>
+                      >Delete</button>
                     )}
                   </div>
                 </div>
