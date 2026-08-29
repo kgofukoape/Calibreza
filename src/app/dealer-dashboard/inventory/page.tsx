@@ -153,30 +153,68 @@ export default function DealerInventoryPage() {
     )) return;
 
     setTogglingId(listing.id);
-    const { error } = await supabase
+
+    // .select() matters here, and not for the data.
+    //
+    // Row-level security does not reject an update it disallows — it simply
+    // matches no rows. Postgres reports that as success, so `error` is null and
+    // a plain update looks like it worked. Dealer listings are keyed on
+    // dealer_id rather than seller_id, so if the policy checks the wrong column
+    // this update silently changes nothing and the button turns green anyway.
+    //
+    // Asking for the changed rows back is the only way to know. Zero rows means
+    // it did not happen, whatever the absence of an error suggests.
+    const { data, error } = await supabase
       .from('listings')
       .update({ status: 'sold' })
-      .eq('id', listing.id);
-
-    if (error) alert(`Could not mark it sold: ${error.message}`);
-    else setListings(prev => prev.map(l => l.id === listing.id ? { ...l, status: 'sold' } : l));
+      .eq('id', listing.id)
+      .select('id, status');
 
     setTogglingId(null);
+
+    if (error) {
+      alert(`Could not mark it sold: ${error.message}`);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert(
+        'The listing was not updated — your account does not appear to have permission to change it.\n\n' +
+        'Nothing has been changed. Please send this to support@gunx.co.za so we can look at it.'
+      );
+      return;
+    }
+
+    setListings(prev => prev.map(l => l.id === listing.id ? { ...l, status: 'sold' } : l));
   };
 
   // Sales fall through. Relisting restores it rather than making the dealer
   // type everything again.
   const handleRelist = async (listing: Listing) => {
     setTogglingId(listing.id);
-    const { error } = await supabase
+
+    const { data, error } = await supabase
       .from('listings')
       .update({ status: 'active' })
-      .eq('id', listing.id);
-
-    if (error) alert(`Could not relist: ${error.message}`);
-    else setListings(prev => prev.map(l => l.id === listing.id ? { ...l, status: 'active' } : l));
+      .eq('id', listing.id)
+      .select('id, status');
 
     setTogglingId(null);
+
+    if (error) {
+      alert(`Could not relist: ${error.message}`);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert(
+        'The listing was not relisted — your account does not appear to have permission to change it.\n\n' +
+        'Nothing has been changed. Please send this to support@gunx.co.za so we can look at it.'
+      );
+      return;
+    }
+
+    setListings(prev => prev.map(l => l.id === listing.id ? { ...l, status: 'active' } : l));
   };
 
   const handleToggleStatus = async (listing: Listing) => {
@@ -184,17 +222,33 @@ export default function DealerInventoryPage() {
     setTogglingId(listing.id);
     const newStatus = listing.status === 'active' ? 'inactive' : 'active';
 
-    const { error } = await supabase
+    // Same reasoning as handleMarkSold: a disallowed update returns no error,
+    // so the rows have to be asked for. This one predates today and has been
+    // able to fail quietly since it was written.
+    const { data, error } = await supabase
       .from('listings')
       .update({ status: newStatus })
-      .eq('id', listing.id);
+      .eq('id', listing.id)
+      .select('id, status');
 
-    if (!error) {
-      setListings((prev) =>
-        prev.map((l) => (l.id === listing.id ? { ...l, status: newStatus } : l))
-      );
-    }
     setTogglingId(null);
+
+    if (error) {
+      alert(`Could not change the listing: ${error.message}`);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert(
+        'The listing was not changed — your account does not appear to have permission to change it.\n\n' +
+        'Please send this to support@gunx.co.za so we can look at it.'
+      );
+      return;
+    }
+
+    setListings((prev) =>
+      prev.map((l) => (l.id === listing.id ? { ...l, status: newStatus } : l))
+    );
   };
 
   const handleDelete = async (id: string) => {
