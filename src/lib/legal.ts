@@ -137,6 +137,7 @@ export type ConsentContext =
   | 'dealer_application'
   | 'club_application'
   | 'service_application'
+  | 'advocacy_application'
   | 'advertising_booking';
 
 export const CONSENT_BUNDLES: Record<ConsentContext, LegalSlug[]> = {
@@ -144,6 +145,7 @@ export const CONSENT_BUNDLES: Record<ConsentContext, LegalSlug[]> = {
   dealer_application: ['dealer-terms', 'terms', 'privacy'],
   club_application: ['terms', 'privacy'],
   service_application: ['terms', 'privacy'],
+  advocacy_application: ['terms', 'privacy'],
   advertising_booking: ['advertising-policy', 'terms', 'privacy'],
 };
 

@@ -14,7 +14,7 @@ import type { ConsentContext } from './legal';
 // If a status vocabulary changes, it changes here and in
 // /api/admin/suspend/route.ts together. Nowhere else should hard-code them.
 
-export type BusinessTypeId = 'dealer' | 'club' | 'range' | 'service';
+export type BusinessTypeId = 'dealer' | 'club' | 'range' | 'service' | 'advocacy';
 
 export interface BusinessType {
   id: BusinessTypeId;
@@ -27,7 +27,7 @@ export interface BusinessType {
   /** Where they land once approved. */
   dashboardPath: string;
   /** Table holding the business record. */
-  table: 'dealers' | 'clubs' | 'services';
+  table: 'dealers' | 'clubs' | 'services' | 'advocacy_groups';
   /** The status value that means "approved" for this type. */
   approvedStatus: string;
   /** Consent bundle recorded when the application is submitted. */
@@ -85,6 +85,18 @@ export const BUSINESS_TYPES: Record<BusinessTypeId, BusinessType> = {
     consentContext: 'service_application',
     requirements: 'Service category and, for security companies, PSIRA registration',
   },
+  advocacy: {
+    id: 'advocacy',
+    label: 'Advocacy Organisation',
+    blurb: 'Firearm rights associations and industry bodies. A directory profile and a press release feed — not membership management.',
+    icon: '⚖️',
+    applyPath: '/advocacy/apply',
+    dashboardPath: '/advocacy-dashboard',
+    table: 'advocacy_groups',
+    approvedStatus: 'active',
+    consentContext: 'advocacy_application',
+    requirements: 'Organisation name, mission statement and website',
+  },
 };
 
 export const BUSINESS_TYPE_LIST: BusinessType[] = [
@@ -92,6 +104,7 @@ export const BUSINESS_TYPE_LIST: BusinessType[] = [
   BUSINESS_TYPES.club,
   BUSINESS_TYPES.range,
   BUSINESS_TYPES.service,
+  BUSINESS_TYPES.advocacy,
 ];
 
 /** Business types stored in a given table, in lookup order. */

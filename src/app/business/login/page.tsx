@@ -98,6 +98,25 @@ export default function BusinessLoginPage() {
         return;
       }
 
+      // ── Advocacy organisations ───────────────────────────────────────────
+      // Owned by owner_user_id rather than user_id: the column was named when
+      // the directory was admin-managed and a group had no account behind it.
+      const { data: advocacy } = await supabase
+        .from('advocacy_groups').select('status').eq('owner_user_id', user.id).maybeSingle();
+
+      if (advocacy) {
+        // Pending organisations are still sent to their dashboard — unlike the
+        // other types, there is useful work to do there before approval:
+        // drafting releases and completing the profile.
+        if (advocacy.status === 'suspended') {
+          setOutcome({ kind: 'pending', label: 'organisation listing', status: advocacy.status });
+          setLoading(false);
+          return;
+        }
+        router.push(BUSINESS_TYPES.advocacy.dashboardPath);
+        return;
+      }
+
       // ── Service providers ────────────────────────────────────────────────
       const { data: service } = await supabase
         .from('services').select('status').eq('user_id', user.id).maybeSingle();

@@ -238,6 +238,51 @@ export async function POST(req: NextRequest) {
         break;
 
       // ── New self-service ad submission → alert admin ──────────────────────
+      // ── ADVOCACY APPLICATION ─────────────────────────────────────────────
+      // Confirms receipt and sets the expectation that a human reviews it. An
+      // organisation that hears nothing assumes the form was broken.
+      case 'advocacy_application':
+        await sendEmail(
+          body.data?.email,
+          `Application received — ${body.data?.name}`,
+          `
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
+  <h1 style="color:#C9922A;font-size:24px;margin-bottom:8px;">Application received</h1>
+  <p style="color:#8A8E99;font-size:15px;line-height:1.6;margin-top:0;">
+    Thank you — we have received the listing application for
+    <strong style="color:#F0EDE8;">${body.data?.name}</strong>.
+  </p>
+  <p style="color:#8A8E99;font-size:15px;line-height:1.6;">
+    We review applications within two business days. We may email this address
+    first to confirm you are authorised to represent the organisation — that
+    check is what keeps the directory worth being listed in.
+  </p>
+  <p style="color:#8A8E99;font-size:15px;line-height:1.6;">
+    Once approved you can publish press releases and update your profile from
+    your dashboard.
+  </p>
+  <a href="${BASE_URL}/advocacy-dashboard"
+     style="display:inline-block;background:#C9922A;color:black;font-weight:bold;font-size:14px;text-transform:uppercase;letter-spacing:2px;padding:14px 28px;border-radius:4px;text-decoration:none;margin:16px 0;">
+    Go to dashboard →
+  </a>
+  <p style="color:#5A5E69;font-size:12px;margin-top:28px;border-top:1px solid rgba(255,255,255,0.05);padding-top:16px;">
+    Gun X does not handle memberships, subscriptions or donations. Those stay on
+    your own systems.<br><br>
+    GX SA (Pty) Ltd · Reg 2025/830094/07
+  </p>
+</div>`
+        );
+
+        // And tell the team there is something waiting.
+        await sendEmail(
+          'support@gunx.co.za',
+          `New advocacy listing application: ${body.data?.name}`,
+          `<p>${body.data?.name} has applied for an advocacy directory listing.</p>
+           <p>Contact: ${body.data?.email}</p>
+           <p><a href="${BASE_URL}/admin/advocacy">Review it in the command centre</a></p>`
+        );
+        break;
+
       // ── INVOICE ISSUED ───────────────────────────────────────────────────
       // Raised automatically on the 1st for accounts on a paid tier. It records
       // what is owed; it does not take money — PayFast handles collection where

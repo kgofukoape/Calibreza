@@ -88,6 +88,12 @@ const TABLES: Record<string, {
     statuses: ['active', 'pending_payment', 'rejected', 'expired', 'filled'],
     fields: ['is_boosted'],
   },
+  advocacy: {
+    table: 'advocacy_groups',
+    activeStatus: 'active',
+    statuses: ['pending', 'active', 'suspended'],
+    fields: [],
+  },
   verification_doc: {
     table: 'verification_documents',
     activeStatus: 'approved',

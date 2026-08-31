@@ -59,7 +59,7 @@ export default function Footer() {
           <div>
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[13px] font-black uppercase tracking-widest text-[#F0EDE8] mb-4">Platform</h3>
             <ul className="space-y-2">
-              {[['Dealer Directory','/dealers'],['Post a Listing','/sell'],['Clubs & Ranges','/clubs'],['Services','/services'],['Industry Jobs','/jobs'],['Wanted Ads','/wanted'],['FA Ownership','/firearm-ownership']].map(([l,h]) => (
+              {[['Dealer Directory','/dealers'],['Post a Listing','/sell'],['Clubs & Ranges','/clubs'],['Services','/services'],['Industry Jobs','/jobs'],['Wanted Ads','/wanted'],['FA Ownership','/firearm-ownership'],['Advocacy Groups','/advocacy'],['Press Releases','/press']].map(([l,h]) => (
                 <li key={h}><Link href={h} className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{l}</Link></li>
               ))}
             </ul>
@@ -68,7 +68,7 @@ export default function Footer() {
           <div>
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[13px] font-black uppercase tracking-widest text-[#F0EDE8] mb-4">Dealers</h3>
             <ul className="space-y-2">
-              {[['Apply as Dealer','/dealer/apply'],['Dealer Login','/dealer/login'],['Dealer Pricing','/dealer/pricing'],['List a Club','/clubs/apply'],['List a Range','/clubs/range-apply'],['List a Service','/services/apply'],['Post a Job','/jobs']].map(([l,h]) => (
+              {[['Apply as Dealer','/dealer/apply'],['Dealer Login','/dealer/login'],['Dealer Pricing','/dealer/pricing'],['List a Club','/clubs/apply'],['List a Range','/clubs/range-apply'],['List a Service','/services/apply'],['List an Organisation','/advocacy/apply'],['Post a Job','/jobs']].map(([l,h]) => (
                 <li key={h}><Link href={h} className="text-[13px] text-[#8A8E99] hover:text-[#C9922A] transition-colors">{l}</Link></li>
               ))}
             </ul>

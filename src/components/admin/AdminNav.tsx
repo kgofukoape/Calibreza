@@ -20,6 +20,7 @@ export interface AdminNavCounts {
   pendingDealers?: number;
   pendingClubs?: number;
   pendingServices?: number;
+  pendingAdvocacy?: number;
   pendingJobs?: number;
   pendingListings?: number;
   pendingVerification?: number;
@@ -41,6 +42,7 @@ const NAV: NavItem[] = [
   { href: '/admin/dealers',      icon: '🏪', label: 'Dealers',       countKey: 'pendingDealers',      group: 'review' },
   { href: '/admin/clubs',        icon: '⊕',  label: 'Clubs & Ranges',countKey: 'pendingClubs',        group: 'review' },
   { href: '/admin/services',     icon: '🔧', label: 'Services',      countKey: 'pendingServices',     group: 'review' },
+  { href: '/admin/advocacy',     icon: '⚖️', label: 'Advocacy',      countKey: 'pendingAdvocacy',     group: 'review' },
   // Verification retired: documents are collected at application and reviewed
   // on the Dealers, Clubs and Services pages. A second system collecting the
   // same certificates was a maintenance cost with no extra safety, and nothing

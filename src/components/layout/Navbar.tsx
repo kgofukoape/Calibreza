@@ -16,6 +16,8 @@ const MOBILE_NAV_LINKS = [
   { href: '/clubs',             label: 'Clubs & Ranges' },
   { href: '/services',          label: 'Services' },
   { href: '/jobs',              label: 'Industry Jobs' },
+  { href: '/advocacy',          label: 'Advocacy' },
+  { href: '/press',             label: 'Press Releases' },
   { href: '/firearm-ownership', label: 'FA Ownership' },
 ];
 
@@ -330,6 +332,8 @@ export default function Navbar() {
                   <Link href="/clubs"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs & Ranges</Link>
                   <Link href="/wanted"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
                   <Link href="/jobs"     className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
+                  <Link href="/advocacy" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Advocacy</Link>
+                  <Link href="/press"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Press Releases</Link>
                 </div>
                 <div className="col-span-6 mt-4 pt-6 border-t border-white/5 text-center">
                   <Link href="/browse" className="text-[11px] text-[#C9922A] font-bold uppercase tracking-[0.3em] hover:brightness-150 transition-all">View Full Category Directory →</Link>
@@ -341,6 +345,7 @@ export default function Navbar() {
             <Link href="/clubs"             className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
             <Link href="/services"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
             <Link href="/jobs"              className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
+            <Link href="/advocacy"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Advocacy</Link>
             <Link href="/firearm-ownership" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">FA Ownership</Link>
           </div>
 
