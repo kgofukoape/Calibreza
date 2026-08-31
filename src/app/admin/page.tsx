@@ -36,7 +36,7 @@ interface Stats {
   totalClubs: number; pendingClubs: number;
   totalServices: number; pendingServices: number;
   totalJobs: number; pendingJobs: number;
-  pendingVerification: number; pendingAds: number;
+  pendingVerification: number; pendingAds: number; pendingAdvocacy: number;
   totalUsers: number;
   activeSubscriptions: number; compedSubscriptions: number;
   revenueThisMonth: number; stuckPayments: number;
@@ -46,7 +46,7 @@ const EMPTY: Stats = {
   totalListings: 0, activeListings: 0, totalViews: 0,
   totalDealers: 0, pendingDealers: 0, totalClubs: 0, pendingClubs: 0,
   totalServices: 0, pendingServices: 0, totalJobs: 0, pendingJobs: 0,
-  pendingVerification: 0, pendingAds: 0, totalUsers: 0,
+  pendingVerification: 0, pendingAds: 0, pendingAdvocacy: 0, totalUsers: 0,
   activeSubscriptions: 0, compedSubscriptions: 0,
   revenueThisMonth: 0, stuckPayments: 0,
 };
@@ -101,7 +101,7 @@ export default function AdminOverviewPage() {
         listingsRes, dealersRes, pendingDealersRes,
         clubsRes, servicesRes, pendingServicesRes,
         jobsRes, pendingJobsRes, usersRes,
-        verifRes, adsRes, compedRes, invoicesRes, stuckRes,
+        verifRes, adsRes, compedRes, invoicesRes, stuckRes, advocacyRes,
       ] = await Promise.all([
         supabase.from('listings').select('id, status, views_count'),
         supabase.from('dealers').select('id, status, subscription_tier'),
@@ -121,6 +121,7 @@ export default function AdminOverviewPage() {
         supabase.from('dealers').select('id', { count: 'exact', head: true }).eq('is_comped', true),
         supabase.from('invoices').select('amount').gte('created_at', monthStart.toISOString()),
         supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'pending_payment'),
+        supabase.from('advocacy_groups').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       ]);
 
       const listings = listingsRes.data || [];
@@ -154,6 +155,7 @@ export default function AdminOverviewPage() {
 
         pendingVerification: verifRes.count || 0,
         pendingAds:          adsRes.count   || 0,
+        pendingAdvocacy:     advocacyRes.count || 0,
         totalUsers:          usersRes.count || 0,
 
         activeSubscriptions:
@@ -212,11 +214,13 @@ export default function AdminOverviewPage() {
     pendingJobs: stats.pendingJobs,
     pendingVerification: stats.pendingVerification,
     pendingAds: stats.pendingAds,
+    pendingAdvocacy: stats.pendingAdvocacy,
   };
 
   const totalPending =
     stats.pendingDealers + stats.pendingServices + stats.pendingJobs +
-    stats.pendingClubs + stats.pendingVerification + stats.pendingAds;
+    stats.pendingClubs + stats.pendingVerification + stats.pendingAds +
+    stats.pendingAdvocacy;
 
   if (loading) return (
     <div className="min-h-screen bg-[#080B12] flex items-center justify-center">
@@ -361,6 +365,7 @@ export default function AdminOverviewPage() {
               { label: 'Jobs', value: stats.pendingJobs, href: '/admin/jobs', color: 'border-[#F59E0B]/30 text-[#F59E0B]' },
               { label: 'Documents', value: stats.pendingVerification, href: '/admin/verification', color: 'border-[#4CC9F0]/30 text-[#4CC9F0]' },
               { label: 'Ad Bookings', value: stats.pendingAds, href: '/admin/ads', color: 'border-[#10B981]/30 text-[#10B981]' },
+              { label: 'Advocacy', value: stats.pendingAdvocacy, href: '/admin/advocacy', color: 'border-[#C9922A]/30 text-[#C9922A]' },
             ].map(item => (
               <Link key={item.label} href={item.href}
                 className={`bg-[#0D1420] border ${item.color} rounded-sm p-4 flex items-center justify-between hover:brightness-125 transition-all group`}>

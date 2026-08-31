@@ -36,6 +36,10 @@ const STATIC_ROUTES: Array<{ path: string; priority: number; freq: 'daily' | 'we
   { path: '/firearm-ownership',   priority: 0.7, freq: 'monthly' },
   { path: '/guides/firearm-ownership', priority: 0.7, freq: 'monthly' },
   { path: '/sport-shooting',      priority: 0.6, freq: 'weekly'  },
+  { path: '/advocacy',            priority: 0.7, freq: 'weekly'  },
+  { path: '/press',               priority: 0.7, freq: 'daily'   },
+  { path: '/advocacy/apply',      priority: 0.4, freq: 'monthly' },
+  { path: '/1911',                priority: 0.7, freq: 'weekly'  },
   { path: '/dealer/pricing',      priority: 0.5, freq: 'monthly' },
   { path: '/dealer/apply',        priority: 0.5, freq: 'monthly' },
   { path: '/clubs/pricing',       priority: 0.5, freq: 'monthly' },
@@ -154,6 +158,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   } catch (e) {
     console.error('sitemap: services query failed', e);
+  }
+
+  // ── ADVOCACY ORGANISATIONS ─────────────────────────────────────────────
+  // Worth indexing on their own merits: someone searching for a firearm rights
+  // organisation by name is exactly the visitor this directory exists to serve,
+  // and a profile nothing links to is a profile nobody finds.
+  try {
+    const { data: groups } = await supabase
+      .from('advocacy_groups')
+      .select('slug, created_at')
+      .eq('status', 'active')
+      .limit(500);
+
+    groups?.forEach(g => {
+      if (!g.slug) return;
+      entries.push({
+        url: `${SITE_URL}/advocacy/${g.slug}`,
+        lastModified: g.created_at ? new Date(g.created_at) : now,
+        changeFrequency: 'weekly',
+        priority: 0.6,
+      });
+    });
+  } catch (e) {
+    console.error('sitemap: advocacy query failed', e);
   }
 
   return entries;
