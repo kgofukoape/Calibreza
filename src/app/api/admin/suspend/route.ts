@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdminSession, ADMIN_SESSION_COOKIE } from '@/lib/adminSession';
+import { audit } from '@/lib/adminApi';
 
 // ─── ACCOUNT SUSPENSION ──────────────────────────────────────────────────────
 // One endpoint for suspending and reinstating every account type, so the rules
@@ -189,6 +190,22 @@ export async function POST(req: NextRequest) {
       } catch { /* non-blocking */ }
     }
 
+    // WHO CHANGED THIS, AND WHEN.
+    // This route has been the one that approves dealers, clubs, services and
+    // advocacy organisations since it was written, and it recorded none of it.
+    // The comments at the top of this file claimed an audit trail that did not
+    // exist. "Who published this organisation" is exactly the question you
+    // cannot answer afterwards without a record.
+    await audit(supabase, {
+      action: `${entityType}.set_status`,
+      entity: entityType,
+      entityId,
+      entityName: entity.business_name || entity.name || entity.title || null,
+      reason: body?.reason || `Status set to ${target}`,
+      before: { status: entity.status },
+      after: update,
+    });
+
     return NextResponse.json({
       ok: true,
       status: target,
@@ -217,6 +234,14 @@ export async function POST(req: NextRequest) {
       .eq('id', entityId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+        await audit(supabase, {
+      action: `${entityType}.set_field`,
+      entity: entityType, entityId,
+      entityName: entity.business_name || entity.name || null,
+      reason: body?.reason || `${field} set to ${value}`,
+      before: { [field]: entity[field] }, after: { [field]: value },
+    });
 
     return NextResponse.json({ ok: true, field, value, message: 'Updated.' });
   }
@@ -250,6 +275,15 @@ export async function POST(req: NextRequest) {
       });
     } catch { /* non-blocking */ }
 
+        await audit(supabase, {
+      action: `${entityType}.set_tier`,
+      entity: entityType, entityId,
+      entityName: entity.business_name || entity.name || null,
+      reason: body?.reason || `Tier set to ${tier}`,
+      before: { subscription_tier: entity.subscription_tier },
+      after: { subscription_tier: tier },
+    });
+
     return NextResponse.json({
       ok: true,
       tier,
@@ -273,6 +307,16 @@ export async function POST(req: NextRequest) {
         actor: 'admin',
       });
     } catch { /* non-blocking */ }
+
+        // Deletion above all: after this the row is gone, so the log is the only
+    // remaining evidence that it existed and who removed it.
+    await audit(supabase, {
+      action: `${entityType}.delete`,
+      entity: entityType, entityId,
+      entityName: entity.business_name || entity.name || entity.title || null,
+      reason: body?.reason || 'Deleted by administrator',
+      before: { status: entity.status },
+    });
 
     return NextResponse.json({ ok: true, message: 'Account deleted.' });
   }
@@ -352,7 +396,16 @@ export async function POST(req: NextRequest) {
       });
     } catch { /* non-blocking */ }
 
-    return NextResponse.json({
+    await audit(supabase, {
+    action: `${entityType}.suspend`,
+    entity: entityType, entityId,
+    entityName: entity.business_name || entity.name || null,
+    reason,
+    before: { status: entity.status },
+    after: { status: 'suspended' },
+  });
+
+  return NextResponse.json({
       ok: true,
       status: 'suspended',
       // Returned so the console can show the reason immediately without a reload
@@ -419,6 +472,15 @@ export async function POST(req: NextRequest) {
       actor: 'admin',
     });
   } catch { /* non-blocking */ }
+
+  await audit(supabase, {
+    action: `${entityType}.reinstate`,
+    entity: entityType, entityId,
+    entityName: entity.business_name || entity.name || null,
+    reason: body?.reason || 'Reinstated by administrator',
+    before: { status: entity.status },
+    after: { status: restoreTo, restoredListings: restored },
+  });
 
   return NextResponse.json({
     ok: true,
