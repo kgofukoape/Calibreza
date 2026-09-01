@@ -121,7 +121,50 @@ export async function POST(req: NextRequest) {
       amount_gross: data['amount_gross'],
     }));
 
-    // ── VERIFIED — safe to act on ────────────────────────────────────────────
+    // ── HAVE WE SEEN THIS PAYMENT BEFORE? ────────────────────────────────────
+    // The signature check proves the notification is genuine. It does not prove
+    // it is new — a genuine notification captured from a log or a proxy is
+    // genuine every time it is replayed. Without this, sending one valid R499
+    // subscription notification ten times extends the subscription ten months.
+    //
+    // The uniqueness is enforced by an index rather than by a "have I seen
+    // this?" query, because two notifications arriving at the same instant
+    // would both pass a check written here. Only the database can settle that.
+    const pfPaymentId = data['pf_payment_id'];
+
+    if (pfPaymentId) {
+      const { error: dupErr } = await supabase
+        .from('payfast_notifications')
+        .insert({
+          pf_payment_id: pfPaymentId,
+          m_payment_id: data['m_payment_id'] || null,
+          amount_gross: parseFloat(data['amount_gross'] || '0'),
+          payment_status: data['payment_status'] || null,
+          raw: data,
+        });
+
+      if (dupErr) {
+        // 23505 is the unique violation: this payment has already been acted
+        // on. Answer 200 so PayFast stops retrying — the notification was
+        // received and handled, just not twice.
+        if (dupErr.code === '23505') {
+          console.warn('PayFast ITN replay ignored:', pfPaymentId);
+          return new NextResponse('OK', { status: 200 });
+        }
+        // Any other failure means we cannot tell whether this is a replay.
+        // Refusing is the safe answer: PayFast will retry, and granting a
+        // subscription we might grant again is worse than a delayed one.
+        console.error('PayFast ITN: could not record notification', dupErr);
+        return new NextResponse('Error', { status: 500 });
+      }
+    } else {
+      // No payment id means nothing can be de-duplicated. PayFast always sends
+      // one on a real transaction, so its absence is a reason to stop.
+      console.error('PayFast ITN rejected: no pf_payment_id');
+      return new NextResponse('Invalid', { status: 400 });
+    }
+
+    // ── VERIFIED AND NEW — safe to act on ────────────────────────────────────
 
     if (data['payment_status'] === 'COMPLETE') {
       const customStr1 = data['custom_str1'] || '';

@@ -79,7 +79,10 @@ const TABLES: Record<string, {
     table: 'listings',
     activeStatus: 'active',
     statuses: ['active', 'sold', 'under_offer', 'inactive', 'expired', 'archived'],
-    fields: ['is_featured'],
+    // featured_until belongs here alongside is_featured. A feature flag with no
+    // end date is a promotion that never expires, which is how three listings
+    // ended up permanently pinned to the top of search.
+    fields: ['is_featured', 'featured_until'],
   },
   job: {
     table: 'job_listings',

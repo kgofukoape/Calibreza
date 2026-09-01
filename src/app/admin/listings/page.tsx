@@ -90,31 +90,73 @@ export default function AdminListingsPage() {
     setLoading(false);
   };
 
+  // ── STATUS ──────────────────────────────────────────────────────────────
+  // Through the service-role route, like everything else on this page.
+  //
+  // This wrote directly with the anon key and checked only `if (!error)`. Two
+  // faults in one: an admin has no row-level permission over another party's
+  // listing, and a write that RLS disallows matches zero rows and reports
+  // success — so the row never changed and the table went on showing the new
+  // status until the page was reloaded.
   const handleStatusChange = async (listingId: string, newStatus: string) => {
     setActionLoading(listingId);
-    const { error } = await supabase.from('listings').update({ status: newStatus }).eq('id', listingId);
-    if (!error) {
+    try {
+      await adminAction({
+        entityType: 'listing', entityId: listingId,
+        action: 'set_status', status: newStatus,
+      });
       setListings((prev) => prev.map((l) => l.id === listingId ? { ...l, status: newStatus } : l));
       if (selectedListing?.id === listingId) setSelectedListing((prev) => prev ? { ...prev, status: newStatus } : prev);
+    } catch (err: any) {
+      alert(`Could not change the status: ${err.message}`);
+    } finally {
+      setActionLoading(null);
     }
-    setActionLoading(null);
   };
 
+  // ── FEATURE A LISTING ───────────────────────────────────────────────────
+  // Also through the route, and worth being deliberate about: featuring a
+  // listing here grants for free what /api/listings/promote charges R19 or R29
+  // for. That is a legitimate thing for an administrator to do — a goodwill
+  // gesture, a launch partner — but it should be a decision that leaves a
+  // record, not a toggle that quietly hands out paid placement.
+  //
+  // The five-day window is kept. A featured listing with no end date never
+  // expires, which is how three listings ended up permanently pinned to the top
+  // of search earlier this week.
   const handleToggleFeatured = async (listing: Listing) => {
-    setActionLoading(listing.id);
     const newFeatured = !listing.is_featured;
     const featuredUntil = newFeatured
       ? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()
       : null;
-    const { error } = await supabase
-      .from('listings')
-      .update({ is_featured: newFeatured, featured_until: featuredUntil })
-      .eq('id', listing.id);
-    if (!error) {
+
+    if (newFeatured && !confirm(
+      `Feature "${listing.title}" for 5 days at no charge?\n\n` +
+      `Promotion normally costs the seller R19 provincial or R29 national. This is recorded in the audit log.`
+    )) return;
+
+    setActionLoading(listing.id);
+    try {
+      await adminAction({
+        entityType: 'listing', entityId: listing.id,
+        action: 'set_field', field: 'is_featured', value: newFeatured,
+        reason: newFeatured ? 'Featured by administrator at no charge' : 'Feature removed by administrator',
+      });
+
+      // featured_until is a separate whitelisted field: a feature flag without
+      // an end date is a promotion that never expires.
+      await adminAction({
+        entityType: 'listing', entityId: listing.id,
+        action: 'set_field', field: 'featured_until', value: featuredUntil,
+      });
+
       setListings((prev) => prev.map((l) => l.id === listing.id ? { ...l, is_featured: newFeatured, featured_until: featuredUntil } : l));
       if (selectedListing?.id === listing.id) setSelectedListing((prev) => prev ? { ...prev, is_featured: newFeatured, featured_until: featuredUntil } : prev);
+    } catch (err: any) {
+      alert(`Could not change the promotion: ${err.message}`);
+    } finally {
+      setActionLoading(null);
     }
-    setActionLoading(null);
   };
 
   // ── REMOVE A LISTING ───────────────────────────────────────────────────
