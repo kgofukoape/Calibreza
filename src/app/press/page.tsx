@@ -26,6 +26,9 @@ interface FeedItem {
   id: string;
   title: string;
   content: string;
+  summary: string | null;
+  pdf_url: string | null;
+  original_source: string | null;
   published_at: string;
   advocacy_groups: {
     name: string;
@@ -35,6 +38,15 @@ interface FeedItem {
 }
 
 const PAGE_SIZE = 20;
+
+/** Refuses anything that is not http(s). These URLs were written by somebody else. */
+function safeUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.toString() : null;
+  } catch { return null; }
+}
 
 export default function PressPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -47,7 +59,7 @@ export default function PressPage() {
   const load = async (offset: number) => {
     const { data } = await supabase
       .from('press_releases')
-      .select('id, title, content, published_at, advocacy_groups(name, slug, logo_url)')
+      .select('id, title, content, summary, pdf_url, original_source, published_at, advocacy_groups(name, slug, logo_url)')
       .not('published_at', 'is', null)
       .lte('published_at', new Date().toISOString())
       .order('published_at', { ascending: false })
@@ -167,7 +179,12 @@ export default function PressPage() {
                         ) : (
                           <span className="block text-[13px] font-bold text-[#8A8E99]">Unlisted organisation</span>
                         )}
-                        <p className="text-[11px] text-[#8A8E99]">{fmt(item.published_at)}</p>
+                        <p className="text-[11px] text-[#8A8E99]">
+                          {fmt(item.published_at)}
+                          {item.original_source && (
+                            <span className="text-[#5A5E69]"> · {item.original_source}</span>
+                          )}
+                        </p>
                       </div>
                     </div>
 
@@ -176,10 +193,31 @@ export default function PressPage() {
                       {item.title}
                     </h2>
 
+                    {item.summary && (
+                      <p className="text-[13.5px] text-[#C4C0B8] leading-relaxed mb-3 italic">
+                        {item.summary}
+                      </p>
+                    )}
+
                     {/* Text, not markup. See the note at the top of this file. */}
                     <div className="text-[14.5px] text-[#C4C0B8] leading-relaxed whitespace-pre-wrap">
                       {item.content}
                     </div>
+
+                    {/* A release reads the same here as on the organisation's own
+                        profile. Showing the PDF in one place and not the other
+                        would mean the feed quietly holds back part of the
+                        statement. */}
+                    {safeUrl(item.pdf_url) && (
+                      <a href={safeUrl(item.pdf_url)!} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-3 mt-4 border border-white/10 rounded-sm px-4 py-3 hover:border-[#C9922A]/40 hover:bg-white/[0.02] transition-all">
+                        <span className="text-2xl">📄</span>
+                        <span>
+                          <span className="block text-[12.5px] font-bold text-[#F0EDE8]">Download the full release</span>
+                          <span className="block text-[11px] text-[#8A8E99]">PDF · {fmt(item.published_at)}</span>
+                        </span>
+                      </a>
+                    )}
                   </article>
                 );
               })}

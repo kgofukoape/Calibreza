@@ -33,6 +33,8 @@ export default function AdvocacyApplyPage() {
     about_text: '',
     website_url: '',
     contact_email: '',
+    npo_number: '',
+    founded_year: '',
   });
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -92,6 +94,8 @@ export default function AdvocacyApplyPage() {
           about_text: form.about_text.trim() || null,
           website_url: form.website_url.trim() || null,
           contact_email: form.contact_email.trim(),
+          npo_number: form.npo_number.trim() || null,
+          founded_year: form.founded_year ? Number(form.founded_year) : null,
           owner_user_id: user.id,
           // Pending, always. The policy refuses anything else, and it should:
           // an organisation listing itself without review is how the directory
@@ -301,6 +305,23 @@ export default function AdvocacyApplyPage() {
             <p className="text-[11px] text-[#8A8E99] mt-1.5">
               Appears on your directory card. {300 - form.mission_statement.length} characters left.
             </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            <div>
+              <label className={lbl}>NPO Registration Number</label>
+              <input value={form.npo_number} onChange={e => set('npo_number', e.target.value)}
+                placeholder="123-456 NPO" className={inp} />
+              <p className="text-[11px] text-[#8A8E99] mt-1.5 leading-relaxed">
+                Optional, but it can be checked against the DSD register — which turns
+                a claim into evidence and makes review quicker.
+              </p>
+            </div>
+            <div>
+              <label className={lbl}>Founded</label>
+              <input type="number" value={form.founded_year} onChange={e => set('founded_year', e.target.value)}
+                placeholder="1994" className={inp} />
+            </div>
           </div>
 
           <div>
