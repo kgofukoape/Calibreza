@@ -125,7 +125,15 @@ export async function signUp(
 
   if (error) throw error;
 
-  if (data.user) {
+  // Only attempt the profile row when a session exists.
+  //
+  // With email confirmation enabled, signUp returns no session, so this insert
+  // would be rejected by row-level security every single time. It used to fire
+  // anyway and swallow the error — one guaranteed failed write per signup,
+  // filling the Supabase logs with rejections that look like a problem and are
+  // not. /auth/callback creates the profile from user metadata after
+  // confirmation, and bootstrapAccount() catches anyone that misses.
+  if (data.user && data.session) {
     const { error: profileError } = await supabase
       .from('users')
       .insert({
@@ -139,11 +147,8 @@ export async function signUp(
         account_type: 'personal',
       });
 
-    // With email confirmation enabled there is no session yet, so this insert
-    // is rejected by RLS. That is expected: /auth/callback creates the profile
-    // from user metadata once the user confirms. Throwing here would leave the
-    // account created but report failure to the user.
-    if (profileError && data.session) throw profileError;
+    // A session exists, so a failure here is a real one worth surfacing.
+    if (profileError) throw profileError;
   }
 
   const token = data.session?.access_token;
@@ -209,7 +214,9 @@ export async function signUpBusiness(
 
   if (error) throw error;
 
-  if (data.user) {
+  // Same reasoning as signUp: no session means row-level security will reject
+  // this, so do not ask.
+  if (data.user && data.session) {
     const { error: profileError } = await supabase
       .from('users')
       .insert({
@@ -219,9 +226,7 @@ export async function signUpBusiness(
         account_type: 'business',
       });
 
-    // See the note in signUp: without a session this insert is rejected, and
-    // /auth/callback rebuilds the profile after confirmation.
-    if (profileError && data.session) throw profileError;
+    if (profileError) throw profileError;
   }
 
   const token = data.session?.access_token;
