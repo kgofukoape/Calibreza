@@ -285,6 +285,15 @@ export async function signOut() {
 }
 
 export async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  // getSession() reads the token already held in the browser. getUser() makes a
+  // network call to Supabase to re-validate it — and when that call is slow,
+  // rate-limited, or the token is mid-refresh, it returns null. Pages that read
+  // "no user" as "not logged in" then bounce a signed-in person to /login.
+  //
+  // That is the "clicking Post Ad logs me out" bug: the account is fine, the
+  // page just could not see the session in time. A client-side "is anyone
+  // logged in?" check should read the stored session, not re-verify it over the
+  // network on every page load.
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user ?? null;
 }
