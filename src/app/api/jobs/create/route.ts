@@ -4,6 +4,17 @@ import crypto from 'crypto';
 import { jobPackageFor, type JobPackage } from '@/lib/jobPackages';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
+// PayFast host, chosen by the same flag every other payment path uses.
+//
+// This route was hard-coded to the live host. With the site in sandbox mode
+// every other payment would go to sandbox.payfast.co.za and this one would
+// still go to the real PayFast — asking for real money against sandbox
+// credentials, which fails in a way that looks like the job posting is broken
+// rather than the configuration.
+const PAYFAST_PROCESS_URL = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
+  ? 'https://sandbox.payfast.co.za/eng/process'
+  : 'https://www.payfast.co.za/eng/process';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -150,7 +161,7 @@ export async function POST(req: Request) {
       success: true,
       action: 'payfast',
       amount: pkg.priceBeyondQuota,
-      redirectUrl: `https://www.payfast.co.za/eng/process?${payfastParams.toString()}`,
+      redirectUrl: `${PAYFAST_PROCESS_URL}?${payfastParams.toString()}`,
     });
 
   } catch (error: any) {
