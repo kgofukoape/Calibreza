@@ -1,4 +1,3 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { verifyAdminSession, ADMIN_SESSION_COOKIE } from '@/lib/adminSession'
 
@@ -69,41 +68,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // ── 3. Existing Supabase auth gating for /sell (unchanged) ───────────────────
-  let response = NextResponse.next({
-    request: { headers: request.headers },
-  })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user && pathname.startsWith('/sell')) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  return response
+  // ── 3. Everything else passes through ────────────────────────────────────────
+  // The /sell guard used to live here. It read the Supabase session from
+  // COOKIES, but this app's Supabase client stores the session in localStorage
+  // — which the server cannot see. So a signed-in user hitting /sell was
+  // redirected to /login before the page even loaded, while the navbar still
+  // showed them logged in. The two halves disagreed about whether you were
+  // authenticated.
+  //
+  // /sell already checks auth itself, in loadInitialData(): it calls
+  // getCurrentUser() and redirects to /login if there is genuinely no session.
+  // That check reads the same localStorage the rest of the client uses, so it
+  // is correct where the middleware was not. Removing the duplicate leaves one
+  // auth check that works, instead of two that contradict each other.
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/sell/:path*', '/sell', '/admin/:path*', '/admin', '/sejamagoma'],
+  // /sell removed — see note above. The admin paths remain because their guard
+  // uses a real signed cookie, which the server can and does read.
+  matcher: ['/admin/:path*', '/admin', '/sejamagoma'],
 }
