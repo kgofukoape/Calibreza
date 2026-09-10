@@ -62,11 +62,24 @@ export default function SellPage() {
 
   const isAdmin = user && ADMIN_IDS.includes(user.id);
   const unlimited = allowance?.unlimited === true;
-  const remaining = allowance?.remaining ?? 0;
   const usedCount = allowance?.used ?? 0;
   const allowanceTotal = allowance?.allowance ?? FREE_LISTING_LIMIT;
   const periodWord = allowance?.period === 'month' ? 'this month' : 'this year';
-  const isPaid = !isAdmin && !unlimited && remaining <= 0;
+
+  // Whether the allowance has actually been fetched yet. This is the fix for
+  // "it charged me on my first free listing": until the RPC returns, `allowance`
+  // is null, and reading `remaining` from null gave 0 — which the old code read
+  // as "no free listings left". A not-yet-loaded allowance is not an empty one.
+  const allowanceLoaded = allowance !== null;
+
+  // Default to the full allowance while loading, never to 0, so a page that has
+  // not finished loading never decides you must pay.
+  const remaining = allowance?.remaining ?? allowanceTotal;
+
+  // Only charge once the allowance has genuinely loaded AND is spent. Admins and
+  // unlimited tiers never pay. The safe default before load is free, never paid.
+  const isPaid = !isAdmin && !unlimited && allowanceLoaded && remaining <= 0;
+
   const isKnives = formData.category_id === 'knives';
 
   useEffect(() => { loadInitialData(); }, []);
