@@ -33,11 +33,6 @@ export default function SellPage() {
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [listingId, setListingId] = useState('');
-  // Allowance comes from the database, not from counting rows. Counting rows
-  // would let someone delete a listing to free a slot, and the trigger that
-  // actually enforces the limit counts creations per period, not current rows.
-  // If this page counted differently from the trigger, it would tell people
-  // they had listings left and then the insert would be refused.
   const [allowance, setAllowance] = useState<any>(null);
   const [listingCountLoading, setListingCountLoading] = useState(true);
 
@@ -65,19 +60,8 @@ export default function SellPage() {
   const usedCount = allowance?.used ?? 0;
   const allowanceTotal = allowance?.allowance ?? FREE_LISTING_LIMIT;
   const periodWord = allowance?.period === 'month' ? 'this month' : 'this year';
-
-  // Whether the allowance has actually been fetched yet. This is the fix for
-  // "it charged me on my first free listing": until the RPC returns, `allowance`
-  // is null, and reading `remaining` from null gave 0 — which the old code read
-  // as "no free listings left". A not-yet-loaded allowance is not an empty one.
   const allowanceLoaded = allowance !== null;
-
-  // Default to the full allowance while loading, never to 0, so a page that has
-  // not finished loading never decides you must pay.
   const remaining = allowance?.remaining ?? allowanceTotal;
-
-  // Only charge once the allowance has genuinely loaded AND is spent. Admins and
-  // unlimited tiers never pay. The safe default before load is free, never paid.
   const isPaid = !isAdmin && !unlimited && allowanceLoaded && remaining <= 0;
 
   const isKnives = formData.category_id === 'knives';
@@ -105,16 +89,6 @@ export default function SellPage() {
     setListingCountLoading(false);
 
   };
-
-  // The client-side restore that used to live here has been removed. It read a
-  // payload out of sessionStorage on ?paid=true and inserted the listing with
-  // is_paid true — without checking that PayFast had taken any money. Cancelling
-  // at the payment screen and navigating back produced a free listing outside
-  // the allowance.
-  //
-  // The listing is now created as pending_payment BEFORE the redirect and
-  // activated only by the verified PayFast notification, the same pattern used
-  // by jobs, subscriptions and promotions.
 
   const RIFLE_TYPES = ['bolt-action', 'semi-auto-rifles', 'lever-action', 'pump-action-rifles'];
 
@@ -204,8 +178,6 @@ const ACTION_TYPES: Record<string, string[]> = {
         province_id: formData.province_id,
         city: formData.city,
         listing_type: 'private',
-        // Paid listings are created invisible and published only when PayFast
-        // confirms. Free ones publish immediately.
         status: isPaid ? 'pending_payment' : 'active',
         is_paid: isPaid,
         blade_type: isKnives ? (formData.blade_type || null) : null,
@@ -213,10 +185,6 @@ const ACTION_TYPES: Record<string, string[]> = {
       };
 
       // ── PAID LISTING ──────────────────────────────────────────────────
-      // Created first as pending_payment, then paid for. The listing carries
-      // its own id into PayFast so the verified notification knows exactly what
-      // to publish — no sessionStorage, and nothing goes live on the strength
-      // of the browser arriving back at a URL.
       if (isPaid) {
         const paidImages = await uploadImages();
 
@@ -225,7 +193,10 @@ const ACTION_TYPES: Record<string, string[]> = {
           .insert({ ...payload, images: paidImages })
           .select('id').single();
 
-        if (pendingError) throw new Error(`Could not prepare listing: ${pendingError.message}`);
+        if (pendingError) {
+          alert('DB ERROR (paid): ' + JSON.stringify({ message: pendingError.message, details: pendingError.details, hint: pendingError.hint, code: pendingError.code }));
+          throw new Error(`Could not prepare listing: ${pendingError.message}`);
+        }
 
         const payfastData: Record<string, string> = {
           merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
@@ -262,14 +233,10 @@ const ACTION_TYPES: Record<string, string[]> = {
         .insert({ ...payload, images: uploadedImageUrls })
         .select('id').single();
       if (error) {
-        // The database enforces the allowance; this page only predicts it. If
-        // the two ever disagree, the seller should see something they can act
-        // on rather than a raw Postgres message.
-        if (error.message?.includes('Free listing allowance')) {
-          throw new Error(
-            `You have used all ${allowanceTotal} of your free listings ${periodWord}. Refresh this page to pay R${PAID_LISTING_PRICE} for this listing, or upgrade to a dealer account.`
-          );
-        }
+        // TEMPORARY DIAGNOSTIC: surface the real database error instead of the
+        // allowance guess, which was hiding genuine insert failures. Revert to a
+        // friendly message once the real cause is fixed.
+        alert('DB ERROR: ' + JSON.stringify({ message: error.message, details: error.details, hint: error.hint, code: error.code }));
         throw new Error(`Failed to create listing: ${error.message}`);
       }
       setListingId(data.id);
@@ -322,7 +289,6 @@ const ACTION_TYPES: Record<string, string[]> = {
           <p className="text-[13px] text-[#8A8E99]">Fill in the details to list your item for sale</p>
         </div>
 
-        {/* Listing count banner */}
         {!listingCountLoading && (
           <div className={`mb-5 rounded-sm p-4 flex items-center justify-between ${
             isAdmin ? 'bg-[#2A9C6E]/10 border border-[#2A9C6E]/30' :
@@ -361,7 +327,6 @@ const ACTION_TYPES: Record<string, string[]> = {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-          {/* Basic Info */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest mb-4 pb-3 border-b border-white/5">Basic Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -404,7 +369,6 @@ const ACTION_TYPES: Record<string, string[]> = {
             </div>
           </div>
 
-          {/* Item Details */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest mb-4 pb-3 border-b border-white/5">Item Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -469,7 +433,6 @@ const ACTION_TYPES: Record<string, string[]> = {
             </div>
           </div>
 
-          {/* Location */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest mb-4 pb-3 border-b border-white/5">Location</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -487,14 +450,12 @@ const ACTION_TYPES: Record<string, string[]> = {
             </div>
           </div>
 
-          {/* Description */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest mb-4 pb-3 border-b border-white/5">Description</h2>
             <textarea name="description" value={formData.description} onChange={handleInputChange} required rows={5}
               className={`${inputClass} resize-none`} placeholder="Describe your item — condition, accessories included, reason for selling, etc." />
           </div>
 
-          {/* Images */}
           <div className={sectionClass}>
             <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest mb-1 pb-3 border-b border-white/5">Photos</h2>
             <p className="text-[12px] text-[#8A8E99] mb-4">Add up to 5 photos. First photo will be the cover image.</p>
@@ -518,7 +479,6 @@ const ACTION_TYPES: Record<string, string[]> = {
             </div>
           </div>
 
-          {/* FCA */}
           <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5">
             <label className="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" name="fca_compliant" checked={(formData as any).fca_compliant} onChange={handleInputChange} className="mt-0.5 w-4 h-4 accent-[#C9922A] flex-shrink-0" />
@@ -528,7 +488,6 @@ const ACTION_TYPES: Record<string, string[]> = {
             </label>
           </div>
 
-          {/* Submit */}
           <div className="flex flex-col sm:flex-row gap-3">
             <button type="submit" disabled={loading || listingCountLoading}
               style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
