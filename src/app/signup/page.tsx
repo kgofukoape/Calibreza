@@ -11,28 +11,6 @@ import {
   MARKETING_CONSENT_COPY,
 } from '@/lib/legal';
 
-// ─── PERSONAL SIGNUP ─────────────────────────────────────────────────────────
-// The account-type choice is now a pair of tabs at the top rather than a link
-// at the bottom. A dealer who reads to the end of a personal form before
-// discovering there is a business route has already made the wrong account.
-//
-// WHAT IS COLLECTED, AND WHY. POPIA section 10 requires collection to be
-// adequate, relevant and not excessive for the purpose, so each field earns its
-// place or is optional:
-//
-//   Name, email, password  Required — the account itself.
-//   Mobile number          Required — a classifieds marketplace runs on buyers
-//                          and sellers reaching each other.
-//   Province               Required — local results and shipping expectations.
-//   City                   Optional — sharper local results.
-//   Interests              Optional — personalisation, and marketing where
-//                          consented. Registration succeeds without any.
-//
-// Consent stays two separate controls: one required tick for the contract
-// documents, one optional unticked box for marketing. Bundling them would make
-// the marketing consent invalid under POPIA for being neither specific nor
-// voluntary.
-
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
   'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
@@ -77,6 +55,8 @@ export default function SignupPage() {
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // When true, the form is replaced by a clear 'check your email' screen.
+  const [emailSent, setEmailSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const toggleInterest = (item: string) =>
@@ -104,7 +84,7 @@ export default function SignupPage() {
       );
 
       if (result.needsEmailConfirmation) {
-        setNotice('Account created. Check your email for a confirmation link, then sign in.');
+        setEmailSent(true);
         setLoading(false);
         return;
       }
@@ -123,6 +103,61 @@ export default function SignupPage() {
   const inputClass = "bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 text-[14px] text-[#F0EDE8] outline-none focus:border-[#C9922A] transition-colors w-full";
   const labelClass = "text-[13px] font-bold tracking-wider uppercase text-[#8A8E99] mb-2 block";
 
+  // ── CONFIRMATION SCREEN ──────────────────────────────────────────────────
+  // Replaces the form after a successful signup, so "did my account get
+  // created?" is answered plainly instead of by a banner above a filled form.
+  if (emailSent) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-6 py-16">
+          <div className="w-full max-w-[480px] text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-[#C9922A]/10 border border-[#C9922A]/30 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+
+            <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}}
+              className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-3">
+              Check Your <span className="text-[#C9922A]">Email</span>
+            </h1>
+
+            <p className="text-[15px] text-[#C4C0B8] leading-relaxed mb-2">
+              Your account has been created. We&apos;ve sent a confirmation link to:
+            </p>
+            <p className="text-[15px] font-bold text-[#F0EDE8] mb-6 break-all">{email}</p>
+
+            <div className="bg-[#191C23] border border-white/5 rounded-md p-5 text-left mb-6">
+              <p className="text-[13px] text-[#8A8E99] leading-relaxed">
+                Click the link in that email to activate your account, then sign in.
+                The link can take a minute to arrive.
+              </p>
+              <p className="text-[13px] text-[#8A8E99] leading-relaxed mt-3">
+                Not there? Check your spam or promotions folder — and make sure the
+                address above is correct.
+              </p>
+            </div>
+
+            <Link href="/login"
+              className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3.5 rounded-sm hover:brightness-110 transition-all">
+              Go to Sign In
+            </Link>
+
+            <p className="text-[12px] text-[#8A8E99] mt-6">
+              Wrong address?{' '}
+              <button onClick={() => { setEmailSent(false); }}
+                className="text-[#C9922A] hover:underline font-bold">
+                Start over
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
       <Navbar />
@@ -138,9 +173,6 @@ export default function SignupPage() {
             <p className="text-[14px] text-[#8A8E99]">Join South Africa&apos;s premier firearms marketplace</p>
           </div>
 
-          {/* ── ACCOUNT TYPE TABS ────────────────────────────────────────────
-              Presented before any field is filled in, so nobody completes a
-              personal form and then finds out they needed a business account. */}
           <div className="grid grid-cols-2 gap-0 mb-0">
             <div
               className="text-center py-3.5 border-b-2 border-[#C9922A] bg-[#191C23] rounded-t-md"
@@ -239,7 +271,6 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* ── REQUIRED: contract acceptance ─────────────────────────── */}
               <div className="border-t border-white/5 pt-6 flex flex-col gap-4">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
@@ -250,7 +281,6 @@ export default function SignupPage() {
                   </span>
                 </label>
 
-                {/* ── OPTIONAL: marketing, deliberately separate ───────────── */}
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" checked={marketingConsent} onChange={e => setMarketingConsent(e.target.checked)}
                     className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
