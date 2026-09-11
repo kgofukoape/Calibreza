@@ -184,6 +184,11 @@ const ACTION_TYPES: Record<string, string[]> = {
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
       };
 
+      // TEMPORARY DIAGNOSTIC: show exactly what seller_id we are about to send.
+      // The database trigger reported no_account, which happens when it receives
+      // a null/unknown owner id. This confirms whether user.id is populated.
+      alert('SELLER ID BEING SENT: ' + JSON.stringify({ seller_id: payload.seller_id, user_id: user?.id }));
+
       // ── PAID LISTING ──────────────────────────────────────────────────
       if (isPaid) {
         const paidImages = await uploadImages();
@@ -233,9 +238,6 @@ const ACTION_TYPES: Record<string, string[]> = {
         .insert({ ...payload, images: uploadedImageUrls })
         .select('id').single();
       if (error) {
-        // TEMPORARY DIAGNOSTIC: surface the real database error instead of the
-        // allowance guess, which was hiding genuine insert failures. Revert to a
-        // friendly message once the real cause is fixed.
         alert('DB ERROR: ' + JSON.stringify({ message: error.message, details: error.details, hint: error.hint, code: error.code }));
         throw new Error(`Failed to create listing: ${error.message}`);
       }
