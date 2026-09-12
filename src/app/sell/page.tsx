@@ -179,7 +179,7 @@ const ACTION_TYPES: Record<string, string[]> = {
         city: formData.city,
         listing_type: 'private',
         status: isPaid ? 'pending_payment' : 'active',
-        is_paid: isPaid,
+        is_paid: false,
         blade_type: isKnives ? (formData.blade_type || null) : null,
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
       };
