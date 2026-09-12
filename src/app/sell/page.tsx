@@ -184,11 +184,6 @@ const ACTION_TYPES: Record<string, string[]> = {
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
       };
 
-      // TEMPORARY DIAGNOSTIC: show exactly what seller_id we are about to send.
-      // The database trigger reported no_account, which happens when it receives
-      // a null/unknown owner id. This confirms whether user.id is populated.
-      alert('SELLER ID BEING SENT: ' + JSON.stringify({ seller_id: payload.seller_id, user_id: user?.id }));
-
       // ── PAID LISTING ──────────────────────────────────────────────────
       if (isPaid) {
         const paidImages = await uploadImages();
@@ -199,7 +194,6 @@ const ACTION_TYPES: Record<string, string[]> = {
           .select('id').single();
 
         if (pendingError) {
-          alert('DB ERROR (paid): ' + JSON.stringify({ message: pendingError.message, details: pendingError.details, hint: pendingError.hint, code: pendingError.code }));
           throw new Error(`Could not prepare listing: ${pendingError.message}`);
         }
 
@@ -238,7 +232,11 @@ const ACTION_TYPES: Record<string, string[]> = {
         .insert({ ...payload, images: uploadedImageUrls })
         .select('id').single();
       if (error) {
-        alert('DB ERROR: ' + JSON.stringify({ message: error.message, details: error.details, hint: error.hint, code: error.code }));
+        if (error.message?.includes('Free listing allowance') || error.message?.includes('allowance')) {
+          throw new Error(
+            `You have used all ${allowanceTotal} of your free listings ${periodWord}. Refresh this page to pay R${PAID_LISTING_PRICE} for this listing.`
+          );
+        }
         throw new Error(`Failed to create listing: ${error.message}`);
       }
       setListingId(data.id);
