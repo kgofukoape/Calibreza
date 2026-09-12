@@ -185,7 +185,7 @@ const ACTION_TYPES: Record<string, string[]> = {
         // when the money actually clears — so the database is never marked paid
         // before it is. A free listing is genuinely unpaid; a paid one becomes
         // paid only on confirmation.
-        is_paid: false,
+        is_paid: isPaid,
         blade_type: isKnives ? (formData.blade_type || null) : null,
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
       };
