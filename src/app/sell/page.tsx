@@ -178,7 +178,13 @@ const ACTION_TYPES: Record<string, string[]> = {
         province_id: formData.province_id,
         city: formData.city,
         listing_type: 'private',
+        // status keeps the paid listing hidden (pending_payment) until PayFast
+        // confirms. This must stay driven by isPaid.
         status: isPaid ? 'pending_payment' : 'active',
+        // Created as unpaid, always. The verified PayFast ITN sets this to true
+        // when the money actually clears — so the database is never marked paid
+        // before it is. A free listing is genuinely unpaid; a paid one becomes
+        // paid only on confirmation.
         is_paid: false,
         blade_type: isKnives ? (formData.blade_type || null) : null,
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
