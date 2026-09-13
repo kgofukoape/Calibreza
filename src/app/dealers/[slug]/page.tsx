@@ -228,7 +228,6 @@ function DealerStorefrontContent() {
           <div className="max-w-[1400px] mx-auto flex items-center gap-2 text-[12px]">
             <span className="text-blue-400 font-black uppercase tracking-widest">🛡️ Licensed Firearm Dealer</span>
             <span className="text-[#8A8E99]">·</span>
-            <span className="text-[#8A8E99]">SAPS Dealer Licence No: {dealer.saps_dealer_number}</span>
           </div>
         </div>
       )}
