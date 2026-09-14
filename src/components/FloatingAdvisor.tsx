@@ -30,7 +30,22 @@ export default function FloatingAdvisor() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [visible, dismissed]);
 
-  if (hidden || !visible || dismissed) return null;
+  if (hidden || !visible) return null;
+
+  if (dismissed) {
+    return (
+      <button
+        onClick={() => { setDismissed(false); setExpanded(true); }}
+        className="fixed bottom-24 right-0 md:bottom-6 z-[200] bg-red-600 hover:bg-red-500 text-white rounded-l-sm shadow-[0_6px_24px_rgba(220,38,38,0.4)] transition-all duration-200 flex items-center gap-1.5 pl-2 pr-3 py-2"
+        title="Firearm Advisor">
+        <span className="text-sm">🎯</span>
+        <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+          className="font-black uppercase tracking-widest text-[10px] leading-none hidden sm:inline">
+          Advisor
+        </span>
+      </button>
+    );
+  }
 
   const handleMouseEnter = () => {
     isHovered.current = true;
@@ -51,7 +66,6 @@ export default function FloatingAdvisor() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}>
 
-      {/* TOOLTIP DIALOGUE BOX */}
       <div className={`bg-[#13151A] border border-red-500/40 rounded-sm p-4 shadow-[0_12px_40px_rgba(0,0,0,0.7)] max-w-[240px] transition-all duration-300 transform origin-bottom-right ${
         expanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'}`}>
         <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -72,17 +86,14 @@ export default function FloatingAdvisor() {
         </div>
       </div>
 
-      {/* CORE CONTROL EMBLEM */}
       <div className="flex items-center gap-1.5 group">
-        {/* Dismiss */}
         <button
-          onClick={(e) => { e.stopPropagation(); setDismissed(true); }}
-          className="w-5 h-5 rounded-full bg-[#191C23] border border-white/10 flex items-center justify-center text-[#8A8E99] hover:text-red-400 hover:border-red-500/30 transition-all text-[11px] font-bold shadow-md opacity-0 group-hover:opacity-100 duration-200"
-          title="Dismiss">
+          onClick={(e) => { e.stopPropagation(); setDismissed(true); setExpanded(false); }}
+          className="w-7 h-7 rounded-full bg-[#191C23] border border-white/10 flex items-center justify-center text-[#8A8E99] hover:text-red-400 hover:border-red-500/30 transition-all text-[14px] font-bold shadow-md"
+          title="Hide advisor">
           ×
         </button>
 
-        {/* Main button */}
         <button onClick={toggleManual}
           className={`flex items-center gap-2.5 bg-red-600 hover:bg-red-500 text-white px-4 py-3 rounded-sm shadow-[0_6px_24px_rgba(220,38,38,0.4)] transition-all duration-200 ${expanded ? 'ring-2 ring-red-400/30' : ''}`}>
           <span className={`text-base transition-transform duration-300 ${expanded ? 'rotate-12 scale-110' : ''}`}>🎯</span>
