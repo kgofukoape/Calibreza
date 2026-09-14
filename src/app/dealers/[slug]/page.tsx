@@ -183,7 +183,7 @@ function DealerStorefrontContent() {
       // Save the quote to the platform record first — this is the sales data.
       // We do not block the buyer on it: even if the insert hiccups, the dealer
       // email below still goes out, so the lead is never lost.
-      const { error: quoteErr } = await supabase.from('quote_requests').insert({
+      await supabase.from('quote_requests').insert({
         dealer_id: dealer.id,
         dealer_name: dealer.business_name,
         dealer_email: dealer.email,
@@ -192,7 +192,6 @@ function DealerStorefrontContent() {
         buyer_phone: quoteForm.phone || null,
         message: quoteForm.message,
       });
-      alert(quoteErr ? ('QUOTE SAVE FAILED: ' + JSON.stringify(quoteErr)) : 'QUOTE SAVED OK');
 
       // Email the dealer so they can respond immediately.
       const res = await fetch('/api/notify', {
