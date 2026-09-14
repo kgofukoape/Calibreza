@@ -186,6 +186,8 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
   const waMsg     = encodeURIComponent(`Hi, I'm interested in your ${listing.title} on Gun X. Is it still available?`);
   const waUrl     = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : null;
   const viewCount = listing.view_count || 1;
+  const isWanted = listing.category_id === 'wanted';
+  const contactLabel = isWanted ? 'Contact Buyer' : 'Contact Seller';
 
   const specs = [
     ['Make',          listing.makes?.name],
@@ -266,7 +268,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
             </div>
             <button onClick={handleContactSeller} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               className="w-full bg-[#C9922A] text-black font-bold text-[16px] tracking-widest uppercase py-3.5 rounded-sm hover:brightness-110 transition-all mb-3">
-              Contact Seller
+              {contactLabel}
             </button>
             {waUrl && (
               <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
@@ -351,7 +353,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
 
             <button onClick={handleContactSeller} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               className="w-full bg-[#C9922A] text-black font-bold text-[17px] tracking-widest uppercase py-4 rounded-sm hover:brightness-110 transition-all shadow-lg">
-              Contact Seller
+              {contactLabel}
             </button>
 
             {waUrl && (
@@ -449,7 +451,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0D0F13]/95 backdrop-blur-sm border-t border-white/10 px-4 py-3 flex gap-3">
         <button onClick={handleContactSeller} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
           className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-3.5 rounded-sm hover:brightness-110 transition-all">
-          Contact Seller
+          {contactLabel}
         </button>
         {waUrl && (
           <a href={waUrl} target="_blank" rel="noopener noreferrer"
