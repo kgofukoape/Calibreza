@@ -177,10 +177,28 @@ function DealerStorefrontContent() {
   })() : null;
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${dealer?.business_name}, I found your dealership on Gun X and would like to enquire about your stock.`)}` : null;
 
-  const handleQuoteSubmit = (e: React.FormEvent) => {
+  const handleQuoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setQuoteSent(true);
-    setTimeout(() => { setShowQuoteModal(false); setQuoteSent(false); setQuoteForm({ name: '', email: '', phone: '', message: '' }); }, 2500);
+    try {
+      const res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'quote_request',
+          dealerEmail: dealer.email,
+          dealerName: dealer.business_name,
+          name: quoteForm.name,
+          email: quoteForm.email,
+          phone: quoteForm.phone,
+          message: quoteForm.message,
+        }),
+      });
+      if (!res.ok) throw new Error('send failed');
+      setQuoteSent(true);
+      setTimeout(() => { setShowQuoteModal(false); setQuoteSent(false); setQuoteForm({ name: '', email: '', phone: '', message: '' }); }, 2500);
+    } catch {
+      alert('Sorry, we could not send your request. Please try again, or contact the dealer directly from the Contact tab.');
+    }
   };
 
   const handleContactClick = () => {

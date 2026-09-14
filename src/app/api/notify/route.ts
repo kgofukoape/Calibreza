@@ -224,6 +224,32 @@ export async function POST(req: NextRequest) {
         );
         break;
 
+      case 'quote_request':
+        await sendEmail(
+          body.dealerEmail,
+          `New quote request from ${body.name} — via Gun X`,
+          `
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
+  <h1 style="color:#C9922A;font-size:22px;margin-bottom:6px;">New Quote Request</h1>
+  <p style="color:#8A8E99;font-size:14px;margin-top:0;">A buyer has requested a quote through your Gun X storefront.</p>
+  <div style="background:#13151A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px;margin:20px 0;">
+    <p style="margin:0 0 10px;"><strong style="color:#F0EDE8;">Name:</strong> <span style="color:#C4C0B8;">${body.name || ''}</span></p>
+    <p style="margin:0 0 10px;"><strong style="color:#F0EDE8;">Email:</strong> <span style="color:#C4C0B8;">${body.email || ''}</span></p>
+    <p style="margin:0 0 10px;"><strong style="color:#F0EDE8;">Phone:</strong> <span style="color:#C4C0B8;">${body.phone || 'Not provided'}</span></p>
+    <p style="margin:14px 0 0;"><strong style="color:#F0EDE8;">Message:</strong></p>
+    <p style="color:#C4C0B8;line-height:1.6;margin:6px 0 0;white-space:pre-wrap;">${body.message || ''}</p>
+  </div>
+  <p style="color:#8A8E99;font-size:13px;">Reply directly to <a href="mailto:${body.email}" style="color:#C9922A;">${body.email}</a> to send your quote.</p>
+  <p style="color:#5A5E69;font-size:12px;margin-top:24px;border-top:1px solid rgba(255,255,255,0.05);padding-top:14px;">Sent via Gun X · gunx.co.za</p>
+</div>`
+        );
+        await sendEmail(
+          ADMIN_EMAIL,
+          `Quote request: ${body.name} -> ${body.dealerName || 'dealer'}`,
+          adminAlert('Quote Request', body.name, `${body.email} -> ${body.dealerName || body.dealerEmail}`, `${BASE_URL}/admin`)
+        );
+        break;
+
       case 'contact_form':
         await sendEmail(
           ADMIN_EMAIL,
