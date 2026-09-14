@@ -183,7 +183,12 @@ function DealerStorefrontContent() {
     setTimeout(() => { setShowQuoteModal(false); setQuoteSent(false); setQuoteForm({ name: '', email: '', phone: '', message: '' }); }, 2500);
   };
 
-  const handleContactClick = () => { setActiveTab('contact'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handleContactClick = () => {
+    setActiveTab('contact');
+    setTimeout(() => {
+      document.getElementById('dealer-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   if (loading) return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13]">
@@ -281,7 +286,7 @@ function DealerStorefrontContent() {
       </div>
 
       {/* TABS */}
-      <div className="bg-[#0D0F13] border-b border-white/5 sticky top-[72px] z-40">
+      <div id="dealer-tabs" className="bg-[#0D0F13] border-b border-white/5 sticky top-[72px] z-40">
         <div className="max-w-[1400px] mx-auto px-6">
           <div className="flex gap-8">
             {[
