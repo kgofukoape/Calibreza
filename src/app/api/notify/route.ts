@@ -243,11 +243,9 @@ export async function POST(req: NextRequest) {
   <p style="color:#5A5E69;font-size:12px;margin-top:24px;border-top:1px solid rgba(255,255,255,0.05);padding-top:14px;">Sent via Gun X · gunx.co.za</p>
 </div>`
         );
-        await sendEmail(
-          ADMIN_EMAIL,
-          `Quote request: ${body.name} -> ${body.dealerName || 'dealer'}`,
-          adminAlert('Quote Request', body.name, `${body.email} -> ${body.dealerName || body.dealerEmail}`, `${BASE_URL}/admin`)
-        );
+        // No admin email copy — quotes are saved to the quote_requests table and
+        // reviewed in the admin console. Emailing pewpew for every quote would
+        // not scale past a handful a day.
         break;
 
       case 'contact_form':

@@ -180,6 +180,20 @@ function DealerStorefrontContent() {
   const handleQuoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Save the quote to the platform record first — this is the sales data.
+      // We do not block the buyer on it: even if the insert hiccups, the dealer
+      // email below still goes out, so the lead is never lost.
+      await supabase.from('quote_requests').insert({
+        dealer_id: dealer.id,
+        dealer_name: dealer.business_name,
+        dealer_email: dealer.email,
+        buyer_name: quoteForm.name,
+      buyer_email: quoteForm.email,
+        buyer_phone: quoteForm.phone || null,
+        message: quoteForm.message,
+      });
+
+      // Email the dealer so they can respond immediately.
       const res = await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
