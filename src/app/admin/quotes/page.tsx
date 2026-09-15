@@ -49,6 +49,29 @@ export default function AdminQuotesPage() {
     await supabase.from('quote_requests').update({ status }).eq('id', id);
   };
 
+  const exportCsv = () => {
+    const rows = inRange.map(q => [
+      new Date(q.created_at).toLocaleString('en-ZA'),
+      q.dealer_name || '',
+      q.buyer_name || '',
+      q.buyer_email || '',
+      q.buyer_phone || '',
+      q.status || '',
+      (q.message || '').replace(/"/g, '""'),
+    ]);
+    const header = ['Date', 'Dealer', 'Buyer', 'Buyer Email', 'Buyer Phone', 'Status', 'Message'];
+    const csv = [header, ...rows]
+      .map(r => r.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gunx-quotes-${range}months-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - range);
   const inRange = quotes.filter(q => new Date(q.created_at) >= cutoff);
@@ -97,7 +120,13 @@ export default function AdminQuotesPage() {
               {inRange.length} quote{inRange.length !== 1 ? 's' : ''} in the last {range} months, {groups.length} dealer{groups.length !== 1 ? 's' : ''}.
             </p>
           </div>
-          <a href="/admin" className="text-[12px] text-[#8A8E99] hover:text-[#C9922A] uppercase tracking-widest font-black">Back to Admin</a>
+          <div className="flex items-center gap-4">
+            <button onClick={exportCsv} disabled={inRange.length === 0}
+              className="text-[12px] bg-[#C9922A] text-black px-4 py-2 rounded-sm uppercase tracking-widest font-black hover:brightness-110 transition-all disabled:opacity-40">
+              Download CSV
+            </button>
+            <a href="/admin" className="text-[12px] text-[#8A8E99] hover:text-[#C9922A] uppercase tracking-widest font-black">Back to Admin</a>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-5 flex-wrap">
