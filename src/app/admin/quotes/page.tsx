@@ -22,10 +22,13 @@ interface DealerGroup {
   quotes: Quote[];
 }
 
+type RangeMonths = 3 | 6 | 9 | 12;
+
 export default function AdminQuotesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [range, setRange] = useState<RangeMonths>(6);
 
   useEffect(() => { load(); }, []);
 
@@ -46,20 +49,43 @@ export default function AdminQuotesPage() {
     await supabase.from('quote_requests').update({ status }).eq('id', id);
   };
 
-  // ── GROUP BY DEALER ────────────────────────────────────────────────────────
-  // Collapse the flat list into one section per dealer, ordered by who is
-  // pulling the most buyer interest. The count next to each dealer is the story
-  // you can show a prospective dealer: this is the demand flowing through us.
+  // ── FILTER TO THE SELECTED RANGE ───────────────────────────────────────────
+  // Everything below — the chart, the totals, the dealer groups — respects this
+  // window, so "last 3 months" is a genuine report on that period.
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - range);
+  const inRange = quotes.filter(q => new Date(q.created_at) >= cutoff);
+
+  // ── MONTHLY BUCKETS FOR THE CHART ──────────────────────────────────────────
+  // One bar per month across the window. Built from the data itself — no chart
+  // library, so nothing to install and nothing that can break the build.
+  const months: { label: string; key: string; count: number }[] = [];
+  const now = new Date();
+  for (let i = range - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    months.push({
+      key,
+      label: d.toLocaleDateString('en-ZA', { month: 'short' }),
+      count: 0,
+    });
+  }
+  for (const q of inRange) {
+    const d = new Date(q.created_at);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const bucket = months.find(m => m.key === key);
+    if (bucket) bucket.count++;
+  }
+  const maxCount = Math.max(1, ...months.map(m => m.count));
+
+  // ── GROUP BY DEALER (within range) ─────────────────────────────────────────
   const groups: DealerGroup[] = (() => {
     const map: Record<string, DealerGroup> = {};
-    for (const q of quotes) {
+    for (const q of inRange) {
       const key = q.dealer_id || q.dealer_name || 'unknown';
-      if (!map[key]) {
-        map[key] = { key, dealerName: q.dealer_name || 'Unknown dealer', quotes: [] };
-      }
+      if (!map[key]) map[key] = { key, dealerName: q.dealer_name || 'Unknown dealer', quotes: [] };
       map[key].quotes.push(q);
     }
-    // Most quotes first.
     return Object.values(map).sort((a, b) => b.quotes.length - a.quotes.length);
   })();
 
@@ -80,17 +106,39 @@ export default function AdminQuotesPage() {
               Quote <span className="text-[#C9922A]">Leads</span>
             </h1>
             <p className="text-[13px] text-[#8A8E99] mt-1">
-              {quotes.length} total quote{quotes.length !== 1 ? 's' : ''} across {groups.length} dealer{groups.length !== 1 ? 's' : ''}.
+              {inRange.length} quote{inRange.length !== 1 ? 's' : ''} in the last {range} months · {groups.length} dealer{groups.length !== 1 ? 's' : ''}.
             </p>
           </div>
           <a href="/admin" className="text-[12px] text-[#8A8E99] hover:text-[#C9922A] uppercase tracking-widest font-black">← Admin</a>
         </div>
 
-        {loading ? (
-          <p className="text-[#8A8E99] text-sm">Loading…</p>
-        ) : groups.length === 0 ? (
-          <div className="bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
-            <p className="text-[#8A8E99] text-sm">No quote requests yet.</p>
+        {/* RANGE TOGGLE */}
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {([3, 6, 9, 12] as RangeMonths[]).map(r => (
+            <button key={r} onClick={() => setRange(r)}
+              className={`text-[11px] font-black uppercase tracking-widest px-4 py-2 rounded-sm border transition-all ${
+                range === r ? 'bg-[#C9922A] text-black border-[#C9922A]' : 'bg-transparent text-[#8A8E99] border-white/10 hover:border-white/20'}`}>
+              {r} Months
+            </button>
+          ))}
+        </div>
+
+        {/* MONTHLY BAR CHART */}
+        <div className="bg-[#13151A] border border-white/5 rounded-sm p-6 mb-6">
+          <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-5">
+            Quote volume — last {range} months
+          </p>
+          <div className="flex items-end justify-between gap-2" style={{ height: '160px' }}>
+            {months.map(m => (
+              <div key={m.key} className="flex-1 flex flex-col items-center justify-end h-full gap-2">
+                <span className="text-[12px] font-black text-[#C9922A]">{m.count > 0 ? m.count : ''}</span>
+                <div
+                  className="w-full bg-gradient-to-t from-[#C9922A]/40 to-[#C9922A] rounded-t-sm transition-all"
+                  style={{ height: `${(m.count / maxCount) * 100}%`, minHeight: m.count > 0 ? '4px' : '0' }}
+                />
+                <span className="text-[10px] text-[#8A8E99] uppercase tracking-widest">{m.label}</span>
+             m p-10 text-center">
+            <p className="text-[#8A8E99] text-sm">No quote requests in this period.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -99,7 +147,6 @@ export default function AdminQuotesPage() {
               const newCount = g.quotes.filter(q => q.status === 'new').length;
               return (
                 <div key={g.key} className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden">
-                  {/* DEALER HEADER — click to expand */}
                   <button onClick={() => toggle(g.key)}
                     className="w-full flex items-center justify-between gap-4 p-5 hover:bg-white/[0.02] transition-all text-left">
                     <div className="flex items-center gap-3">
@@ -118,7 +165,6 @@ export default function AdminQuotesPage() {
                     </div>
                   </button>
 
-                  {/* QUOTES under this dealer */}
                   {isOpen && (
                     <div className="border-t border-white/5 flex flex-col divide-y divide-white/5">
                       {g.quotes.map(q => (
