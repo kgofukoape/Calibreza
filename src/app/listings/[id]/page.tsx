@@ -464,13 +464,13 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
       {/* CONTACT MODAL */}
       {showContactModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#191C23] border border-white/10 rounded-sm p-6 max-w-md w-full flex flex-col">
-            <div className="flex items-center justify-between mb-5 order-1">
+          <div className="bg-[#191C23] border border-white/10 rounded-sm p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-5">
               <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="font-black text-2xl uppercase text-[#F0EDE8]">Contact {seller?.is_dealer ? 'Dealer' : 'Seller'}</h3>
               <button onClick={() => setShowContactModal(false)} className="text-[#8A8E99] hover:text-white text-2xl leading-none">×</button>
             </div>
 
-            <div className="flex items-center gap-3 mb-5 pb-5 border-b border-white/5 order-2">
+            <div className="flex items-center gap-3 mb-5 pb-5 border-b border-white/5">
               <div className="w-11 h-11 rounded-full bg-[#C9922A] flex items-center justify-center overflow-hidden flex-shrink-0">
                 {seller?.logo_url ? <SmartImage src={seller.logo_url} alt="" width={44} className="w-full h-full object-cover" /> : <span className="text-black font-black text-lg">{(seller?.full_name || 'S').charAt(0)}</span>}
               </div>
@@ -480,7 +480,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 mb-5 order-4">
+            <div className="flex flex-col gap-3 mb-5">
               {waUrl && (
                 <a href={waUrl} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-4 bg-[#25D366]/10 border border-[#25D366]/30 rounded-sm px-4 py-3.5 hover:bg-[#25D366]/20 transition-all">
@@ -504,7 +504,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               )}
             </div>
 
-            <div className="pt-4 border-t border-white/5 order-3">
+            <div className="pt-4 border-t border-white/5">
               <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Send a Message</p>
               {messageSent ? (
                 <div className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 rounded-sm p-3 text-center">
