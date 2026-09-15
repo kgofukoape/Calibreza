@@ -91,6 +91,22 @@ export default function AdminQuotesPage() {
   }
   const maxCount = Math.max(1, ...months.map(m => m.count));
 
+  // Aggregate marketing stats - all-time, computed from the full dataset.
+  // These are safe to show prospects: counts only, zero personal data.
+  const stats = (() => {
+    const total = quotes.length;
+    const now2 = new Date();
+    const thisMonthKey = now2.getFullYear() + '-' + now2.getMonth();
+    const thisMonth = quotes.filter(q => {
+      const d = new Date(q.created_at);
+      return (d.getFullYear() + '-' + d.getMonth()) === thisMonthKey;
+    }).length;
+    const dealerSet = new Set(quotes.map(q => q.dealer_id || q.dealer_name).filter(Boolean));
+    const activeDealers = dealerSet.size;
+    const avgPerDealer = activeDealers > 0 ? Math.round(total / activeDealers) : 0;
+    return { total, thisMonth, activeDealers, avgPerDealer };
+  })();
+
   const groups: DealerGroup[] = (() => {
     const map: Record<string, DealerGroup> = {};
     for (const q of inRange) {
@@ -137,6 +153,31 @@ export default function AdminQuotesPage() {
               {r} Months
             </button>
           ))}
+        </div>
+
+        {/* MARKETING SNAPSHOT - aggregate only, safe to show prospects. No names,
+            no contacts, no personal data. These are the demand numbers you put
+            in front of a potential dealer or service client. */}
+        <div className="bg-gradient-to-br from-[#C9922A]/10 to-[#13151A] border border-[#C9922A]/20 rounded-sm p-6 mb-6">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C9922A] mb-4">Marketing Snapshot - Buyer Demand</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-3xl md:text-4xl font-black text-[#F0EDE8]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{stats.total}</p>
+              <p className="text-[11px] text-[#8A8E99] uppercase tracking-widest mt-1">Total buyer enquiries</p>
+            </div>
+            <div>
+              <p className="text-3xl md:text-4xl font-black text-[#F0EDE8]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{stats.thisMonth}</p>
+              <p className="text-[11px] text-[#8A8E99] uppercase tracking-widest mt-1">Enquiries this month</p>
+            </div>
+            <div>
+              <p className="text-3xl md:text-4xl font-black text-[#F0EDE8]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{stats.activeDealers}</p>
+              <p className="text-[11px] text-[#8A8E99] uppercase tracking-widest mt-1">Dealers receiving leads</p>
+            </div>
+            <div>
+              <p className="text-3xl md:text-4xl font-black text-[#F0EDE8]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{stats.avgPerDealer}</p>
+              <p className="text-[11px] text-[#8A8E99] uppercase tracking-widest mt-1">Avg leads per dealer</p>
+            </div>
+          </div>
         </div>
 
         <div className="bg-[#13151A] border border-white/5 rounded-sm p-6 mb-6">
