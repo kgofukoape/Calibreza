@@ -49,36 +49,25 @@ export default function AdminQuotesPage() {
     await supabase.from('quote_requests').update({ status }).eq('id', id);
   };
 
-  // ── FILTER TO THE SELECTED RANGE ───────────────────────────────────────────
-  // Everything below — the chart, the totals, the dealer groups — respects this
-  // window, so "last 3 months" is a genuine report on that period.
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - range);
   const inRange = quotes.filter(q => new Date(q.created_at) >= cutoff);
 
-  // ── MONTHLY BUCKETS FOR THE CHART ──────────────────────────────────────────
-  // One bar per month across the window. Built from the data itself — no chart
-  // library, so nothing to install and nothing that can break the build.
   const months: { label: string; key: string; count: number }[] = [];
   const now = new Date();
   for (let i = range - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    months.push({
-      key,
-      label: d.toLocaleDateString('en-ZA', { month: 'short' }),
-      count: 0,
-    });
+    const key = d.getFullYear() + '-' + d.getMonth();
+    months.push({ key, label: d.toLocaleDateString('en-ZA', { month: 'short' }), count: 0 });
   }
   for (const q of inRange) {
     const d = new Date(q.created_at);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const key = d.getFullYear() + '-' + d.getMonth();
     const bucket = months.find(m => m.key === key);
     if (bucket) bucket.count++;
   }
   const maxCount = Math.max(1, ...months.map(m => m.count));
 
-  // ── GROUP BY DEALER (within range) ─────────────────────────────────────────
   const groups: DealerGroup[] = (() => {
     const map: Record<string, DealerGroup> = {};
     for (const q of inRange) {
@@ -101,18 +90,16 @@ export default function AdminQuotesPage() {
       <div className="max-w-[1200px] mx-auto">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="text-3xl md:text-4xl font-black uppercase">
+            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl md:text-4xl font-black uppercase">
               Quote <span className="text-[#C9922A]">Leads</span>
             </h1>
             <p className="text-[13px] text-[#8A8E99] mt-1">
-              {inRange.length} quote{inRange.length !== 1 ? 's' : ''} in the last {range} months · {groups.length} dealer{groups.length !== 1 ? 's' : ''}.
+              {inRange.length} quote{inRange.length !== 1 ? 's' : ''} in the last {range} months, {groups.length} dealer{groups.length !== 1 ? 's' : ''}.
             </p>
           </div>
-          <a href="/admin" className="text-[12px] text-[#8A8E99] hover:text-[#C9922A] uppercase tracking-widest font-black">← Admin</a>
+          <a href="/admin" className="text-[12px] text-[#8A8E99] hover:text-[#C9922A] uppercase tracking-widest font-black">Back to Admin</a>
         </div>
 
-        {/* RANGE TOGGLE */}
         <div className="flex gap-2 mb-5 flex-wrap">
           {([3, 6, 9, 12] as RangeMonths[]).map(r => (
             <button key={r} onClick={() => setRange(r)}
@@ -123,21 +110,26 @@ export default function AdminQuotesPage() {
           ))}
         </div>
 
-        {/* MONTHLY BAR CHART */}
         <div className="bg-[#13151A] border border-white/5 rounded-sm p-6 mb-6">
           <p className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-5">
-            Quote volume — last {range} months
+            Quote volume, last {range} months
           </p>
           <div className="flex items-end justify-between gap-2" style={{ height: '160px' }}>
             {months.map(m => (
               <div key={m.key} className="flex-1 flex flex-col items-center justify-end h-full gap-2">
                 <span className="text-[12px] font-black text-[#C9922A]">{m.count > 0 ? m.count : ''}</span>
-                <div
-                  className="w-full bg-gradient-to-t from-[#C9922A]/40 to-[#C9922A] rounded-t-sm transition-all"
-                  style={{ height: `${(m.count / maxCount) * 100}%`, minHeight: m.count > 0 ? '4px' : '0' }}
-                />
+                <div className="w-full bg-gradient-to-t from-[#C9922A]/40 to-[#C9922A] rounded-t-sm transition-all"
+                  style={{ height: `${(m.count / maxCount) * 100}%`, minHeight: m.count > 0 ? '4px' : '0' }} />
                 <span className="text-[10px] text-[#8A8E99] uppercase tracking-widest">{m.label}</span>
-             m p-10 text-center">
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="text-[#8A8E99] text-sm">Loading...</p>
+        ) : groups.length === 0 ? (
+          <div className="bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
             <p className="text-[#8A8E99] text-sm">No quote requests in this period.</p>
           </div>
         ) : (
@@ -150,9 +142,8 @@ export default function AdminQuotesPage() {
                   <button onClick={() => toggle(g.key)}
                     className="w-full flex items-center justify-between gap-4 p-5 hover:bg-white/[0.02] transition-all text-left">
                     <div className="flex items-center gap-3">
-                      <span className={`text-[#8A8E99] text-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
-                      <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                        className="text-xl font-black uppercase">{g.dealerName}</span>
+                      <span className={`text-[#8A8E99] text-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}>&#9654;</span>
+                      <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase">{g.dealerName}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {newCount > 0 && (
@@ -179,11 +170,9 @@ export default function AdminQuotesPage() {
                               </div>
                               <p className="text-[12px] text-[#8A8E99]">
                                 <a href={`mailto:${q.buyer_email}`} className="text-[#C9922A] hover:underline">{q.buyer_email}</a>
-                                {q.buyer_phone && <> · {q.buyer_phone}</>}
+                                {q.buyer_phone && <> - {q.buyer_phone}</>}
                               </p>
-                              <p className="text-[11px] text-[#8A8E99] mt-0.5">
-                                {new Date(q.created_at).toLocaleString('en-ZA')}
-                              </p>
+                              <p className="text-[11px] text-[#8A8E99] mt-0.5">{new Date(q.created_at).toLocaleString('en-ZA')}</p>
                               <p className="text-[13px] text-[#C4C0B8] mt-3 leading-relaxed whitespace-pre-wrap bg-[#0D0F13] border border-white/5 rounded-sm p-3">
                                 {q.message}
                               </p>
