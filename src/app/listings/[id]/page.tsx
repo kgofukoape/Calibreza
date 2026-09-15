@@ -502,18 +502,6 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
                   </div>
                 </a>
               )}
-              {seller?.email && (
-                <a href={`mailto:${seller.email}?subject=Enquiry: ${encodeURIComponent(listing?.title || '')}`}
-                  className="flex items-center gap-4 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3.5 hover:border-[#C9922A]/50 transition-all group">
-                  <div className="w-9 h-9 bg-[#C9922A]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-[#C9922A]" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold">Email</p>
-                    <p className="text-[14px] font-bold text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors">{seller.email}</p>
-                  </div>
-                </a>
-              )}
             </div>
 
             <div className="pt-4 border-t border-white/5">
