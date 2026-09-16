@@ -91,7 +91,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
           is_dealer: true,
         });
       } else if (listingData.seller_id) {
-        const { data: userData } = await supabase.from('users').select('*').eq('id', listingData.seller_id).maybeSingle();
+        const { data: userData } = await supabase.from('seller_public').select('*').eq('id', listingData.seller_id).maybeSingle();
         setSeller(userData ? { ...userData, is_dealer: false } : null);
       }
 
