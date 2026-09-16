@@ -29,6 +29,7 @@ const TABLES: Record<string, { table: string; orderBy: string }> = {
   // submission from the Ad Manager — the same fault that hid pending dealer
   // applications.
   ad:      { table: 'ads',      orderBy: 'created_at' },
+  review:  { table: 'dealer_reviews', orderBy: 'created_at' },
   quote:   { table: 'quote_requests', orderBy: 'created_at' },
 };
 
