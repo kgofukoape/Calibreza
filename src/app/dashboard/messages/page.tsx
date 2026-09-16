@@ -104,6 +104,17 @@ export default function DashboardMessagesPage() {
       profileMap[m.recipient_id] = profileMap[m.recipient_id] || { full_name: 'User', email: '' };
     });
 
+    const userIds = Object.keys(profileMap);
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('seller_public')
+        .select('id, full_name')
+        .in('id', userIds);
+      (profiles || []).forEach((pr: any) => {
+        if (profileMap[pr.id]) profileMap[pr.id].full_name = pr.full_name || 'User';
+      });
+    }
+
     const threadMap: Record<string, Thread> = {};
     data.forEach(m => {
       const otherId = m.sender_id === userId ? m.recipient_id : m.sender_id;
