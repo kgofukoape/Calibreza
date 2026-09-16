@@ -9,6 +9,7 @@ import ListingCard from '@/components/listings/ListingCard';
 import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
+import DealerReviews from '@/components/dealers/DealerReviews';
 
 const ProfileMap = dynamic(() => import('@/components/ProfileMap'), { ssr: false });
 
@@ -440,25 +441,16 @@ function DealerStorefrontContent() {
           {/* ── REVIEWS ── */}
           {activeTab === 'reviews' && (
             <div className="max-w-[800px]">
-              <div className="bg-[#13151A] border border-white/5 p-10 rounded-sm">
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-8 text-[#C9922A]">Customer Reviews</h2>
-                <div className="flex items-center gap-8 mb-8 pb-8 border-b border-white/5">
-                  <div className="text-center">
-                    <div className="text-5xl font-black text-[#C9922A] mb-2">{dealer.rating?.toFixed(1) || '0.0'}</div>
-                    <div className="text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">{dealer.review_count || 0} reviews</div>
-                  </div>
-                  <div className="flex-1">
-                    {[5,4,3,2,1].map(stars => (
-                      <div key={stars} className="flex items-center gap-3 mb-2">
-                        <span className="text-[13px] text-[#8A8E99] w-12 font-bold">{stars} ⭐</span>
-                        <div className="flex-1 h-2 bg-[#0D0F13] rounded-full overflow-hidden"><div className="h-full bg-[#C9922A]" style={{ width: '0%' }} /></div>
-                        <span className="text-[13px] text-[#8A8E99] w-8 font-bold">0</span>
-                      </div>
-                    ))}
-                  </div>
+              <div className="bg-[#13151A] border border-white/5 p-6 md:p-8 rounded-sm mb-4 flex items-center gap-8">
+                <div className="text-center">
+                  <div className="text-5xl font-black text-[#C9922A] mb-1">{dealer.rating?.toFixed(1) || '0.0'}</div>
+                  <div className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest">{dealer.review_count || 0} reviews</div>
                 </div>
-                <p className="text-[#8A8E99] text-center py-8 uppercase font-bold tracking-widest">No reviews yet</p>
+                <div className="text-[13px] text-[#8A8E99] leading-relaxed">
+                  Reviews are posted by registered Gun X users. Anything inappropriate can be reported.
+                </div>
               </div>
+              <DealerReviews dealerId={dealer.id} />
             </div>
           )}
 
