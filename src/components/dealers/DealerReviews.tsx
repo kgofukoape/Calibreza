@@ -11,6 +11,8 @@ interface Review {
   rating: number;
   comment: string | null;
   created_at: string;
+  dealer_response: string | null;
+  dealer_response_at: string | null;
 }
 
 function Stars({ value, size = 'text-base' }: { value: number; size?: string }) {
@@ -25,18 +27,27 @@ function Stars({ value, size = 'text-base' }: { value: number; size?: string }) 
 
 export default function DealerReviews({ dealerId }: { dealerId: string }) {
   const [user, setUser] = useState<any>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [myRating, setMyRating] = useState(0);
   const [myComment, setMyComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState('');
+  const [replyOpen, setReplyOpen] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
 
   useEffect(() => { init(); }, [dealerId]);
 
   const init = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
+    const u = session?.user ?? null;
+    setUser(u);
+    if (u) {
+      const { data: owned } = await supabase
+        .from('dealers').select('id').eq('id', dealerId).eq('user_id', u.id).maybeSingle();
+      setIsOwner(!!owned);
+    }
     await loadReviews();
     setLoading(false);
   };
@@ -44,7 +55,7 @@ export default function DealerReviews({ dealerId }: { dealerId: string }) {
   const loadReviews = async () => {
     const { data } = await supabase
       .from('dealer_reviews')
-      .select('id, reviewer_id, reviewer_name, rating, comment, created_at')
+      .select('id, reviewer_id, reviewer_name, rating, comment, created_at, dealer_response, dealer_response_at')
       .eq('dealer_id', dealerId)
       .eq('hidden', false)
       .order('created_at', { ascending: false });
@@ -86,6 +97,14 @@ export default function DealerReviews({ dealerId }: { dealerId: string }) {
     alert(error ? ('Could not report: ' + error.message) : 'Thank you. This review has been flagged for review.');
   };
 
+  const sendReply = async (id: string) => {
+    const { error } = await supabase.rpc('respond_to_review', { p_review_id: id, p_response: replyText });
+    if (error) { alert('Could not post response: ' + error.message); return; }
+    setReplyOpen(null);
+    setReplyText('');
+    loadReviews();
+  };
+
   const fmt = (d: string) => new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
 
   if (loading) {
@@ -96,7 +115,7 @@ export default function DealerReviews({ dealerId }: { dealerId: string }) {
     <div className="bg-[#13151A] border border-white/5 p-6 md:p-10 rounded-sm">
       <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-6 text-[#C9922A]">Customer Reviews</h2>
 
-      {user ? (
+      {!isOwner && (user ? (
         myExisting && myRating === 0 ? (
           <div className="border border-white/10 rounded-sm p-5 mb-8 bg-[#0D0F13]">
             <p className="text-[13px] text-[#8A8E99] mb-3">You reviewed this dealer:</p>
@@ -139,6 +158,12 @@ export default function DealerReviews({ dealerId }: { dealerId: string }) {
             Sign in to review
           </Link>
         </div>
+      ))}
+
+      {isOwner && (
+        <div className="border border-white/10 rounded-sm p-4 mb-8 bg-[#0D0F13]">
+          <p className="text-[13px] text-[#8A8E99]">This is your dealer profile. You can respond to reviews below.</p>
+        </div>
       )}
 
       {reviews.length === 0 ? (
@@ -155,7 +180,40 @@ export default function DealerReviews({ dealerId }: { dealerId: string }) {
                 <span className="text-[11px] text-[#8A8E99]">{fmt(r.created_at)}</span>
               </div>
               {r.comment && <p className="text-[14px] text-[#C4C0B8] leading-relaxed mt-1">{r.comment}</p>}
-              {user && user.id !== r.reviewer_id && (
+
+              {r.dealer_response && (
+                <div className="mt-3 ml-4 pl-4 border-l-2 border-[#C9922A]/40">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-1">
+                    Response from the dealer{r.dealer_response_at ? ' - ' + fmt(r.dealer_response_at) : ''}
+                  </p>
+                  <p className="text-[14px] text-[#C4C0B8] leading-relaxed">{r.dealer_response}</p>
+                </div>
+              )}
+
+              {isOwner && (
+                replyOpen === r.id ? (
+                  <div className="mt-3">
+                    <textarea value={replyText} onChange={e => setReplyText(e.target.value)} rows={2}
+                      placeholder="Write your response..."
+                      className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 mb-2" />
+                    <div className="flex gap-2">
+                      <button onClick={() => sendReply(r.id)}
+                        className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[11px] px-4 py-2 rounded-sm hover:brightness-110">
+                        Post response
+                      </button>
+                      <button onClick={() => { setReplyOpen(null); setReplyText(''); }}
+                        className="text-[11px] uppercase tracking-widest text-[#8A8E99] px-2">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { setReplyOpen(r.id); setReplyText(r.dealer_response || ''); }}
+                    className="mt-2 text-[10px] uppercase tracking-widest text-[#C9922A] hover:underline">
+                    {r.dealer_response ? 'Edit response' : 'Respond'}
+                  </button>
+                )
+              )}
+
+              {user && !isOwner && user.id !== r.reviewer_id && (
                 <button onClick={() => report(r.id)}
                   className="mt-2 text-[10px] uppercase tracking-widest text-[#8A8E99] hover:text-[#E63946] transition-colors">
                   Report
