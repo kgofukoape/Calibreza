@@ -51,6 +51,9 @@ export default function PostTrainingPage() {
   const allowanceLoaded = allowance !== null;
   const remaining = allowance?.remaining ?? 1;
   const isPaid = allowanceLoaded && remaining <= 0;
+  const periodWord = allowance?.period === 'month' ? 'this month' : 'this year';
+  const allowanceTotal = allowance?.allowance ?? 1;
+  const periodNoun = allowance?.period === 'month' ? 'month' : 'year';
 
   const set = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -184,10 +187,10 @@ export default function PostTrainingPage() {
 
         <div className={`mb-5 rounded-sm p-4 ${isPaid ? 'bg-[#C9922A]/10 border border-[#C9922A]/30' : 'bg-[#13151A] border border-white/5'}`}>
           <p className="text-[12px] font-black uppercase tracking-widest text-[#F0EDE8]">
-            {isPaid ? `Free listing used up this year` : `${remaining} free training listing left this year`}
+            {isPaid ? `Free listing used up ${periodWord}` : `${remaining} free training listing${remaining === 1 ? '' : 's'} left ${periodWord}`}
           </p>
           <p className="text-[11px] text-[#8A8E99] mt-0.5">
-            {isPaid ? `This listing costs R${PAID_PRICE}, paid securely via PayFast.` : `You get 1 free training listing per year.`}
+            {isPaid ? `This listing costs R${PAID_PRICE}, paid securely via PayFast.` : `You get ${allowanceTotal} free training listing${allowanceTotal === 1 ? '' : 's'} per ${periodNoun}.`}
           </p>
         </div>
 
