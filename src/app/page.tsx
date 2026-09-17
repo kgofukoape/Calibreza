@@ -228,6 +228,8 @@ export default function HomePage() {
               </div>
             </div>
 
+            <TrainingReel />
+
             {/* AI ADVISOR CTA */}
             <div className="px-4 md:px-6 py-2">
               <div className="bg-[#191C23] border border-[#C9922A]/30 rounded-sm px-5 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -310,8 +312,6 @@ export default function HomePage() {
                 </div>
               </Link>
             </section>
-
-            <TrainingReel />
 
             {/* WHY CHOOSE */}
             <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12 border-t border-white/5">
