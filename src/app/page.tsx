@@ -6,6 +6,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import AdBanner from '@/components/AdBanner';
 import SmartImage from '@/components/SmartImage';
+import TrainingReel from '@/components/training/TrainingReel';
 import { supabase } from '@/lib/supabase';
 import { DEALER_PLANS } from '@/lib/plans';
 
@@ -309,6 +310,8 @@ export default function HomePage() {
                 </div>
               </Link>
             </section>
+
+            <TrainingReel />
 
             {/* WHY CHOOSE */}
             <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 lg:py-12 border-t border-white/5">
