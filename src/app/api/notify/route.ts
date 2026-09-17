@@ -18,6 +18,15 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const ADMIN_EMAIL    = 'pewpew@gunx.co.za';
 const FROM_EMAIL     = 'Gun X <notifications@gunx.co.za>';
 
+// Service-role client, used only to look up an organizer's email from their
+// auth id when notifying them of a training enquiry. The client cannot read
+// auth.users, so this must happen server-side.
+import { createClient } from '@supabase/supabase-js';
+const svc = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
 
 async function sendEmail(to: string, subject: string, html: string) {
@@ -247,6 +256,35 @@ export async function POST(req: NextRequest) {
         // reviewed in the admin console. Emailing pewpew for every quote would
         // not scale past a handful a day.
         break;
+
+      case 'event_enquiry': {
+        // Resolve the organizer's email from their id, server-side.
+        let organizerEmail = '';
+        if (body.organizerId) {
+          const { data: authUser } = await svc.auth.admin.getUserById(body.organizerId);
+          organizerEmail = authUser?.user?.email || '';
+        }
+        if (!organizerEmail) break;
+        await sendEmail(
+          organizerEmail,
+          `New interest in your training day: ${body.eventTitle}`,
+          `
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0D0F13;color:#F0EDE8;padding:32px;border-radius:8px;">
+  <h1 style="color:#C9922A;font-size:22px;margin-bottom:6px;">New Training Enquiry</h1>
+  <p style="color:#8A8E99;font-size:14px;margin-top:0;">Someone is interested in your training day: <strong style="color:#F0EDE8;">${body.eventTitle || ''}</strong></p>
+  <div style="background:#13151A;border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px;margin:20px 0;">
+    <p style="margin:0 0 10px;"><strong style="color:#F0EDE8;">Name:</strong> <span style="color:#C4C0B8;">${body.name || ''}</span></p>
+    <p style="margin:0 0 10px;"><strong style="color:#F0EDE8;">Email:</strong> <span style="color:#C4C0B8;">${body.email || ''}</span></p>
+    <p style="margin:0 0 10px;"><strong style="color:#F0EDE8;">Phone:</strong> <span style="color:#C4C0B8;">${body.phone || 'Not provided'}</span></p>
+    <p style="margin:14px 0 0;"><strong style="color:#F0EDE8;">Message:</strong></p>
+    <p style="color:#C4C0B8;line-height:1.6;margin:6px 0 0;white-space:pre-wrap;">${body.message || 'No message'}</p>
+  </div>
+  <p style="color:#8A8E99;font-size:13px;">Reply directly to <a href="mailto:${body.email}" style="color:#C9922A;">${body.email}</a> to follow up.</p>
+  <p style="color:#5A5E69;font-size:12px;margin-top:24px;border-top:1px solid rgba(255,255,255,0.05);padding-top:14px;">Sent via Gun X - gunx.co.za</p>
+</div>`
+        );
+        break;
+      }
 
       case 'contact_form':
         await sendEmail(
