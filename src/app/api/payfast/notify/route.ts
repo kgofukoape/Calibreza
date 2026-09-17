@@ -354,6 +354,24 @@ export async function POST(req: NextRequest) {
         console.log(`Private paid listing activated: ${listingId}`);
       }
 
+      // TRAINING EVENT
+      // /training/post sends custom_str1 'training_event'. Same pattern as a
+      // private listing: created as pending_payment, activated only when the
+      // verified R299 ITN clears.
+      else if (customStr1 === 'training_event') {
+        const eventId = customStr2;
+        if (Math.abs(amountGross - 299) > 0.01) {
+          console.error('Training listing REJECTED - wrong amount: ' + amountGross);
+          return new NextResponse('OK', { status: 200 });
+        }
+        await supabase
+          .from('training_events')
+          .update({ status: 'active', is_paid: true })
+          .eq('id', eventId)
+          .eq('status', 'pending_payment');
+        console.log('Training event activated: ' + eventId);
+      }
+
       // ── CASE F: URGENT HIRE BOOST ──
       // MUST be tested before the plain JOB_ case below: 'JOB_BOOST_<id>' also
       // starts with 'JOB_', so the generic branch used to catch boosts first
