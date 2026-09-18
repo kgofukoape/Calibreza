@@ -22,11 +22,14 @@ export default function TrainingDetailPage() {
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [f, setF] = useState({ name: '', email: '', phone: '', message: '' });
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => { if (slug) load(); }, [slug]);
 
   const load = async () => {
     const { data } = await supabase.from('training_events').select('*, provinces:province_id(name)').eq('slug', slug).eq('status', 'active').maybeSingle();
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
     if (!data) { setNotFound(true); setLoading(false); return; }
     setEvent(data); setActiveImg(data.cover_image); setLoading(false);
   };
@@ -97,7 +100,11 @@ export default function TrainingDetailPage() {
                 <div className="flex justify-between"><span className="text-[#8A8E99]">Weapon</span><span className="text-[#F0EDE8] font-bold">{event.weapon_type}</span></div>
                 <div className="flex justify-between"><span className="text-[#8A8E99]">Skill level</span><span className="text-[#F0EDE8] font-bold text-right">{event.skill_level}</span></div>
               </div>
-              <button onClick={() => setShowModal(true)} className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-3.5 rounded-sm hover:brightness-110 transition-all">I&apos;m Interested</button>
+              {user ? (
+                <button onClick={() => setShowModal(true)} className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-3.5 rounded-sm hover:brightness-110 transition-all">I&apos;m Interested</button>
+              ) : (
+                <Link href="/login" className="block w-full text-center bg-[#C9922A] text-black font-black uppercase tracking-widest text-[14px] py-3.5 rounded-sm hover:brightness-110 transition-all">Sign in to register interest</Link>
+              )}
               <p className="text-[11px] text-[#8A8E99] text-center mt-3">Booking and payment are handled by the organizer.</p>
             </div>
           </div>
