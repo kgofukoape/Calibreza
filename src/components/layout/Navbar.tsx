@@ -14,6 +14,7 @@ const MOBILE_NAV_LINKS = [
   { href: '/dealers',           label: 'Dealers' },
   { href: '/wanted',            label: 'Wanted Ads' },
   { href: '/clubs',             label: 'Clubs & Ranges' },
+  { href: '/training',          label: 'Training Days' },
   { href: '/services',          label: 'Services' },
   { href: '/jobs',              label: 'Industry Jobs' },
   { href: '/advocacy',          label: 'Advocacy' },
@@ -330,6 +331,7 @@ export default function Navbar() {
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Other</h3>
                   <Link href="/services" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Services</Link>
                   <Link href="/clubs"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs & Ranges</Link>
+                  <Link href="/training" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Training Days</Link>
                   <Link href="/wanted"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
                   <Link href="/jobs"     className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
                   <Link href="/advocacy" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Advocacy</Link>
@@ -343,6 +345,7 @@ export default function Navbar() {
             <Link href="/dealers"           className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Dealers</Link>
             <Link href="/wanted"            className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Wanted</Link>
             <Link href="/clubs"             className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
+            <Link href="/training"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Training</Link>
             <Link href="/services"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
             <Link href="/jobs"              className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
             <Link href="/advocacy"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Advocacy</Link>

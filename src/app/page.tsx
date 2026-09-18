@@ -159,6 +159,9 @@ export default function HomePage() {
                 <Link href="/browse" className="bg-[#C9922A] text-black px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:brightness-110 transition-all shadow-[0_0_30px_rgba(201,146,42,0.2)]">
                   BROWSE LISTINGS
                 </Link>
+                <Link href="/training" className="border border-[#C9922A]/40 text-[#C9922A] px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-[#C9922A]/10 transition-all">
+                  TRAINING DAYS
+                </Link>
                 <Link href="/sell" className="border border-white/10 text-white px-7 py-3 font-black uppercase tracking-widest text-[13px] lg:text-[14px] hover:bg-white/5 transition-all">
                   POST FREE LISTING
                 </Link>
