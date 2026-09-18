@@ -31,6 +31,13 @@ export default function TrainingDetailPage() {
     const { data: { session } } = await supabase.auth.getSession();
     setUser(session?.user ?? null);
     if (!data) { setNotFound(true); setLoading(false); return; }
+
+    // Count this view - but not when the organizer is looking at their own event,
+    // so their refreshes don't inflate the number. Fire-and-forget; a failed
+    // count must never block the page.
+    if (!session?.user || session.user.id !== data.organizer_id) {
+      supabase.rpc('increment_training_view', { p_event_id: data.id }).then(() => {});
+    }
     setEvent(data); setActiveImg(data.cover_image); setLoading(false);
   };
 
