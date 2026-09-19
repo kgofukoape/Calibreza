@@ -23,6 +23,7 @@ export default function TrainingDetailPage() {
   const [sending, setSending] = useState(false);
   const [f, setF] = useState({ name: '', email: '', phone: '', message: '' });
   const [user, setUser] = useState<any>(null);
+  const [organizerName, setOrganizerName] = useState('');
 
   useEffect(() => { if (slug) load(); }, [slug]);
 
@@ -31,6 +32,20 @@ export default function TrainingDetailPage() {
     const { data: { session } } = await supabase.auth.getSession();
     setUser(session?.user ?? null);
     if (!data) { setNotFound(true); setLoading(false); return; }
+
+    // Prefer a business name if the organizer runs a dealer, club or service -
+    // a training day by Petruska should read "Petruska", not the owner's name.
+    let displayName = data.organizer_name || '';
+    const oid = data.organizer_id;
+    const [dealerRes, clubRes, serviceRes] = await Promise.all([
+      supabase.from('dealers').select('business_name').eq('user_id', oid).maybeSingle(),
+      supabase.from('clubs').select('name').eq('user_id', oid).maybeSingle(),
+      supabase.from('services').select('name').eq('user_id', oid).maybeSingle(),
+    ]);
+    if (dealerRes.data?.business_name) displayName = dealerRes.data.business_name;
+    else if (clubRes.data?.name) displayName = clubRes.data.name;
+    else if (serviceRes.data?.name) displayName = serviceRes.data.name;
+    setOrganizerName(displayName);
 
     // Count this view - but not when the organizer is looking at their own event,
     // so their refreshes don't inflate the number. Fire-and-forget; a failed
@@ -88,7 +103,10 @@ export default function TrainingDetailPage() {
                 <span className="bg-[#191C23] text-[#8A8E99] text-[11px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">{event.training_type}</span>
               </div>
               <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase tracking-tight leading-none mb-3">{event.title}</h1>
-              <p className="text-[14px] text-[#8A8E99] mb-6">{event.provinces?.name ? `${event.city}, ${event.provinces.name}` : event.city}</p>
+              <p className="text-[14px] text-[#8A8E99] mb-1">{event.provinces?.name ? `${event.city}, ${event.provinces.name}` : event.city}</p>
+              {organizerName && (
+                <p className="text-[13px] text-[#C9922A] font-bold uppercase tracking-widest mb-6">Presented by {organizerName}</p>
+              )}
               <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2 text-[#C9922A]">About this course</h2>
               <p className="text-[14.5px] text-[#C4C0B8] leading-relaxed whitespace-pre-wrap mb-6">{event.description}</p>
               <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-2 text-[#C9922A]">Instructor</h2>
