@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
         const periodEnd = new Date();
         periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-        await supabase
+        const { data: updatedRows, error: updErr } = await supabase
           .from('dealers')
           .update({
             subscription_tier: plan,
@@ -218,9 +218,15 @@ export async function POST(req: NextRequest) {
             pending_tier: null,
             pending_change_type: null,
             cancellation_requested_at: null,
-            updated_at: new Date().toISOString(),
           })
-          .eq('id', dealerId);
+          .eq('id', dealerId)
+          .select('id');
+
+        if (updErr) {
+          console.error('Dealer subscription UPDATE FAILED for ' + dealerId + ': ' + updErr.message);
+        } else if (!updatedRows || updatedRows.length === 0) {
+          console.error('Dealer subscription update matched NO ROWS for id ' + dealerId);
+        }
 
         // Audit trail for billing disputes
         try {
