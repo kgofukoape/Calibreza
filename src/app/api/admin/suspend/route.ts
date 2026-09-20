@@ -104,6 +104,12 @@ const TABLES: Record<string, {
     statuses: ['pending', 'approved', 'rejected'],
     fields: [],
   },
+  training: {
+    table: 'training_events',
+    activeStatus: 'active',
+    statuses: ['active', 'cancelled'],
+    fields: [],
+  },
 };
 
 export async function POST(req: NextRequest) {

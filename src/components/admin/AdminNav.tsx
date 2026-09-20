@@ -55,6 +55,7 @@ const NAV: NavItem[] = [
   { href: '/admin/crm',           icon: '💰', label: 'CRM & Invoices',group: 'manage' },
   { href: '/admin/quotes',        icon: '📝', label: 'Quote Leads',   group: 'manage' },
   { href: '/admin/reviews',       icon: '⭐', label: 'Reviews',       group: 'manage' },
+  { href: '/admin/training',      icon: '🎯', label: 'Training',      group: 'manage' },
   { href: '/admin/ads',           icon: '📢', label: 'Ad Manager',    countKey: 'pendingAds',          group: 'manage' },
   { href: '/admin/broadcast',     icon: '✉️',  label: 'Broadcast',     group: 'manage' },
 
