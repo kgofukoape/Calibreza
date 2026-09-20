@@ -58,6 +58,7 @@ export default function BusinessRegisterPage() {
 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const selected = businessType ? BUSINESS_TYPES[businessType] : null;
@@ -84,7 +85,7 @@ export default function BusinessRegisterPage() {
       }, marketingConsent);
 
       if (result.needsEmailConfirmation) {
-        setNotice('Business account created. Check your email for a confirmation link, then sign in to complete your application.');
+        setEmailSent(true);
         setLoading(false);
         return;
       }
@@ -171,6 +172,29 @@ export default function BusinessRegisterPage() {
   }
 
   // ── Step 2: create the login ───────────────────────────────────────────────
+  if (emailSent) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#0D0F13] w-full">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-6 py-16">
+          <div className="w-full max-w-[480px] text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-[#C9922A]/10 border border-[#C9922A]/30 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#C9922A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            </div>
+            <h1 style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="font-extrabold text-4xl md:text-5xl uppercase text-[#F0EDE8] mb-3">Check Your <span className="text-[#C9922A]">Email</span></h1>
+            <p className="text-[15px] text-[#C4C0B8] leading-relaxed mb-2">Your business account has been created. We have sent a confirmation link to:</p>
+            <p className="text-[15px] font-bold text-[#F0EDE8] mb-6 break-all">{email}</p>
+            <div className="bg-[#191C23] border border-white/5 rounded-md p-5 text-left mb-6">
+              <p className="text-[13px] text-[#8A8E99] leading-relaxed">Click the link in that email to activate your account, then sign in to complete your application. The link can take a minute to arrive.</p>
+              <p className="text-[13px] text-[#8A8E99] leading-relaxed mt-3">Not there? Check your spam or promotions folder, and make sure the address above is correct.</p>
+            </div>
+            <a href="/business/login" className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3.5 rounded-sm hover:brightness-110 transition-all">Go to Business Sign In</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
       <Navbar />
