@@ -425,6 +425,7 @@ export default function ClubDashboardPage() {
         </nav>
 
         <div className="p-3 border-t border-white/5 space-y-1.5">
+          <Link href="/training/dashboard" className="block text-center px-3 py-2 bg-[#C9922A]/10 hover:bg-[#C9922A]/20 border border-[#C9922A]/20 text-[#C9922A] rounded-sm text-[11px] font-black uppercase tracking-widest">Training Days</Link>
           <Link href={`/clubs/${club?.slug}`} target="_blank" className="block text-center px-3 py-2 bg-white/5 hover:bg-white/10 rounded-sm text-[11px] font-black uppercase tracking-widest">View Public Page ↗</Link>
           <button onClick={handleSignOut} className="w-full text-center px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-sm text-red-400 text-[11px] font-black uppercase tracking-widest">Sign Out</button>
         </div>
