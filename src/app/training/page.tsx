@@ -19,6 +19,7 @@ export default function TrainingDirectoryPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [provinces, setProvinces] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   const [fProvince, setFProvince] = useState('');
   const [fType, setFType] = useState('');
@@ -41,6 +42,8 @@ export default function TrainingDirectoryPage() {
     ]);
     setEvents(evs || []);
     setProvinces(provs || []);
+    const { data: { session } } = await supabase.auth.getSession();
+    setLoggedIn(!!session?.user);
     setLoading(false);
   };
 
@@ -79,10 +82,18 @@ export default function TrainingDirectoryPage() {
               Live-fire courses, clinics and defensive classes
             </p>
           </div>
-          <Link href="/training/post"
-            className="flex-shrink-0 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
-            + Post a Training Day
-          </Link>
+          <div className="flex-shrink-0 flex gap-2">
+            {loggedIn && (
+              <Link href="/training/dashboard"
+                className="border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-5 py-3 rounded-sm hover:bg-white/5 transition-all text-center">
+                My Events
+              </Link>
+            )}
+            <Link href="/training/post"
+              className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:brightness-110 transition-all text-center">
+              + Post a Training Day
+            </Link>
+          </div>
         </div>
       </div>
 
