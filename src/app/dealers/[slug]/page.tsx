@@ -134,6 +134,7 @@ function DealerStorefrontContent() {
   const params = useParams();
   const [dealer, setDealer]           = useState<any>(null);
   const [allListings, setAllListings] = useState<any[]>([]);
+  const [trainingEvents, setTrainingEvents] = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
   const [activeTab, setActiveTab]     = useState('inventory');
   const [filters, setFilters]         = useState<any>({ brands: [], calibres: [], conditions: [], minPrice: null, maxPrice: null });
@@ -155,6 +156,15 @@ function DealerStorefrontContent() {
         .eq('dealer_id', dealerData.id).eq('status', 'active')
         .order('is_featured', { ascending: false }).order('created_at', { ascending: false });
       setAllListings(listingsData || []);
+
+      if (dealerData.user_id) {
+        const nowIso = new Date().toISOString();
+        const { data: te } = await supabase.from('training_events')
+          .select('*, provinces:province_id(name)')
+          .eq('organizer_id', dealerData.user_id).eq('status', 'active')
+          .gte('date', nowIso).order('date', { ascending: true });
+        setTrainingEvents(te || []);
+      }
       setLoading(false);
     } catch { setDealer(null); setLoading(false); }
   };
@@ -325,6 +335,7 @@ function DealerStorefrontContent() {
             {[
               { id: 'inventory', label: `Inventory (${allListings.length})` },
               { id: 'about',     label: 'About' },
+              ...(trainingEvents.length > 0 ? [{ id: 'training', label: `Training (${trainingEvents.length})` }] : []),
               { id: 'reviews',   label: 'Reviews' },
               { id: 'contact',   label: 'Contact & Hours' },
             ].map(tab => (
@@ -417,6 +428,30 @@ function DealerStorefrontContent() {
           )}
 
           {/* ── ABOUT ── */}
+          {activeTab === 'training' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {trainingEvents.map(ev => (
+                <a key={ev.id} href={`/training/${ev.slug}`}
+                  className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/30 transition-all group">
+                  <div className="relative h-[140px] bg-[#191C23] overflow-hidden">
+                    {ev.cover_image ? <img src={ev.cover_image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[#8A8E99] text-sm">No image</div>}
+                    <div className="absolute bottom-2 left-2 bg-black/70 text-[#F0EDE8] text-[10px] font-black px-2 py-1 rounded-sm uppercase tracking-wider">
+                      {new Date(ev.date).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase tracking-tight text-[#F0EDE8] group-hover:text-[#C9922A] transition-colors line-clamp-1">{ev.title}</h3>
+                    <p className="text-[11px] text-[#8A8E99] mb-1">{ev.provinces?.name || ev.city}</p>
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="text-[#8A8E99]">{ev.weapon_type}</span>
+                      <span className="text-[#C9922A] font-black">{ev.price > 0 ? `R${Number(ev.price).toLocaleString('en-ZA')}` : 'Free'}</span>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
           {activeTab === 'about' && (
             <div className="max-w-4xl bg-[#13151A] border border-white/5 p-10 rounded-sm">
               <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-6 text-[#C9922A]">Our Story</h2>
