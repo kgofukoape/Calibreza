@@ -95,6 +95,10 @@ export async function POST(req: NextRequest) {
     if (!data['signature'] || data['signature'] !== expectedSig) {
       console.error('PayFast ITN REJECTED — signature mismatch', {
         m_payment_id: data['m_payment_id'],
+        their_signature: data['signature'],
+        our_signature: expectedSig,
+        passphrase_set: !!process.env.PAYFAST_PASSPHRASE,
+        raw_body: rawBody,
       });
       return new NextResponse('OK', { status: 200 });
     }
