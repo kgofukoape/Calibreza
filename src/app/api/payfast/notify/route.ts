@@ -184,47 +184,87 @@ export async function POST(req: NextRequest) {
         const plan = customStr2; // 'pro' or 'premium'
         const dealerId = customStr3;
 
-        // 4. Amount check — never upgrade on an underpayment.
-        //    A PRORATED UPGRADE legitimately pays LESS than the full tier price
-        //    on its first payment (the unused portion of the old plan is
-        //    credited), so accept a lower first payment when this ITN is flagged
-        //    as prorated. Subsequent recurring payments are the full amount.
+        // Billing runs on the 1st of the month. First charge dates in SAST.
+        const sastFirstOfNextMonthIso = (): string => {
+          const t = new Date(Date.now() + 2 * 60 * 60 * 1000);
+          const y = t.getUTCFullYear();
+          const m = t.getUTCMonth();
+          const ny = m === 11 ? y + 1 : y;
+          const nm = m === 11 ? 0 : m + 1;
+          return new Date(Date.UTC(ny, nm, 1) - 2 * 60 * 60 * 1000).toISOString();
+        };
+
+        // custom_str4 says what the FIRST payment was:
+        //   'trial' / 'trial_founding' - R0, PayFast just confirmed the card
+        //   'prorated'                 - part month, or a prorated upgrade
+        //   'full'                     - the full tier price
+        //
+        // PayFast repeats these fields on EVERY recurring charge, so the flag
+        // alone cannot tell a trial start from the monthly charge that follows
+        // it. The amount decides: R0 is a card confirmation, anything more is a
+        // real payment and gets the full amount check.
+        const trialFlagged = customStr4 === 'trial' || customStr4 === 'trial_founding';
+        const isFounding = customStr4 === 'trial_founding';
         const isProrated = customStr4 === 'prorated';
+        const isCardConfirmation = amountGross <= 0.01;
         const expected = DEALER_PLAN_PRICES[plan];
 
-        if (expected === undefined) {
-          console.warn(`Unknown dealer plan "${plan}" — amount not verified`);
-        } else if (isProrated) {
-          // Must still be a positive payment, and never MORE than the tier price
-          if (amountGross <= 0 || amountGross > expected + 0.01) {
-            console.error(`Prorated upgrade REJECTED — R${amountGross} outside 0 < x <= R${expected}`);
+        if (isCardConfirmation) {
+          // A R0 notification that was never set up as a trial is not something
+          // to act on.
+          if (!trialFlagged) {
+            console.error('Zero-amount dealer ITN with no trial flag - ignored: ' + dealerId);
             return new NextResponse('OK', { status: 200 });
           }
-          console.log(`Prorated upgrade accepted: R${amountGross} toward ${plan}`);
+        } else if (expected === undefined) {
+          console.warn('Unknown dealer plan "' + plan + '" - amount not verified');
+        } else if (isProrated || trialFlagged) {
+          // A part-month first payment, or the full monthly charge that follows
+          // a trial. Never more than the tier price.
+          if (amountGross <= 0 || amountGross > expected + 0.01) {
+            console.error('Dealer payment REJECTED - R' + amountGross + ' outside 0 < x <= R' + expected);
+            return new NextResponse('OK', { status: 200 });
+          }
         } else if (Math.abs(amountGross - expected) > 0.01) {
-          console.error(`Dealer subscription REJECTED — expected R${expected}, got R${amountGross}`);
+          console.error('Dealer subscription REJECTED - expected R' + expected + ', got R' + amountGross);
           return new NextResponse('OK', { status: 200 });
         }
 
-        // Set the paid-until date. Without this, proration on a future upgrade
-        // has no period to calculate against (and the dashboard shows "—").
-        const periodEnd = new Date();
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        // Paid until the next charge date. On a trial that is the date the
+        // checkout worked out (custom_str5); on a payment it is the 1st of next
+        // month, in South African time so a charge just after midnight on the
+        // 1st does not land in the wrong month.
+        const firstChargeStr = data['custom_str5'] || '';
+        const hasFirstCharge = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(firstChargeStr);
+        const periodEndIso = isCardConfirmation && hasFirstCharge
+          ? new Date(firstChargeStr + 'T00:00:00+02:00').toISOString()
+          : sastFirstOfNextMonthIso();
+
+        const nowIso = new Date().toISOString();
+
+        const update: Record<string, any> = {
+          subscription_tier: plan,
+          subscription_status: isCardConfirmation ? 'trial' : 'active',
+          payfast_token: pfToken,
+          current_period_end: periodEndIso,
+          subscribed_at: nowIso,
+          pending_tier: null,
+          pending_change_type: null,
+          cancellation_requested_at: null,
+        };
+
+        if (isCardConfirmation) {
+          update.trial_start_date = nowIso;
+          update.trial_end_date = periodEndIso;
+          update.trial_used = true;
+          if (isFounding) update.is_founding = true;
+        }
 
         const { data: updatedRows, error: updErr } = await supabase
           .from('dealers')
-          .update({
-            subscription_tier: plan,
-            subscription_status: 'active',
-            payfast_token: pfToken,
-            current_period_end: periodEnd.toISOString(),
-            subscribed_at: new Date().toISOString(),
-            pending_tier: null,
-            pending_change_type: null,
-            cancellation_requested_at: null,
-          })
+          .update(update)
           .eq('id', dealerId)
-          .select('id');
+          .select('id, saps_dealer_number, registration_number');
 
         if (updErr) {
           console.error('Dealer subscription UPDATE FAILED for ' + dealerId + ': ' + updErr.message);
@@ -232,22 +272,45 @@ export async function POST(req: NextRequest) {
           console.error('Dealer subscription update matched NO ROWS for id ' + dealerId);
         }
 
+        // The ledger is what burns a founding slot and stops the same business
+        // taking another trial under a new email address. Written only once the
+        // card is confirmed, and it outlives a deleted account.
+        if (isCardConfirmation && updatedRows && updatedRows.length > 0) {
+          const row: any = updatedRows[0];
+          const { error: ledgerErr } = await supabase.rpc('record_trial_start', {
+            p_entity_type: 'dealer',
+            p_entity_id: dealerId,
+            p_saps: row.saps_dealer_number || null,
+            p_reg: row.registration_number || null,
+            p_plan: plan,
+            p_is_founding: isFounding,
+            p_trial_ends: periodEndIso,
+            p_first_charge: hasFirstCharge ? firstChargeStr : null,
+          });
+          if (ledgerErr) {
+            console.error('trial_ledger write FAILED for ' + dealerId + ': ' + ledgerErr.message);
+          }
+        }
+
         // Audit trail for billing disputes
         try {
           await supabase.from('subscription_events').insert({
             entity_type: 'dealer',
             entity_id: dealerId,
-            event_type: 'payment_received',
+            event_type: isCardConfirmation ? 'trial_started' : 'payment_received',
             to_tier: plan,
             amount: amountGross,
             actor: 'payfast',
-            notes: isProrated ? 'Prorated upgrade payment' : 'Subscription payment',
+            notes: isCardConfirmation
+              ? (isFounding ? 'Founding dealer trial started' : 'Trial started')
+              : (isProrated ? 'Prorated payment' : 'Subscription payment'),
           });
         } catch (e) {
           console.error('subscription_events insert failed:', e);
         }
 
-        console.log(`Dealer subscription activated: ${dealerId} -> ${plan}, paid until ${periodEnd.toISOString()}`);
+        console.log('Dealer ' + (isCardConfirmation ? 'trial started' : 'payment applied')
+          + ': ' + dealerId + ' -> ' + plan + ', next charge ' + periodEndIso);
       }
 
       // ── CASE B: LISTING BOOST ──

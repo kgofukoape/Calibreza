@@ -7,17 +7,33 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 // POST /api/payfast/dealer-subscribe
 //
 // Builds and SIGNS the PayFast checkout for a dealer subscription on the
-// server. The checkout used to be built in the browser, which could not sign
-// it: the passphrase is a server-only secret. PayFast requires a passphrase
-// (and therefore a signature) for recurring billing.
+// server. PayFast requires a passphrase (and so a signature) for recurring
+// billing, and the passphrase is a server-only secret.
 //
-// The price comes from src/lib/plans.ts here on the server, never from the
-// browser, so a dealer cannot edit the amount before paying.
+// Billing model: every dealer is charged on the 1st of the month.
 //
-// Fields match what the ITN handler (/api/payfast/notify) expects:
+//   TRIAL (first time for this business)
+//     Pay R0 today. PayFast stores the card. The free months run from today,
+//     and the first full charge is the 1st AFTER they end. Founding dealers
+//     (the first FOUNDING_DEALER_LIMIT) get 2 months, everyone else gets 1.
+//
+//   NO TRIAL (this business has had one before)
+//     Pay for the days left in this month, including today. The full fee is
+//     then charged on the 1st of next month and every 1st after that.
+//
+// PayFast allows exactly one "first amount" plus one recurring amount, which
+// is why a trial cannot also be prorated: the free period is stretched to the
+// next 1st instead.
+//
+// Nothing is written to the database here. The trial only counts once PayFast
+// confirms the card, which happens in /api/payfast/notify.
+//
+// Fields the ITN handler reads:
 //   custom_str1 = 'dealer_subscription'
 //   custom_str2 = plan id ('pro' | 'premium')
 //   custom_str3 = dealer id
+//   custom_str4 = 'trial_founding' | 'trial' | 'prorated' | 'full'
+//   custom_str5 = first charge date (YYYY-MM-DD)
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,25 +45,50 @@ const PAYFAST_URL = IS_SANDBOX
   ? 'https://sandbox.payfast.co.za/eng/process'
   : 'https://www.payfast.co.za/eng/process';
 
+const FOUNDING_LIMIT = parseInt(process.env.FOUNDING_DEALER_LIMIT || '50', 10);
+const FOUNDING_TRIAL_MONTHS = 2;
+const STANDARD_TRIAL_MONTHS = 1;
+
+// PayFast will not process a payment below this.
+const PAYFAST_MIN_AMOUNT = 5.0;
+
 const PAID_PLANS = ['pro', 'premium'] as const;
 type PaidPlan = typeof PAID_PLANS[number];
 
-/** PHP urlencode() equivalent - PayFast builds its signature this way. */
-function pfEncode(value: string): string {
-  return encodeURIComponent(value)
-    .replace(/%20/g, '+')
-    .replace(/[!'()*~]/g, (ch) => '%' + ch.charCodeAt(0).toString(16).toUpperCase())
-    .replace(/%[0-9a-f]{2}/g, (m) => m.toUpperCase());
+// ── South African time ───────────────────────────────────────────────────────
+// SAST is UTC+2 all year, no daylight saving. Billing happens just after
+// midnight on the 1st, which is still the previous month in UTC, so every
+// calendar decision below is made in SAST.
+
+const SAST_OFFSET_MS = 2 * 60 * 60 * 1000;
+
+interface Ymd { y: number; m: number; d: number } // m is 0-based
+
+function sastToday(): Ymd {
+  const t = new Date(Date.now() + SAST_OFFSET_MS);
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth(), d: t.getUTCDate() };
 }
 
-/**
- * Checkout signature: fields in PayFast's documented order (NOT alphabetical),
- * empty values removed, passphrase appended last, MD5 of the result.
- */
-function signFields(fields: Array<[string, string]>, passphrase?: string): string {
-  let str = fields.map(([k, v]) => `${k}=${pfEncode(v)}`).join('&');
-  if (passphrase) str += `&passphrase=${pfEncode(passphrase)}`;
-  return createHash('md5').update(str).digest('hex');
+function ymdString(p: Ymd): string {
+  const mm = String(p.m + 1).padStart(2, '0');
+  const dd = String(p.d).padStart(2, '0');
+  return `${p.y}-${mm}-${dd}`;
+}
+
+function daysInMonth(y: number, m: number): number {
+  return new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+}
+
+function firstOfNextMonth(p: Ymd): Ymd {
+  return p.m === 11 ? { y: p.y + 1, m: 0, d: 1 } : { y: p.y, m: p.m + 1, d: 1 };
+}
+
+/** Same day-of-month n months on, clamped (31 Jan + 1 month = 28 Feb). */
+function addMonths(p: Ymd, n: number): Ymd {
+  const total = p.m + n;
+  const y = p.y + Math.floor(total / 12);
+  const m = ((total % 12) + 12) % 12;
+  return { y, m, d: Math.min(p.d, daysInMonth(y, m)) };
 }
 
 export async function POST(req: NextRequest) {
@@ -86,7 +127,7 @@ export async function POST(req: NextRequest) {
     // 3. Their dealer record - must exist and be approved
     const { data: dealer, error: dealerErr } = await supabase
       .from('dealers')
-      .select('id, business_name, email, status')
+      .select('id, business_name, email, status, trial_used, saps_dealer_number, registration_number')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -98,10 +139,69 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Approved dealer account required' }, { status: 403 });
     }
 
-    // 4. Build the checkout fields in PayFast's documented order
+    // 4. Trial eligibility. Tied to the BUSINESS, not the email address: a
+    //    dealer who cancels, deletes the account and signs up again with a new
+    //    address is matched on their SAPS and CIPC numbers in the ledger.
+    let trialEligible = !dealer.trial_used;
+
+    if (trialEligible) {
+      const { data: usedBefore, error: usedErr } = await supabase.rpc('trial_already_used', {
+        p_saps: dealer.saps_dealer_number || null,
+        p_reg: dealer.registration_number || null,
+      });
+      if (usedErr) {
+        // Fail closed: if the ledger cannot be read, do not hand out a trial.
+        console.error('dealer-subscribe: trial_already_used failed:', usedErr.message);
+        trialEligible = false;
+      } else if (usedBefore === true) {
+        trialEligible = false;
+      }
+    }
+
+    // 5. Founding slot, counted from the ledger so a deleted account does not
+    //    return its slot. Two dealers checking out at the same moment may both
+    //    be offered the last slot; whatever they were shown is honoured.
+    let isFounding = false;
+    if (trialEligible) {
+      const { data: slotsUsed, error: slotsErr } = await supabase.rpc('founding_slots_used');
+      if (slotsErr) {
+        console.error('dealer-subscribe: founding_slots_used failed:', slotsErr.message);
+      } else if (typeof slotsUsed === 'number' && slotsUsed < FOUNDING_LIMIT) {
+        isFounding = true;
+      }
+    }
+
+    // 6. Work out what they pay today and when the first full charge lands
+    const today = sastToday();
+    const fullPrice = planDef.price;
+
+    let amount: number;
+    let firstCharge: Ymd;
+    let flag: string;
+    let description: string;
+
+    if (trialEligible) {
+      const months = isFounding ? FOUNDING_TRIAL_MONTHS : STANDARD_TRIAL_MONTHS;
+      const trialEnd = addMonths(today, months);
+      // If the free period happens to end exactly on a 1st, bill that day
+      // rather than giving away another whole month.
+      firstCharge = trialEnd.d === 1 ? trialEnd : firstOfNextMonth(trialEnd);
+      amount = 0;
+      flag = isFounding ? 'trial_founding' : 'trial';
+      description = `${months} month${months === 1 ? '' : 's'} free, then R${fullPrice} on the 1st of each month`;
+    } else {
+      const dim = daysInMonth(today.y, today.m);
+      const daysRemaining = dim - today.d + 1; // includes today
+      amount = Math.round((fullPrice * daysRemaining / dim) * 100) / 100;
+      if (amount < PAYFAST_MIN_AMOUNT) amount = PAYFAST_MIN_AMOUNT;
+      if (amount > fullPrice) amount = fullPrice;
+      firstCharge = firstOfNextMonth(today);
+      flag = amount < fullPrice ? 'prorated' : 'full';
+      description = `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} to month end, then R${fullPrice} on the 1st of each month`;
+    }
+
+    // 7. Build the checkout fields in PayFast's documented order
     const origin = req.nextUrl.origin;
-    const amount = planDef.price.toFixed(2);
-    const today = new Date().toISOString().split('T')[0];
     const businessName = (dealer.business_name || 'Dealer').trim();
 
     const raw: Array<[string, string]> = [
@@ -113,15 +213,17 @@ export async function POST(req: NextRequest) {
       ['name_first', businessName],
       ['email_address', (dealer.email || user.email || '').trim()],
       ['m_payment_id', dealer.id],
-      ['amount', amount],
+      ['amount', amount.toFixed(2)],
       ['item_name', `GunX ${planDef.label} Dealer Subscription`],
-      ['item_description', `Monthly recurring subscription for ${businessName}`],
+      ['item_description', description],
       ['custom_str1', 'dealer_subscription'],
       ['custom_str2', plan],
       ['custom_str3', dealer.id],
+      ['custom_str4', flag],
+      ['custom_str5', ymdString(firstCharge)],
       ['subscription_type', '1'],
-      ['billing_date', today],
-      ['recurring_amount', amount],
+      ['billing_date', ymdString(firstCharge)],
+      ['recurring_amount', fullPrice.toFixed(2)],
       ['frequency', '3'],
       ['cycles', '0'],
     ];
@@ -144,9 +246,39 @@ export async function POST(req: NextRequest) {
     const signature = signFields(fields, passphrase);
     fields.push(['signature', signature]);
 
-    return NextResponse.json({ payfast_url: PAYFAST_URL, fields });
+    console.log(`dealer-subscribe: ${dealer.id} ${plan} flag=${flag} pay_now=R${amount.toFixed(2)} first_charge=${ymdString(firstCharge)}`);
+
+    return NextResponse.json({
+      payfast_url: PAYFAST_URL,
+      fields,
+      summary: {
+        pay_today: amount.toFixed(2),
+        recurring: fullPrice.toFixed(2),
+        first_charge_on: ymdString(firstCharge),
+        trial: trialEligible,
+        founding: isFounding,
+      },
+    });
   } catch (err: any) {
     console.error('dealer-subscribe error:', err?.message || err);
     return NextResponse.json({ error: 'Could not start checkout' }, { status: 500 });
   }
+}
+
+/** PHP urlencode() equivalent - PayFast builds its signature this way. */
+function pfEncode(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/%20/g, '+')
+    .replace(/[!'()*~]/g, (ch) => '%' + ch.charCodeAt(0).toString(16).toUpperCase())
+    .replace(/%[0-9a-f]{2}/g, (m) => m.toUpperCase());
+}
+
+/**
+ * Checkout signature: fields in PayFast's documented order (NOT alphabetical),
+ * empty values removed, passphrase appended last, MD5 of the result.
+ */
+function signFields(fields: Array<[string, string]>, passphrase?: string): string {
+  let str = fields.map(([k, v]) => `${k}=${pfEncode(v)}`).join('&');
+  if (passphrase) str += `&passphrase=${pfEncode(passphrase)}`;
+  return createHash('md5').update(str).digest('hex');
 }
