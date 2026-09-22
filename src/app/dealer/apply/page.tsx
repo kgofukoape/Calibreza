@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
+import FoundingSpots from '@/components/FoundingSpots';
 import { supabase } from '@/lib/supabase';
 import { recordConsent } from '@/lib/auth';
 import { LEGAL_DOCUMENTS } from '@/lib/legal';
@@ -252,6 +253,7 @@ export default function DealerApplyPage() {
     return (
       <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
         <Navbar />
+      <FoundingSpots />
         <main className="max-w-[600px] mx-auto px-6 py-32 text-center">
           <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading…</p>
         </main>

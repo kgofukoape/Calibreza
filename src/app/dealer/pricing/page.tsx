@@ -4,6 +4,7 @@ import { DEALER_PLANS } from '@/lib/plans';
 import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
+import FoundingSpots from '@/components/FoundingSpots';
 
 const PRICING_TIERS = [
   {
@@ -76,6 +77,7 @@ export default function DealerPricingPage() {
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
       <Navbar />
+      <FoundingSpots />
 
       <main className="max-w-[1400px] mx-auto px-6 py-20">
         <div className="text-center mb-16">

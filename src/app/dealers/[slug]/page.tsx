@@ -301,6 +301,7 @@ function DealerStorefrontContent() {
                 {dealer.subscription_tier === 'premium' && <span className="bg-[#C9922A] text-black text-[10px] font-black px-3 py-1 uppercase rounded-full">⭐ Premium Partner</span>}
                 {dealer.subscription_tier === 'pro' && <span className="bg-[#C9922A] text-black text-[10px] font-black px-3 py-1 uppercase rounded-full">✓ Verified Dealer</span>}
                 {dealer.is_verified && <span className="bg-[#2A9C6E] text-white text-[10px] font-black px-3 py-1 uppercase rounded-full">🛡️ Verified</span>}
+                {dealer.is_founding && <span className="bg-[#13151A] text-[#C9922A] border border-[#C9922A] text-[10px] font-black px-3 py-1 uppercase rounded-full">Founding Dealer</span>}
               </div>
               <div className="flex flex-wrap items-center gap-4 text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">
                 <span>📍 {dealer.city || 'Location'}, {dealer.province || 'South Africa'}</span>
