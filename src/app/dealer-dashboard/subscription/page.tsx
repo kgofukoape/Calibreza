@@ -254,53 +254,53 @@ export default function SubscriptionPage() {
     }
   };
 
-  const handlePayFastSubscription = () => {
+  const handlePayFastSubscription = async () => {
     if (!selectedPlan || !dealer) return;
     const plan = PLANS.find((p) => p.id === selectedPlan);
     if (!plan || plan.price === 0) return;
     setRedirecting(true);
 
-    const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true';
-    const pfHost = isSandbox ? 'sandbox.payfast.co.za' : 'www.payfast.co.za';
-    const today = new Date().toISOString().split('T')[0];
+    // The checkout is built and SIGNED on the server, because the PayFast
+    // passphrase is a server-only secret. The browser only posts the signed
+    // fields it gets back. Price also comes from the server, not the browser.
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setRedirecting(false);
+        router.push('/dealer/login');
+        return;
+      }
 
-    const pfData: Record<string, string> = {
-      merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
-      merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '',
-      return_url: `${window.location.origin}/dealer-dashboard/subscription?success=true`,
-      cancel_url: `${window.location.origin}/dealer-dashboard/subscription?cancel=true`,
-      notify_url: `${window.location.origin}/api/payfast/notify`,
-      name_first: dealer.first_name || dealer.business_name,
-      name_last: dealer.last_name || '',
-      email_address: dealer.email || '',
-      m_payment_id: dealer.id,
-      amount: plan.price.toFixed(2),
-      item_name: `GunX ${plan.label} Dealer Subscription`,
-      item_description: `Monthly recurring subscription for ${dealer.business_name}`,
-      custom_str1: 'dealer_subscription',
-      custom_str2: selectedPlan,
-      custom_str3: dealer.id,
-      subscription_type: '1',
-      billing_date: today,
-      recurring_amount: plan.price.toFixed(2),
-      frequency: '3',
-      cycles: '0',
-    };
+      const res = await fetch('/api/payfast/dealer-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan: selectedPlan }),
+      });
+      const json = await res.json().catch(() => ({}));
 
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `https://${pfHost}/eng/process`;
+      if (!res.ok || !json?.payfast_url || !Array.isArray(json?.fields)) {
+        setRedirecting(false);
+        setActionMessage({ kind: 'err', text: json?.error || 'Could not start checkout. Please try again.' });
+        return;
+      }
 
-    Object.entries(pfData).forEach(([key, value]) => {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = key;
-      input.value = value;
-      form.appendChild(input);
-    });
-
-    document.body.appendChild(form);
-    form.submit();
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = json.payfast_url;
+      (json.fields as Array<[string, string]>).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      setRedirecting(false);
+      setActionMessage({ kind: 'err', text: 'Could not reach the server. Please try again.' });
+    }
   };
 
   const handleLogout = async () => {
