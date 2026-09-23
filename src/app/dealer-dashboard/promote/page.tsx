@@ -332,17 +332,15 @@ function PromoteForm() {
                   </strong>
                 </p>
 
-                {/* Payment Notice */}
+                {/* What paid for this promotion */}
                 <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-6 mb-8 text-left">
                   <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-3 text-[#C9922A]">
-                    💳 Payment Coming Soon
+                    Promotion Active
                   </h3>
                   <p className="text-sm text-[#8A8E99] leading-relaxed">
-                    Online payment processing is coming soon. For now your listing has been featured and our team will be in touch regarding payment of{' '}
-                    <strong className="text-[#F0EDE8]">
-                      R{PROMOTION_TIERS.find((t) => t.id === selectedTier)?.price}
-                    </strong>.
-                    Thank you for your patience.
+                    {credits > 0
+                      ? 'One of your monthly Premium promotion credits covered this. Nothing has been charged.'
+                      : 'Your payment has been confirmed and the promotion is live.'}
                   </p>
                 </div>
 
@@ -583,7 +581,7 @@ function PromoteForm() {
                     {/* Payment Notice */}
                     <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5 mb-6">
                       <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-2 text-[#C9922A]">
-                        💳 Payment Coming Soon
+                        Secure Payment
                       </h3>
                       <p className="text-sm text-[#8A8E99] leading-relaxed">
                         You'll be redirected to PayFast to complete payment. Your promotion goes live as soon as payment is confirmed.
