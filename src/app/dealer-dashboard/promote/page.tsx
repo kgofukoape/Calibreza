@@ -419,6 +419,8 @@ function PromoteForm() {
               )}
 
               {/* STEP 1 — Select Listing */}
+              <CreditBanner />
+
               {step === 1 && (
                 <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
                   <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-6">

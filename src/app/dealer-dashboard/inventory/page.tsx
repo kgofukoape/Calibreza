@@ -195,7 +195,15 @@ export default function DealerInventoryPage() {
 
     const { data, error } = await supabase
       .from('listings')
-      .update({ status: 'active' })
+      // Reactivating must move expires_at forward too. Setting the status
+      // alone left the old expiry in place, so the expiry cron flipped the
+      // listing straight back to 'expired' within hours - a dealer could
+      // reactivate the same listing forever and never know why.
+      .update({
+        status: 'active',
+        expires_at: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
+        expiry_notified_at: null,
+      })
       .eq('id', listing.id)
       .select('id, status');
 
