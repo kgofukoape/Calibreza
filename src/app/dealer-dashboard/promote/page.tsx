@@ -1,8 +1,11 @@
 'use client';
+import { DEALER_PLANS } from '@/lib/plans';
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+
+const MONTHLY_CREDITS = DEALER_PLANS.premium.monthlyPromotionCredits;
 import { supabase } from '@/lib/supabase';
 
 const PROMOTION_TIERS = [
@@ -179,17 +182,26 @@ function PromoteForm() {
 
   // Rendered above the flow so a Premium dealer knows the promotion is free
   // before choosing a package, not after.
-  const CreditBanner = () =>
-    credits > 0 ? (
-      <div className="mb-6 border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3 rounded-r-sm">
-        <p className="text-[13px] text-[#C4C0B8] leading-relaxed">
-          <span className="text-[#C9922A] font-bold">
-            {credits} free promotion{credits !== 1 ? 's' : ''} left this month
-          </span>
-          {' '}on your Premium plan. This one costs you nothing.
-        </p>
-      </div>
-    ) : null;
+  const CreditBanner = () => (
+    <div className="mb-6 border-l-2 border-[#C9922A] bg-[#C9922A]/[0.07] pl-4 pr-4 py-3 rounded-r-sm">
+      <p className="text-[13px] text-[#C4C0B8] leading-relaxed">
+        {credits > 0 ? (
+          <>
+            <span className="text-[#C9922A] font-bold">
+              {MONTHLY_CREDITS - credits} of {MONTHLY_CREDITS} monthly promotion credits used
+              {' '}- {credits} left
+            </span>
+            {' '}on your Premium plan. This one costs you nothing.
+          </>
+        ) : (
+          <>
+            <span className="text-[#C9922A] font-bold">Promotions: R19 provincial, R29 national</span>
+            {' '}for 5 days. Premium plans include {MONTHLY_CREDITS} free promotions every month.
+          </>
+        )}
+      </p>
+    </div>
+  );
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -338,8 +350,8 @@ function PromoteForm() {
                     Promotion Active
                   </h3>
                   <p className="text-sm text-[#8A8E99] leading-relaxed">
-                    {credits > 0
-                      ? 'One of your monthly Premium promotion credits covered this. Nothing has been charged.'
+                    {usedCredit
+                      ? `That used one of your monthly promotion credits. ${credits} of ${MONTHLY_CREDITS} left this month, and nothing has been charged.`
                       : 'Your payment has been confirmed and the promotion is live.'}
                   </p>
                 </div>
@@ -581,10 +593,12 @@ function PromoteForm() {
                     {/* Payment Notice */}
                     <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5 mb-6">
                       <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-2 text-[#C9922A]">
-                        Secure Payment
+                        {credits > 0 ? 'Covered By Your Plan' : 'Secure Payment'}
                       </h3>
                       <p className="text-sm text-[#8A8E99] leading-relaxed">
-                        You'll be redirected to PayFast to complete payment. Your promotion goes live as soon as payment is confirmed.
+                        {credits > 0
+                          ? `This uses one of your ${MONTHLY_CREDITS} monthly promotion credits. You have ${credits} left and will not be charged.`
+                          : "You'll be redirected to PayFast to complete payment. Your promotion goes live as soon as payment is confirmed."}
                       </p>
                     </div>
 
