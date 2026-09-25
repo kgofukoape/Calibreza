@@ -203,27 +203,34 @@ const ACTION_TYPES: Record<string, string[]> = {
           throw new Error(`Could not prepare listing: ${pendingError.message}`);
         }
 
-        const payfastData: Record<string, string> = {
-          merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
-          merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '',
-          return_url: `${window.location.origin}/dashboard/listings?payment=success`,
-          cancel_url: `${window.location.origin}/dashboard/listings?payment=cancelled`,
-          notify_url: `${window.location.origin}/api/payfast/notify`,
-          name_first: user.user_metadata?.full_name?.split(' ')[0] || 'User',
-          email_address: user.email,
-          m_payment_id: `LISTING_${pending.id}`,
-          amount: PAID_LISTING_PRICE.toFixed(2),
-          item_name: 'Gun X Listing Fee',
-          custom_str1: 'private_listing',
-          custom_str2: pending.id,
-        };
+        // The checkout is built and SIGNED on the server: the PayFast
+        // passphrase is a server-only secret, so a form built here cannot be
+        // signed, and PayFast rejects unsigned checkouts. The price comes from
+        // the server too.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) {
+          throw new Error('Your session has expired. Please sign in again.');
+        }
+
+        const res = await fetch('/api/payfast/listing-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ listingId: pending.id }),
+        });
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok || !json?.payfast_url || !Array.isArray(json?.fields)) {
+          throw new Error(json?.error || 'Could not start checkout. Please try again from your listings page.');
+        }
 
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
-          ? 'https://sandbox.payfast.co.za/eng/process'
-          : 'https://www.payfast.co.za/eng/process';
-        Object.entries(payfastData).forEach(([key, val]) => {
+        form.action = json.payfast_url;
+        (json.fields as Array<[string, string]>).forEach(([key, val]) => {
           const input = document.createElement('input');
           input.type = 'hidden'; input.name = key; input.value = val;
           form.appendChild(input);
