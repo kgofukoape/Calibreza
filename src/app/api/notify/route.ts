@@ -139,14 +139,22 @@ const approvedTemplate = (heading: string, body: string, btnText: string, btnUrl
 export async function POST(req: NextRequest) {
   try {
     // ── Same-origin check ────────────────────────────────────────────────────
-    if (!isSameOrigin(req)) {
+    // Server-to-server callers (the subscription cron, the PayFast ITN) send
+    // no origin or referer header, so they failed this check and every
+    // automated email was silently rejected with a 403. They authenticate
+    // with CRON_SECRET instead.
+    const internalSecret = process.env.CRON_SECRET;
+    const callerSecret = req.headers.get('x-internal-secret');
+    const isInternal = Boolean(internalSecret) && callerSecret === internalSecret;
+
+    if (!isInternal && !isSameOrigin(req)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // ── Rate limit (per IP) ──────────────────────────────────────────────────
     const ip = getClientIp(req);
     const limit = rateLimit(`notify:${ip}`, NOTIFY_LIMIT, NOTIFY_WINDOW_MS);
-    if (!limit.allowed) {
+    if (!isInternal && !limit.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please wait a few minutes and try again.' },
         { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },

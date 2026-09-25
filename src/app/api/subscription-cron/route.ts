@@ -44,7 +44,10 @@ async function notify(type: string, data: Record<string, any>) {
   try {
     await fetch(`${BASE_URL}/api/notify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.CRON_SECRET || '',
+      },
       body: JSON.stringify({ type, data }),
     });
   } catch (e) {
@@ -160,7 +163,10 @@ export async function GET(req: NextRequest) {
 
         await fetch(`${BASE_URL}/api/notify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.CRON_SECRET || '',
+      },
           body: JSON.stringify({
             type: 'invoice_issued',
             data: {
@@ -193,7 +199,10 @@ export async function GET(req: NextRequest) {
 
         await fetch(`${BASE_URL}/api/notify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.CRON_SECRET || '',
+      },
           body: JSON.stringify({
             type: 'invoice_issued',
             data: {

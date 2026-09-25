@@ -562,7 +562,10 @@ export async function POST(req: NextRequest) {
             try {
               await fetch(`${BASE_URL}/api/notify`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-internal-secret': process.env.CRON_SECRET || '',
+                },
                 // /api/notify reads body.data, not top-level fields.
                 body: JSON.stringify({
                   type: 'dealer_payment_failed',
