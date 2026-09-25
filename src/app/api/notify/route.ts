@@ -554,6 +554,44 @@ export async function POST(req: NextRequest) {
         }
         break;
 
+      // ── A recurring charge failed. Sent immediately by the PayFast ITN. ───
+      case 'dealer_payment_failed':
+        if (body.data?.email) {
+          const d = body.data;
+          await sendEmail(
+            d.email,
+            'Payment failed - action needed on your Gun X subscription',
+            approvedTemplate(
+              'Payment Failed',
+              `Hi ${d.name || 'there'}, we could not collect your monthly ${d.tier || ''} subscription payment. This usually means a card has expired or a bank declined the debit. Please update your payment details within 24 hours, otherwise your account moves to the free tier and listings above the free limit will be archived. Nothing is deleted, and settling the payment restores everything immediately.`,
+              'Update Payment Details',
+              `${BASE_URL}/dealer-dashboard/subscription`
+            )
+          );
+        }
+        break;
+
+      // ── Still unpaid after the grace period. Sent by the cron. ────────────
+      case 'dealer_payment_failed_downgraded':
+        if (body.data?.email) {
+          const d = body.data;
+          const archived = Number(d.archived || 0);
+          await sendEmail(
+            d.email,
+            'Your Gun X account has moved to the free tier',
+            approvedTemplate(
+              'Subscription Ended',
+              `Hi ${d.name || 'there'}, your subscription payment was not settled, so your account is now on the free tier. Your ${d.kept || 0} newest listing${d.kept === 1 ? '' : 's'} ${d.kept === 1 ? 'is' : 'are'} still live.` +
+              (archived > 0
+                ? ` ${archived} listing${archived === 1 ? '' : 's'} ${archived === 1 ? 'has' : 'have'} been moved to your archive - hidden from buyers, but safely stored. Subscribe again and every one of them is restored instantly.`
+                : ''),
+              'View Plans',
+              `${BASE_URL}/dealer-dashboard/subscription`
+            )
+          );
+        }
+        break;
+
       default:
         return NextResponse.json({ error: 'Unknown notification type' }, { status: 400 });
     }

@@ -563,11 +563,14 @@ export async function POST(req: NextRequest) {
               await fetch(`${BASE_URL}/api/notify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                // /api/notify reads body.data, not top-level fields.
                 body: JSON.stringify({
                   type: 'dealer_payment_failed',
-                  email: d.email,
-                  name: d.business_name,
-                  tier: d.subscription_tier,
+                  data: {
+                    email: d.email,
+                    name: d.business_name,
+                    tier: d.subscription_tier,
+                  },
                 }),
               });
             } catch (e) {
