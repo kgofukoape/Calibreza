@@ -56,6 +56,12 @@ function ClubApplyInner() {
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  // Compliance documents. These go to a PRIVATE bucket, not club-images:
+  // a SAPS certificate behind a public URL is a permanent open link to it.
+  const [sapsDoc, setSapsDoc] = useState<File | null>(null);
+  const [complianceDoc, setComplianceDoc] = useState<File | null>(null);
+  const [registrationDoc, setRegistrationDoc] = useState<File | null>(null);
+
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
@@ -176,6 +182,23 @@ function ClubApplyInner() {
     setShootDays(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const MAX_DOC_BYTES = 5 * 1024 * 1024;
+
+  const uploadDocument = async (file: File, docType: string, uid: string) => {
+    if (file.size > MAX_DOC_BYTES) {
+      throw new Error(`${file.name} is larger than 5MB. Please upload a smaller file.`);
+    }
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+    const filePath = `${uid}/${docType}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from('business-documents')
+      .upload(filePath, file, { upsert: false });
+    if (error) throw error;
+    // A PATH, not a URL: the bucket is private and admin creates a signed link
+    // on demand.
+    return filePath;
+  };
+
   const uploadFile = async (file: File, path: string) => {
     const ext = file.name.split('.').pop();
     const filePath = `${path}/${Math.random()}.${ext}`;
@@ -202,11 +225,28 @@ function ClubApplyInner() {
       alert('Please accept the Terms of Use and confirm you have read the Privacy Policy.');
       return;
     }
+    // Clubs and ranges were previously approved without a single document
+    // being seen. The SAPS certificate and the range compliance certificate
+    // are what an approval actually rests on.
+    if (!sapsDoc) {
+      alert('Please upload your SAPS accreditation or registration certificate.');
+      return;
+    }
+    if (!complianceDoc) {
+      alert('Please upload your range compliance certificate.');
+      return;
+    }
     setLoading(true);
     try {
       let logo_url = '';
       let cover_url = '';
       const imageUrls: string[] = [];
+
+      const saps_registration_url = await uploadDocument(sapsDoc, 'saps-registration', userId);
+      const compliance_cert_url = await uploadDocument(complianceDoc, 'compliance-certificate', userId);
+      const business_registration_url = registrationDoc
+        ? await uploadDocument(registrationDoc, 'business-registration', userId)
+        : null;
 
       if (logoFile) logo_url = await uploadFile(logoFile, 'logos');
       if (coverFile) cover_url = await uploadFile(coverFile, 'covers');
@@ -242,6 +282,9 @@ function ClubApplyInner() {
         associations: form.associations,
         // 'pending' until reviewed. Inserting 'active' published the club to
         // the public directory instantly, with no verification of anything.
+        saps_registration_url,
+        compliance_cert_url,
+        business_registration_url,
         status: 'pending',
         is_verified: false,
       });
@@ -504,6 +547,62 @@ function ClubApplyInner() {
               <div className="md:col-span-2">
                 <label className={labelClass}>Website (optional)</label>
                 <input name="website" value={form.website} onChange={handleChange} className={inputClass} placeholder="https://yourclub.co.za" />
+              </div>
+            </div>
+          </div>
+
+          {/* Compliance documents. Private bucket: the value stored is a path,
+              and admin opens it with a signed link that expires. */}
+          <div className={sectionClass}>
+            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
+              Compliance Documents
+            </h2>
+            <p className="text-[12px] text-[#8A8E99] mb-5 leading-relaxed">
+              These are checked before your club is approved and are never shown publicly.
+              Only our review team can open them. PDF, JPG or PNG, up to 5MB each.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>SAPS Certificate <span className="text-red-400">*</span></label>
+                <label className="block cursor-pointer">
+                  <div className={`h-[110px] border-2 border-dashed rounded-sm flex items-center justify-center p-3 transition-colors ${sapsDoc ? 'border-[#2A9C6E]/60' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
+                    <div className="text-center">
+                      <p className="text-2xl mb-1">{sapsDoc ? '\u2713' : '\u2191'}</p>
+                      <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest break-all">
+                        {sapsDoc ? sapsDoc.name : 'Accreditation / registration'}
+                      </p>
+                    </div>
+                  </div>
+                  <input type="file" accept=".pdf,image/*" onChange={(e) => setSapsDoc(e.target.files?.[0] || null)} className="hidden" />
+                </label>
+              </div>
+              <div>
+                <label className={labelClass}>Range Compliance <span className="text-red-400">*</span></label>
+                <label className="block cursor-pointer">
+                  <div className={`h-[110px] border-2 border-dashed rounded-sm flex items-center justify-center p-3 transition-colors ${complianceDoc ? 'border-[#2A9C6E]/60' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
+                    <div className="text-center">
+                      <p className="text-2xl mb-1">{complianceDoc ? '\u2713' : '\u2191'}</p>
+                      <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest break-all">
+                        {complianceDoc ? complianceDoc.name : 'Inspection certificate'}
+                      </p>
+                    </div>
+                  </div>
+                  <input type="file" accept=".pdf,image/*" onChange={(e) => setComplianceDoc(e.target.files?.[0] || null)} className="hidden" />
+                </label>
+              </div>
+              <div>
+                <label className={labelClass}>Registration <span className="text-[#8A8E99] normal-case font-normal">(optional)</span></label>
+                <label className="block cursor-pointer">
+                  <div className={`h-[110px] border-2 border-dashed rounded-sm flex items-center justify-center p-3 transition-colors ${registrationDoc ? 'border-[#2A9C6E]/60' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
+                    <div className="text-center">
+                      <p className="text-2xl mb-1">{registrationDoc ? '\u2713' : '\u2191'}</p>
+                      <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest break-all">
+                        {registrationDoc ? registrationDoc.name : 'Company or NPC document'}
+                      </p>
+                    </div>
+                  </div>
+                  <input type="file" accept=".pdf,image/*" onChange={(e) => setRegistrationDoc(e.target.files?.[0] || null)} className="hidden" />
+                </label>
               </div>
             </div>
           </div>
