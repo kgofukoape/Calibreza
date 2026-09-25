@@ -120,26 +120,34 @@ export default function PostTrainingPage() {
       if (error) throw new Error(error.message);
 
       if (isPaid) {
-        const pf: Record<string, string> = {
-          merchant_id: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '',
-          merchant_key: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '',
-          return_url: `${window.location.origin}/training?payment=success`,
-          cancel_url: `${window.location.origin}/training/post?payment=cancelled`,
-          notify_url: `${window.location.origin}/api/payfast/notify`,
-          name_first: user.user_metadata?.full_name?.split(' ')[0] || 'User',
-          email_address: user.email,
-          m_payment_id: `TRAINING_${created.id}`,
-          amount: PAID_PRICE.toFixed(2),
-          item_name: 'Gun X Training Listing Fee',
-          custom_str1: 'training_event',
-          custom_str2: created.id,
-        };
+        // The checkout is built and SIGNED on the server: the PayFast
+        // passphrase is a server-only secret, so a form built here cannot be
+        // signed, and PayFast rejects unsigned checkouts. The price comes from
+        // the server too.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) {
+          throw new Error('Your session has expired. Please sign in again.');
+        }
+
+        const res = await fetch('/api/payfast/training-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ eventId: created.id }),
+        });
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok || !json?.payfast_url || !Array.isArray(json?.fields)) {
+          throw new Error(json?.error || 'Could not start checkout. Please try again.');
+        }
+
         const f = document.createElement('form');
         f.method = 'POST';
-        f.action = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
-          ? 'https://sandbox.payfast.co.za/eng/process'
-          : 'https://www.payfast.co.za/eng/process';
-        Object.entries(pf).forEach(([k, v]) => {
+        f.action = json.payfast_url;
+        (json.fields as Array<[string, string]>).forEach(([k, v]) => {
           const i = document.createElement('input');
           i.type = 'hidden'; i.name = k; i.value = v; f.appendChild(i);
         });
