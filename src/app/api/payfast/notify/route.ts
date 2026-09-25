@@ -26,6 +26,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Same pattern as the subscription cron: this route calls our own
+// /api/notify endpoint and needs an absolute URL to do it.
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
+
 const IS_SANDBOX = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true';
 const PF_HOST = IS_SANDBOX ? 'sandbox.payfast.co.za' : 'www.payfast.co.za';
 
@@ -251,6 +255,9 @@ export async function POST(req: NextRequest) {
           pending_tier: null,
           pending_change_type: null,
           cancellation_requested_at: null,
+          // A payment that lands after a failure settles the account: the cron
+          // must not go on to downgrade them.
+          past_due_since: null,
         };
 
         if (isCardConfirmation) {
@@ -515,7 +522,61 @@ export async function POST(req: NextRequest) {
         console.log(`Job boost failed/cancelled: ${promoId.replace('JOB_BOOST_', '')}`);
       } else if (promoId.startsWith('JOB_')) {
         console.log(`Job payment failed/cancelled, remaining pending: ${promoId.replace('JOB_', '')}`);
-      } else if (customStr1 !== 'dealer_subscription') {
+      } else if (customStr1 === 'dealer_subscription') {
+        // A recurring charge failed. Do NOT downgrade here: PayFast retries
+        // over the following days and the dealer may simply need to fix a card.
+        // They are marked past_due and emailed now; the subscription cron drops
+        // them to free only if it is still unsettled after the grace period.
+        const dealerId = data['custom_str3'] || data['m_payment_id'] || '';
+        if (dealerId) {
+          const { data: rows, error: pdErr } = await supabase
+            .from('dealers')
+            .update({
+              subscription_status: 'past_due',
+              past_due_since: new Date().toISOString(),
+            })
+            .eq('id', dealerId)
+            .not('subscription_status', 'eq', 'past_due')
+            .select('id, business_name, email, subscription_tier');
+
+          if (pdErr) {
+            console.error('Dealer past_due UPDATE FAILED for ' + dealerId + ': ' + pdErr.message);
+          } else if (rows && rows.length > 0) {
+            const d: any = rows[0];
+            try {
+              await supabase.from('subscription_events').insert({
+                entity_type: 'dealer',
+                entity_id: dealerId,
+                event_type: 'payment_failed',
+                to_tier: d.subscription_tier,
+                // amountGross belongs to the COMPLETE branch and is not in
+                // scope here; read what PayFast sent with the failure.
+                amount: parseFloat(data['amount_gross'] || '0') || null,
+                actor: 'payfast',
+                notes: 'PayFast reported ' + (data['payment_status'] || 'FAILED'),
+              });
+            } catch (e) {
+              console.error('subscription_events insert failed:', e);
+            }
+
+            try {
+              await fetch(`${BASE_URL}/api/notify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  type: 'dealer_payment_failed',
+                  email: d.email,
+                  name: d.business_name,
+                  tier: d.subscription_tier,
+                }),
+              });
+            } catch (e) {
+              console.error('dealer_payment_failed email failed:', e);
+            }
+            console.log('Dealer payment failed, marked past_due: ' + dealerId);
+          }
+        }
+      } else {
         await supabase.from('promoted_listings')
           .update({ status: 'failed' })
           .eq('id', promoId);
