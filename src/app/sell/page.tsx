@@ -185,7 +185,12 @@ const ACTION_TYPES: Record<string, string[]> = {
         // when the money actually clears — so the database is never marked paid
         // before it is. A free listing is genuinely unpaid; a paid one becomes
         // paid only on confirmation.
-        is_paid: isPaid,
+        // ALWAYS false on insert. The verified PayFast ITN sets it true when
+        // the money clears. Inserting `isPaid` here marked a listing paid
+        // before anyone had paid: it skipped the free-allowance check (which
+        // ignores paid listings) and the checkout route refused to send an
+        // already-paid listing to PayFast.
+        is_paid: false,
         blade_type: isKnives ? (formData.blade_type || null) : null,
         blade_length_cm: isKnives && formData.blade_length_cm ? parseFloat(formData.blade_length_cm) : null,
       };
