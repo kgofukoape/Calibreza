@@ -122,19 +122,29 @@ export default function ClubDashboardPage() {
     if (!club?.id) return;
     setSubLoading(true);
     try {
+      // The route identifies the club from the SESSION, not from anything sent
+      // here: it used to take a club id from this body with no authentication,
+      // so anyone could upgrade any club by posting its id. It also returns the
+      // fields already SIGNED, in PayFast's documented order.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        alert('Your session has expired. Please sign in again.');
+        setSubLoading(false);
+        return;
+      }
+
       const res = await fetch('/api/clubs/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clubId: club.id,
-          clubName: club.name,
-          contactEmail: club.email,
-          contactName: club.contact_person || club.name,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Could not start the subscription. Please try again.');
+      if (!res.ok || !data?.payfast_url || !Array.isArray(data?.fields)) {
+        alert(data?.error || 'Could not start the subscription. Please try again.');
         setSubLoading(false);
         return;
       }
@@ -142,7 +152,7 @@ export default function ClubDashboardPage() {
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = data.payfast_url;
-      Object.entries(data.params || {}).forEach(([k, v]) => {
+      (data.fields as Array<[string, string]>).forEach(([k, v]) => {
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = k;

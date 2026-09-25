@@ -364,34 +364,98 @@ export async function POST(req: NextRequest) {
       else if (customStr1 === 'range_subscription') {
         const clubId = customStr2;
 
-        // amount_gross is 0.00 on the first ITN (trial start), then the monthly
-        // charge on each subsequent payment.
-        const isFirstCharge = amountGross === 0;
+        // PayFast repeats the custom fields on EVERY recurring charge, so the
+        // flag alone cannot tell a trial start from the monthly charge that
+        // follows it. The amount decides: R0 is a card confirmation, anything
+        // more is a real payment.
+        const trialFlagged = customStr4 === 'trial' || customStr4 === 'trial_founding';
+        const isFounding = customStr4 === 'trial_founding';
+        const isCardConfirmation = amountGross <= 0.01;
 
-        if (isFirstCharge) {
-          await supabase
-            .from('clubs')
-            .update({
-              payfast_token: pfToken,
-              subscription_status: 'trial',
-              subscription_tier: 'active',
-            })
-            .eq('id', clubId);
+        // Paid until the next charge date: on a trial that is the date the
+        // checkout worked out, otherwise the 1st of next month in SAST.
+        const firstChargeStr = data['custom_str5'] || '';
+        const hasFirstCharge = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(firstChargeStr);
+        const clubPeriodEnd = isCardConfirmation && hasFirstCharge
+          ? new Date(firstChargeStr + 'T00:00:00+02:00').toISOString()
+          : (() => {
+              const t = new Date(Date.now() + 2 * 60 * 60 * 1000);
+              const y = t.getUTCFullYear();
+              const m = t.getUTCMonth();
+              const ny = m === 11 ? y + 1 : y;
+              const nm = m === 11 ? 0 : m + 1;
+              return new Date(Date.UTC(ny, nm, 1) - 2 * 60 * 60 * 1000).toISOString();
+            })();
 
-          console.log(`Range subscription trial started: ${clubId} — first charge in 60 days`);
-        } else {
-          await supabase
-            .from('clubs')
-            .update({
-              payfast_token: pfToken,
-              subscription_status: 'active',
-              subscription_tier: 'active',
-              subscribed_at: new Date().toISOString(),
-            })
-            .eq('id', clubId);
+        const clubNow = new Date().toISOString();
 
-          console.log(`Range subscription payment received: ${clubId} — R${amountGross}`);
+        const clubUpdate: Record<string, any> = {
+          payfast_token: pfToken,
+          subscription_status: isCardConfirmation ? 'trial' : 'active',
+          subscription_tier: 'active',
+          current_period_end: clubPeriodEnd,
+          subscribed_at: clubNow,
+          past_due_since: null,
+        };
+
+        if (isCardConfirmation) {
+          clubUpdate.trial_start_date = clubNow;
+          clubUpdate.trial_end_date = clubPeriodEnd;
+          clubUpdate.billing_start_date = clubPeriodEnd;
+          clubUpdate.trial_used = true;
+          if (isFounding) clubUpdate.is_founding = true;
         }
+
+        const { data: clubRows, error: clubUpdErr } = await supabase
+          .from('clubs')
+          .update(clubUpdate)
+          .eq('id', clubId)
+          .select('id, saps_reg_number');
+
+        if (clubUpdErr) {
+          console.error('Range subscription UPDATE FAILED for ' + clubId + ': ' + clubUpdErr.message);
+        } else if (!clubRows || clubRows.length === 0) {
+          console.error('Range subscription update matched NO ROWS for id ' + clubId);
+        }
+
+        // The ledger burns a founding slot and stops the same club taking
+        // another trial under a new email address. Written only once the card
+        // is confirmed, and it outlives a deleted account.
+        if (isCardConfirmation && trialFlagged && clubRows && clubRows.length > 0) {
+          const row: any = clubRows[0];
+          const { error: ledgerErr } = await supabase.rpc('record_trial_start', {
+            p_entity_type: 'club',
+            p_entity_id: clubId,
+            p_saps: row.saps_reg_number || null,
+            p_reg: null,
+            p_plan: 'active',
+            p_is_founding: isFounding,
+            p_trial_ends: clubPeriodEnd,
+            p_first_charge: hasFirstCharge ? firstChargeStr : null,
+          });
+          if (ledgerErr) {
+            console.error('trial_ledger write FAILED for club ' + clubId + ': ' + ledgerErr.message);
+          }
+        }
+
+        try {
+          await supabase.from('subscription_events').insert({
+            entity_type: 'club',
+            entity_id: clubId,
+            event_type: isCardConfirmation ? 'trial_started' : 'payment_received',
+            to_tier: 'active',
+            amount: amountGross,
+            actor: 'payfast',
+            notes: isCardConfirmation
+              ? (isFounding ? 'Founding club trial started' : 'Trial started')
+              : 'Subscription payment',
+          });
+        } catch (e) {
+          console.error('subscription_events insert failed:', e);
+        }
+
+        console.log('Range subscription ' + (isCardConfirmation ? 'trial started' : 'payment applied')
+          + ': ' + clubId + ', next charge ' + clubPeriodEnd);
       }
 
       // ── CASE D: RANGE SUBSCRIPTION CANCELLED (via PayFast dashboard) ──
