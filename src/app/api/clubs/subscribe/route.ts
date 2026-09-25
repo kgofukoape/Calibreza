@@ -125,7 +125,9 @@ export async function POST(req: NextRequest) {
       console.error('clubs-subscribe: club lookup failed:', clubErr.message);
       return NextResponse.json({ error: 'Could not load club' }, { status: 500 });
     }
-    if (!club || club.status !== 'approved') {
+    // Clubs use 'active' where dealers use 'approved' for the same thing: the
+    // application has been reviewed and the club is live on the directory.
+    if (!club || club.status !== 'active') {
       return NextResponse.json({ error: 'Approved club account required' }, { status: 403 });
     }
     if (club.subscription_status === 'active' || club.subscription_status === 'trial') {
