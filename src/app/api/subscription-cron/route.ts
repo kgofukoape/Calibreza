@@ -34,6 +34,12 @@ import { DEALER_PLANS } from '@/lib/plans';
 // than the one advertised on the pricing pages.
 const FREE_TIER_LISTING_LIMIT = DEALER_PLANS.free.listingLimit ?? 5;
 
+// Days before the first charge that a dealer is reminded. One reminder only.
+const TRIAL_REMINDER_DAYS = 5;
+
+// How long a failed payment may sit unsettled before the plan drops to free.
+const PAST_DUE_GRACE_HOURS = 24;
+
 async function notify(type: string, data: Record<string, any>) {
   try {
     await fetch(`${BASE_URL}/api/notify`, {
@@ -73,6 +79,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const result = {
     trial_warnings_sent: 0,
+    past_due_downgrades: 0,
     trials_ended: 0,
     listings_archived: 0,
     archive_reminders_sent: 0,
@@ -202,11 +209,83 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── 2b. FAILED PAYMENTS ────────────────────────────────────────────────────
+  // Marked 'past_due' by the PayFast ITN when a charge fails. They were emailed
+  // at that moment; this drops them once the grace period is up.
+  try {
+    const cutoff = new Date(now.getTime() - PAST_DUE_GRACE_HOURS * 3600000).toISOString();
+
+    const { data: overdue } = await supabase
+      .from('dealers')
+      .select('id, business_name, email, subscription_tier, past_due_since')
+      .eq('subscription_status', 'past_due')
+      .not('past_due_since', 'is', null)
+      .lt('past_due_since', cutoff);
+
+    for (const d of overdue || []) {
+      const { data: listings } = await supabase
+        .from('listings')
+        .select('id')
+        .eq('dealer_id', d.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      const all = listings || [];
+      const toArchive = all.slice(FREE_TIER_LISTING_LIMIT);
+
+      if (toArchive.length > 0) {
+        const { error: archErr } = await supabase
+          .from('listings')
+          .update({
+            status: 'archived',
+            previous_status: 'active',
+            archived_at: now.toISOString(),
+            archived_reason: 'free_tier_limit',
+          })
+          .in('id', toArchive.map(l => l.id));
+        if (archErr) result.errors.push(`past_due archive ${d.id}: ${archErr.message}`);
+        else result.listings_archived += toArchive.length;
+      }
+
+      const { error: dErr } = await supabase
+        .from('dealers')
+        .update({
+          subscription_tier: 'free',
+          subscription_status: 'free',
+          free_since: now.toISOString(),
+          past_due_since: null,
+          pending_tier: null,
+          pending_change_type: null,
+        })
+        .eq('id', d.id)
+        .select('id');
+
+      if (dErr) {
+        result.errors.push(`past_due downgrade ${d.id}: ${dErr.message}`);
+        continue;
+      }
+
+      await logEvent(d.id, 'payment_failed_downgrade', d.subscription_tier, 'free',
+        `Payment failed and was not settled within ${PAST_DUE_GRACE_HOURS} hours.`);
+
+      await notify('dealer_payment_failed_downgraded', {
+        email: d.email,
+        name: d.business_name,
+        kept: Math.min(all.length, FREE_TIER_LISTING_LIMIT),
+        archived: toArchive.length,
+      });
+
+      result.past_due_downgrades++;
+    }
+  } catch (e: any) {
+    result.errors.push(`past due: ${e.message}`);
+  }
+
   // ── 1 & 2. TRIALS ──────────────────────────────────────────────────────────
   try {
     const { data: trialling } = await supabase
       .from('dealers')
-      .select('id, business_name, email, subscription_tier, subscription_status, trial_end_date')
+      .select('id, business_name, email, subscription_tier, subscription_status, trial_end_date, payfast_token')
       .eq('subscription_status', 'trial')
       .not('trial_end_date', 'is', null);
 
@@ -216,7 +295,7 @@ export async function GET(req: NextRequest) {
 
       // ── Trial still running: warn at 7 days and 1 day ──
       if (daysLeft > 0) {
-        if (daysLeft === 7 || daysLeft === 1) {
+        if (daysLeft === TRIAL_REMINDER_DAYS) {
           const { count } = await supabase
             .from('listings')
             .select('id', { count: 'exact', head: true })
@@ -238,7 +317,15 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // ── Trial has ended: drop to free and archive the excess ──
+      // ── Trial has ended ──
+      // With a card on file there is nothing to do: PayFast charges on the
+      // first-charge date and the ITN moves them from 'trial' to 'active'.
+      // Downgrading here would cut off a dealer who is about to pay, or who
+      // already has. Only a trial with no card falls back to free.
+      if (d.payfast_token) {
+        continue;
+      }
+
       const { data: listings } = await supabase
         .from('listings')
         .select('id, created_at, status')
