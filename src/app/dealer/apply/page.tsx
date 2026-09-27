@@ -207,7 +207,11 @@ export default function DealerApplyPage() {
         saps_certificate_url: sapsCertPath,
         business_registration_url: businessRegPath,
         id_document_url: idDocPath,
-        subscription_tier: formData.selectedTier,
+        // The plan they ASKED for, not the plan they have. Writing
+        // subscription_tier here let an applicant insert themselves on premium
+        // without paying; the database guard now forces it to free on insert
+        // and this records the choice properly for review.
+        requested_tier: formData.selectedTier,
         status: 'pending',
       });
 

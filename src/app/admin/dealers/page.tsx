@@ -18,6 +18,7 @@ type Dealer = {
   province: string;
   status: string;
   subscription_tier: string;
+  requested_tier: string | null;
   saps_dealer_number: string;
   registration_number: string;
   business_type: string;
@@ -324,7 +325,11 @@ export default function AdminDealersPage() {
                         dealer.status === 'pending'  ? 'bg-[#F59E0B]/10 text-[#F59E0B]' :
                         'bg-[#E63946]/10 text-[#E63946]'
                       }`}>{dealer.status}</span>
-                      <span className="text-[8px] text-white/20 uppercase">{dealer.subscription_tier}</span>
+                      <span className="text-[8px] text-white/20 uppercase">
+                        {dealer.status === 'pending' && dealer.requested_tier
+                          ? `wants ${dealer.requested_tier}`
+                          : dealer.subscription_tier}
+                      </span>
                     </div>
                   </div>
                 </button>
