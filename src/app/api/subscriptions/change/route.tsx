@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { rateLimit, getClientIp, isSameOrigin } from '@/lib/rateLimit';
 import { calculateProration, isUpgrade, PLAN_PRICES } from '@/lib/proration';
 
@@ -79,26 +80,91 @@ async function logEvent(params: {
 }
 
 /**
- * Placeholder for the real PayFast cancellation call.
- * Enable only once the PayFast account exists AND you have tested in sandbox.
+ * Cancels the recurring charge at PayFast.
+ *
+ * Until this existed, cancelling only ended access on our side: PayFast kept
+ * billing the card every month. That is a refund and a complaint waiting to
+ * happen, and it had to be built before real subscription money was taken.
+ *
+ * PayFast's API: PUT /subscriptions/{token}ancel, with merchant-id, version,
+ * timestamp and signature as HEADERS. The signature is an MD5 of the
+ * alphabetised header and body variables plus the passphrase, lower case.
+ *
+ * Note: PayFast can require the calling IP to be whitelisted in the account's
+ * integration settings. Vercel's outbound IPs are not fixed, so a failure here
+ * that mentions authorisation may be the whitelist rather than the signature.
  */
 async function cancelPayFastSubscription(token: string | null): Promise<{ ok: boolean; message: string }> {
   if (!token) {
-    return { ok: false, message: 'No PayFast token on record — cancel manually in the PayFast dashboard.' };
+    return { ok: false, message: 'No PayFast token on record - cancel manually in the PayFast dashboard.' };
   }
-  if (process.env.PAYFAST_API_ENABLED !== 'true') {
+
+  const merchantId = process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID;
+  const passphrase = process.env.PAYFAST_PASSPHRASE;
+
+  if (!merchantId || !passphrase) {
+    console.error('cancelPayFastSubscription: merchant id or passphrase missing from env');
     return {
       ok: false,
-      message: 'PayFast API not enabled — platform access has been ended, but the recurring charge must be stopped manually in the PayFast dashboard.',
+      message: 'Payment configuration incomplete - the recurring charge must be stopped manually in the PayFast dashboard.',
     };
   }
-  // Intentionally not implemented until the account exists and can be tested.
-  // PayFast's subscription API requires signed, timestamped headers; guessing at
-  // it now would create the illusion of a working cancellation.
-  return {
-    ok: false,
-    message: 'PayFast API cancellation not yet implemented — cancel in the PayFast dashboard.',
+
+  // ISO-8601 in South African time, which is what the account is set to.
+  const now = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const timestamp = now.toISOString().replace(/\.\d{3}Z$/, '+02:00');
+
+  const params: Record<string, string> = {
+    'merchant-id': merchantId,
+    passphrase,
+    timestamp,
+    version: 'v1',
   };
+
+  const signature = crypto
+    .createHash('md5')
+    .update(
+      Object.keys(params)
+        .sort()
+        .map((k) => `${k}=${encodeURIComponent(params[k]).replace(/%20/g, '+')}`)
+        .join('&')
+    )
+    .digest('hex');
+
+  const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true';
+  const url = `https://api.payfast.co.za/subscriptions/${encodeURIComponent(token)}/cancel`
+    + (isSandbox ? '?testing=true' : '');
+
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'merchant-id': merchantId,
+        version: 'v1',
+        timestamp,
+        signature,
+      },
+    });
+
+    const text = await res.text();
+
+    if (!res.ok) {
+      console.error(`PayFast cancel failed (${res.status}) for token ${token}: ${text}`);
+      return {
+        ok: false,
+        message: 'PayFast did not accept the cancellation - the recurring charge must be stopped manually in the PayFast dashboard.',
+      };
+    }
+
+    console.log(`PayFast subscription cancelled: ${token}`);
+    return { ok: true, message: 'The recurring charge has been cancelled at PayFast.' };
+  } catch (err: any) {
+    console.error('PayFast cancel error:', err?.message || err);
+    return {
+      ok: false,
+      message: 'Could not reach PayFast - the recurring charge must be stopped manually in the PayFast dashboard.',
+    };
+  }
 }
 
 export async function POST(req: NextRequest) {
