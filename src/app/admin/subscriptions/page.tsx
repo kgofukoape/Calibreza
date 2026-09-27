@@ -261,10 +261,11 @@ export default function AdminSubscriptionsPage() {
         {/* PAYFAST WARNING — this is the honest bit */}
         <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4">
           <p className="text-[12px] text-[#F59E0B] leading-relaxed">
-            <strong className="uppercase tracking-widest font-black">Platform access only</strong><br />
-            Changes here control what the account can do on Gun X. They do <strong>not</strong> start or stop money
-            moving. Any recurring PayFast charge must be created or cancelled in the PayFast dashboard — otherwise
-            someone keeps being billed for a plan you cancelled here, or gets a free plan they should be paying for.
+            <strong className="uppercase tracking-widest font-black">Platform access only</strong><br/>
+            Changes on this page control what the account can do on Gun X. They do <strong>not</strong> start or
+            stop money moving. Cancelling from the dealer or club dashboard does now stop the recurring charge at
+            PayFast, but ending a comp or changing a tier here does not - if that account has a live PayFast
+            subscription, stop it in the PayFast dashboard or they keep being billed for a plan you removed here.
           </p>
         </div>
 
