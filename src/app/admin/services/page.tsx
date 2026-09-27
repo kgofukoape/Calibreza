@@ -81,6 +81,28 @@ export default function AdminServicesPage() {
     if (selected?.id === id) setSelected((prev: any) => ({ ...prev, ...patch }));
   };
 
+  // These three are CLAIMED on the application and GRANTED here. The database
+  // guard forces them false on insert, so without this panel a provider's SAPS
+  // accreditation could never be recognised at all.
+  const toggleField = async (service: any, field: string, label: string) => {
+    const next = !service[field];
+    if (!confirm(`${next ? 'Grant' : 'Remove'} "${label}" for ${service.name}?`)) return;
+
+    setActionLoading(service.id);
+    try {
+      const { res, data } = await adminAction({ id: service.id, field, value: next });
+      if (!res.ok) {
+        alert(data?.error || `Could not update ${label}.`);
+        return;
+      }
+      patchService(service.id, { [field]: next });
+    } catch {
+      alert('Could not reach the server. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSuspend = async (service: any) => {
     const isSuspended = service.status === 'suspended';
     let reason = '';
@@ -354,6 +376,32 @@ export default function AdminServicesPage() {
                         <p className="text-sm font-bold text-white break-all">{item.value}</p>
                       </div>
                     ) : null)}
+                  </div>
+
+                  <div className="mt-5 pt-4 border-t border-white/5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-3">
+                      Credentials - granted by review
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { field: 'is_verified',     label: 'Verified' },
+                        { field: 'saps_accredited', label: 'SAPS Accredited' },
+                        { field: 'is_featured',     label: 'Featured' },
+                      ].map(c => (
+                        <button
+                          key={c.field}
+                          onClick={() => toggleField(selected, c.field, c.label)}
+                          disabled={actionLoading === selected.id}
+                          className={`px-3 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
+                            selected[c.field]
+                              ? 'bg-[#2A9C6E]/15 border border-[#2A9C6E]/40 text-[#2A9C6E]'
+                              : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10'
+                          }`}
+                        >
+                          {selected[c.field] ? `\u2713 ${c.label}` : c.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

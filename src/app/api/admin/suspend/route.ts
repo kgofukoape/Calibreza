@@ -59,7 +59,10 @@ const TABLES: Record<string, {
     table: 'services',
     activeStatus: 'active',
     statuses: ['pending', 'active', 'rejected'],
-    fields: ['is_verified'],
+    // saps_accredited is CLAIMED on the application form and GRANTED here. The
+    // database guard forces it to false on insert, because it shows on the
+    // public listing and a self-awarded value is a false credential.
+    fields: ['is_verified', 'saps_accredited', 'is_featured'],
   },
   user: {
     table: 'users',
