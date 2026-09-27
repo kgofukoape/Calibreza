@@ -19,6 +19,7 @@ type Dealer = {
   status: string;
   subscription_tier: string;
   requested_tier: string | null;
+  is_verified: boolean;
   saps_dealer_number: string;
   registration_number: string;
   business_type: string;
@@ -195,6 +196,38 @@ export default function AdminDealersPage() {
         }
       } else {
         setModMsg({ kind: 'err', text: data.error || 'Could not change tier.' });
+      }
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setChangingTier(null);
+  };
+
+  // Clubs and services have had this for a while; dealers never did, because
+  // the column did not exist. Granting and removing both matter: a dealer whose
+  // compliance lapses should lose the badge the same day.
+  const handleVerifyChange = async (dealerId: string, value: boolean) => {
+    if (!confirm(value
+      ? 'Grant the verified badge to this dealer?'
+      : 'Remove the verified badge from this dealer?')) return;
+
+    setChangingTier(dealerId);
+    setModMsg(null);
+    try {
+      const res = await fetch('/api/admin/suspend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'set_field', field: 'is_verified', value }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setModMsg({ kind: 'ok', text: value ? 'Verified badge granted.' : 'Verified badge removed.' });
+        setDealers(prev => prev.map(d => d.id === dealerId ? { ...d, is_verified: value } : d));
+        if (selectedDealer?.id === dealerId) {
+          setSelectedDealer(prev => prev ? { ...prev, is_verified: value } : prev);
+        }
+      } else {
+        setModMsg({ kind: 'err', text: data.error || 'Could not change verification.' });
       }
     } catch {
       setModMsg({ kind: 'err', text: 'Could not reach the server.' });
@@ -427,6 +460,29 @@ export default function AdminDealersPage() {
                             selectedDealer.subscription_tier === tier ? 'bg-[#C9922A] text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'
                           }`}>{tier}</button>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Verified Badge</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-sm border ${
+                        selectedDealer.is_verified
+                          ? 'border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]'
+                          : 'border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B]'
+                      }`}>
+                        {selectedDealer.is_verified ? 'Verified' : 'Unverified'}
+                      </span>
+                      <button
+                        onClick={() => handleVerifyChange(selectedDealer.id, !selectedDealer.is_verified)}
+                        disabled={changingTier === selectedDealer.id}
+                        className={`px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
+                          selectedDealer.is_verified
+                            ? 'bg-[#F59E0B] text-black hover:brightness-110'
+                            : 'bg-[#10B981] text-white hover:brightness-110'
+                        }`}>
+                        {selectedDealer.is_verified ? 'Remove Verification' : 'Verify Dealer'}
+                      </button>
                     </div>
                   </div>
                 </div>
