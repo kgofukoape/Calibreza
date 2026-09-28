@@ -7,6 +7,7 @@ import {
 } from '@/lib/adminApi';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { DEALER_PLANS } from '@/lib/plans';
+import { pausePayFastSubscription, unpausePayFastSubscription } from '@/lib/payfastApi';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -106,6 +107,17 @@ export async function POST(req: NextRequest) {
             return { error: 'months must be between 1 and 24' };
           }
 
+          // If they are ALREADY PAYING, stop the charge before granting.
+          // Pausing keeps the card on file so billing resumes by itself.
+          // If the pause fails we refuse the comp: granting free access
+          // while PayFast keeps charging is invisible and costs a refund.
+          if (record.payfast_token) {
+            const paused = await pausePayFastSubscription(record.payfast_token, months);
+            if (!paused.ok) {
+              return { error: `Comp not granted: ${paused.message} Their card would have kept being charged.` };
+            }
+          }
+
           const end = new Date(now);
           end.setMonth(end.getMonth() + months);
 
@@ -163,6 +175,16 @@ export async function POST(req: NextRequest) {
           if (!record.is_comped) {
             return { error: `${label} is not on a comped tier.` };
           }
+          // Resume billing if they were paying before the comp started.
+          // Not fatal if it fails: access is correct either way, and an
+          // unpause that did not land is visible in the log.
+          if (record.payfast_token) {
+            const resumed = await unpausePayFastSubscription(record.payfast_token);
+            if (!resumed.ok) {
+              console.error(`end_comp: could not unpause ${record.payfast_token}: ${resumed.message}`);
+            }
+          }
+
           patch = {
             subscription_tier:   kind === 'club' ? 'listed' : 'free',
             subscription_status: 'free',
