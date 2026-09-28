@@ -88,9 +88,15 @@ export default function AdminSubscriptionsPage() {
   // missing when you reconcile revenue later.
   const grantFree = async (entity: any) => {
     const label = entity.business_name || entity.name || 'this account';
+    // Dealers and clubs do not share a tier vocabulary: dealers use pro and
+    // premium, clubs use listed and active, where active is the paid R399 tier.
+    // Offering "premium" to a club produced "Invalid tier for club" every time.
+    const isDealerTab = tab === 'dealers';
     const tier = prompt(
-      `Grant ${label} a paid tier free of charge.\n\nWhich tier? (pro or premium)`,
-      'premium',
+      isDealerTab
+        ? `Grant ${label} a paid tier free of charge.\n\nWhich tier? (pro or premium)`
+        : `Grant ${label} a paid tier free of charge.\n\nWhich tier? (active is the paid range plan; listed is the free directory listing)`,
+      isDealerTab ? 'premium' : 'active',
     );
     if (!tier) return;
 
