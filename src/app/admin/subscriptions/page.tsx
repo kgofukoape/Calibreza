@@ -160,7 +160,7 @@ export default function AdminSubscriptionsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'cancel',
+          action: 'end_comp',
           kind: tab === 'dealers' ? 'dealer' : 'club',
           id: entity.id,
           immediate: true,

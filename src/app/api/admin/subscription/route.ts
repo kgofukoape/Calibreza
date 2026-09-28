@@ -153,6 +153,27 @@ export async function POST(req: NextRequest) {
           break;
         }
 
+        // END A COMPED TIER
+        // Ending a comp is not a cancellation: nobody was ever billed.
+        // Routing it through 'cancel' left is_comped set, so the account
+        // still showed a Comped badge, still offered End Comp, and still
+        // counted in the comped totals, while also recording a
+        // cancellation that never happened.
+        case 'end_comp': {
+          if (!record.is_comped) {
+            return { error: `${label} is not on a comped tier.` };
+          }
+          patch = {
+            subscription_tier:   kind === 'club' ? 'listed' : 'free',
+            subscription_status: 'free',
+            current_period_end:  null,
+            is_comped:           false,
+            comped_reason:       null,
+          };
+          message = `Comped tier on ${label} ended. Moved to the free tier.`;
+          break;
+        }
+
         // ── CANCEL ───────────────────────────────────────────────────────
         case 'cancel': {
           if (body.immediate === true) {
