@@ -97,12 +97,12 @@ export async function POST(req: NextRequest) {
     // 1. Signature
     const expectedSig = buildSignature(ordered, process.env.PAYFAST_PASSPHRASE);
     if (!data['signature'] || data['signature'] !== expectedSig) {
-      console.error('PayFast ITN REJECTED — signature mismatch', {
+      // Enough to diagnose a signature problem without putting the whole
+      // payload in the logs: the raw body carries the buyer's name, email
+      // and payment details, and logs are not a place to keep those.
+      console.error('PayFast ITN REJECTED - signature mismatch', {
         m_payment_id: data['m_payment_id'],
-        their_signature: data['signature'],
-        our_signature: expectedSig,
         passphrase_set: !!process.env.PAYFAST_PASSPHRASE,
-        raw_body: rawBody,
       });
       return new NextResponse('OK', { status: 200 });
     }
