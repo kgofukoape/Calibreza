@@ -218,7 +218,7 @@ export default function ClubDashboardPage() {
         range_fee: pf.range_fee, range_fee_type: pf.range_fee_type || 'session',
         range_fee_per_30min: pf.range_fee_per_30min, range_fee_per_hour: pf.range_fee_per_hour,
         range_rules: pf.range_rules, what_to_bring: pf.what_to_bring,
-        saps_reg_number: pf.saps_reg_number, compliance_cert_url: pf.compliance_cert_url,
+        // saps_reg_number and compliance_cert_url are locked after approval.
         logo_url, cover_url, images: allImages,
       }).eq('id', club.id);
       if (error) throw error;
@@ -258,7 +258,7 @@ export default function ClubDashboardPage() {
     setComplianceSaving(true); setComplianceMsg('');
     try {
       const { error } = await supabase.from('clubs').update({
-        saps_reg_number: pf.saps_reg_number, compliance_cert_url: pf.compliance_cert_url,
+        // saps_reg_number and compliance_cert_url are locked after approval.
         range_rules: pf.range_rules, what_to_bring: pf.what_to_bring,
       }).eq('id', club.id);
       if (error) throw error;
