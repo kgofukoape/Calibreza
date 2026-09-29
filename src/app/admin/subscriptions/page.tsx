@@ -13,7 +13,10 @@ import AdminNav from '@/components/admin/AdminNav';
 // stop or start a recurring charge at PayFast — that must be done in the
 // PayFast dashboard. The banner in the UI says so, so nobody is misled.
 
-const TIERS = ['free', 'pro', 'premium'];
+// Dealers and clubs do not share a tier vocabulary. Clubs use listed and
+// active, where active is the paid R399 range plan.
+const DEALER_TIERS = ['free', 'pro', 'premium'];
+const CLUB_TIERS = ['free', 'listed', 'active'];
 
 export default function AdminSubscriptionsPage() {
   const [tab, setTab] = useState<'dealers' | 'clubs'>('dealers');
@@ -395,7 +398,7 @@ export default function AdminSubscriptionsPage() {
                           onChange={e => changeTier(r, e.target.value)}
                           className="bg-[#080B12] border border-white/10 rounded-sm px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-[#E63946]/50"
                         >
-                          {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
+                          {(tab === 'dealers' ? DEALER_TIERS : CLUB_TIERS).map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                         {r.is_comped && (
                           <button onClick={() => endComp(r)} disabled={busyId === r.id}
