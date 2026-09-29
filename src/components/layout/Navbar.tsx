@@ -29,6 +29,7 @@ export default function Navbar() {
   const [user, setUser]                       = useState<any>(null);
   const [dealer, setDealer]                   = useState<any>(null);
   const [serviceProvider, setServiceProvider] = useState<any>(null);
+  const [club, setClub]                       = useState<any>(null);
   const [loading, setLoading]                 = useState(true);
   const [dropdownOpen, setDropdownOpen]       = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
@@ -84,7 +85,7 @@ export default function Navbar() {
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) { setUser(session.user); checkDealer(session.user.id); }
-      else { setUser(null); setDealer(null); setServiceProvider(null); setLoading(false); teardownRealtimeChannel(); }
+      else { setUser(null); setDealer(null); setServiceProvider(null); setClub(null); setLoading(false); teardownRealtimeChannel(); }
     });
     return () => { subscription.unsubscribe(); teardownRealtimeChannel(); };
   }, []);
@@ -122,12 +123,14 @@ export default function Navbar() {
   }, []);
 
   const checkDealer = async (userId: string) => {
-    const [dealerRes, serviceRes] = await Promise.all([
+    const [dealerRes, serviceRes, clubRes] = await Promise.all([
       supabase.from('dealers').select('id, business_name, slug, subscription_tier, status').eq('user_id', userId).eq('status', 'approved').maybeSingle(),
       supabase.from('services').select('id, name, slug, type, status').eq('user_id', userId).maybeSingle(),
+      supabase.from('clubs').select('id, name, slug, facility_type, status').eq('user_id', userId).maybeSingle(),
     ]);
     setDealer(dealerRes.data || null);
     setServiceProvider(serviceRes.data || null);
+    setClub(clubRes.data || null);
     setLoading(false);
     loadUnreadCount(userId);
   };
@@ -418,6 +421,13 @@ export default function Navbar() {
                         <Link href="/service-dashboard?tab=portfolio" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📸</span> My Portfolio</Link>
                         {serviceProvider.slug && <Link href={`/services/${serviceProvider.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>🔧</span> Public Profile</Link>}
                       </>
+                    ) : club ? (
+                      <>
+                        <Link href="/club-dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128202;</span> My Dashboard</Link>
+                        <Link href="/club-dashboard?tab=bookings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128197;</span> Bookings</Link>
+                        <Link href="/club-dashboard?tab=live" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128308;</span> Live Status</Link>
+                        {club.slug && <Link href={`/clubs/${club.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#127919;</span> Public Page</Link>}
+                      </>
                     ) : (
                       <>
                         <Link href="/dashboard"          className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📊</span> My Dashboard</Link>
@@ -533,6 +543,11 @@ export default function Navbar() {
                       <>
                         <Link href="/service-dashboard"            onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>📊</span> My Dashboard</Link>
                         {serviceProvider.slug && <Link href={`/services/${serviceProvider.slug}`} onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>🔧</span> Public Profile</Link>}
+                      </>
+                    ) : club ? (
+                      <>
+                        <Link href="/club-dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>&#128202;</span> My Dashboard</Link>
+                        <Link href="/club-dashboard?tab=bookings" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>&#128197;</span> Bookings</Link>
                       </>
                     ) : (
                       <>
