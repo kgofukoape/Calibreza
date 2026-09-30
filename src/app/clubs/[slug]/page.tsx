@@ -249,15 +249,6 @@ export default function ClubDetailPage() {
         <AdBanner slot="leaderboard_top" page="clubs_profile" />
       </div>
 
-      {/* Sidebar booking, mobile placement */}
-      <div className="2xl:hidden w-full flex justify-center py-3 px-4">
-        <AdBanner slot="sidebar_left" page="clubs_profile" variant="infeed" />
-      </div>
-
-      {/* Sidebar booking, mobile placement */}
-      <div className="2xl:hidden w-full flex justify-center py-3 px-4">
-        <AdBanner slot="sidebar_right" page="clubs_profile" variant="infeed" />
-      </div>
 
       {/* COVER */}
       <div className="relative bg-[#12141a] overflow-hidden" style={{ height: '260px' }}>
@@ -355,6 +346,14 @@ export default function ClubDetailPage() {
         <div className="flex-1 min-w-0 py-6 md:py-8 px-4 md:px-6">
           <div className="flex flex-col lg:flex-row gap-8">
             <main className="flex-1 min-w-0">
+
+              {/* The in-feed ad sits BELOW the cover and tabs: two slots used
+                  to sit above the hero, so a visitor met advertising before
+                  they could see whose page it was. Small screens only - the
+                  real sidebars carry it from xl upward. */}
+              <div className="xl:hidden w-full flex justify-center pb-6">
+                <AdBanner slot="sidebar_left" page="clubs_profile" variant="infeed" />
+              </div>
 
               {/* ── ABOUT ── */}
               {activeTab === 'about' && (
