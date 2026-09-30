@@ -93,6 +93,24 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
       } else if (listingData.seller_id) {
         const { data: userData } = await supabase.from('seller_public').select('*').eq('id', listingData.seller_id).maybeSingle();
         setSeller(userData ? { ...userData, is_dealer: false } : null);
+        // A club lists as the entity, not as the person behind it. Overlay the
+        // club's identity so the buyer sees they are dealing with the range.
+        if (listingData.club_id) {
+          const { data: clubData } = await supabase.from('clubs')
+            .select('id, name, slug, phone, city, logo_url')
+            .eq('id', listingData.club_id).maybeSingle();
+          if (clubData) {
+            setSeller({
+              ...(userData || {}),
+              full_name: clubData.name,
+              phone:     clubData.phone,
+              city:      clubData.city,
+              logo_url:  clubData.logo_url,
+              slug:      clubData.slug,
+              is_club:   true,
+            });
+          }
+        }
       }
 
       const { data: similarData } = await supabase
@@ -390,10 +408,15 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               </div>
               <div>
                 <p className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || 'Private Seller'}</p>
-                <p className="text-[11px] text-[#8A8E99]">{seller?.is_dealer ? 'Licensed Dealer' : 'Private Seller'}</p>
+                <p className="text-[11px] text-[#8A8E99]">{seller?.is_dealer ? 'Licensed Dealer' : seller?.is_club ? 'Club or Range' : 'Private Seller'}</p>
                 {seller?.rating && <p className="text-[11px] text-[#C9922A]">★ {seller.rating.toFixed(1)}</p>}
               </div>
             </div>
+            {seller?.is_club && seller?.slug && (
+              <Link href={`/clubs/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 block">
+                View Range Page
+              </Link>
+            )}
             {seller?.is_dealer && seller?.slug && (
               <Link href={`/dealers/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 block">
                 View Full Dealer Storefront →
@@ -476,7 +499,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               </div>
               <div>
                 <p className="font-bold text-[14px] text-[#F0EDE8]">{seller?.full_name || 'Private Seller'}</p>
-                <p className="text-[11px] text-[#8A8E99] uppercase tracking-wider">{seller?.is_dealer ? 'Licensed Dealer' : 'Private Seller'}</p>
+                <p className="text-[11px] text-[#8A8E99] uppercase tracking-wider">{seller?.is_dealer ? 'Licensed Dealer' : seller?.is_club ? 'Club or Range' : 'Private Seller'}</p>
               </div>
             </div>
 
