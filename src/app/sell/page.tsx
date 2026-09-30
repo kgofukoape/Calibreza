@@ -33,6 +33,10 @@ export default function SellPage() {
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [listingId, setListingId] = useState('');
+  // A club is a legal entity: its listings belong to the club, draw on the
+  // club's own allowance, and show on the club's public page. The person
+  // behind it registers a personal account if they want to sell privately.
+  const [club, setClub] = useState<any>(null);
   const [allowance, setAllowance] = useState<any>(null);
   const [listingCountLoading, setListingCountLoading] = useState(true);
 
@@ -78,7 +82,11 @@ export default function SellPage() {
       supabase.from('calibres').select('*').order('sort_order').order('name'),
       supabase.from('conditions').select('*').order('name'),
       supabase.from('provinces').select('*').order('name'),
-      supabase.rpc('listing_allowance', { p_user_id: currentUser.id }),
+      supabase.from('clubs').select('id, name, slug').eq('user_id', currentUser.id).maybeSingle()
+        .then(async ({ data: c }) => {
+          setClub(c || null);
+          return supabase.rpc('listing_allowance', { p_user_id: c ? c.id : currentUser.id });
+        }),
     ]);
 
     setMakes(makesData.data || []);
@@ -164,6 +172,7 @@ const ACTION_TYPES: Record<string, string[]> = {
 
       const payload = {
         seller_id: user.id,
+        club_id: club ? club.id : null,
         title: formData.title,
         description: formData.description,
         price: parseFloat(formData.price),

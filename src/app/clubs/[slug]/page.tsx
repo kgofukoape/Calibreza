@@ -38,6 +38,7 @@ export default function ClubDetailPage() {
   const [activeTab, setActiveTab]         = useState('about');
   const [selectedImage, setSelectedImage] = useState(0);
   const [results, setResults]             = useState<any[]>([]);
+  const [clubListings, setClubListings]   = useState<any[]>([]);
   const [weather, setWeather]             = useState<any>(null);
   const [calendarDays, setCalendarDays]   = useState<any[]>([]);
   const [selectedDate, setSelectedDate]   = useState('');
@@ -70,6 +71,14 @@ export default function ClubDetailPage() {
 
     const { data: resultData } = await supabase.from('shoot_results').select('*').eq('club_id', data.id).order('shoot_date', { ascending: false }).limit(10);
     setResults(resultData || []);
+    // A club lists as the entity, not as the person behind it, so buyers
+    // can see they are dealing with the range.
+    const { data: listingData } = await supabase.from('listings')
+      .select('id, title, price, images, city, is_featured')
+      .eq('club_id', data.id).eq('status', 'active')
+      .order('is_featured', { ascending: false })
+      .order('created_at', { ascending: false });
+    setClubListings(listingData || []);
 
     if (data.city) {
       try {
@@ -183,6 +192,7 @@ export default function ClubDetailPage() {
     ...(isRange ? [{ id: 'facilities', label: 'Facilities' }] : []),
     { id: 'book',    label: isPremium ? '✋ Book / RSVP' : '📋 Book / RSVP' },
     ...(results.length > 0 && isPremium ? [{ id: 'results', label: `Results (${results.length})` }] : []),
+    ...(clubListings.length > 0 ? [{ id: 'forsale', label: `For Sale (${clubListings.length})` }] : []),
     ...(images.length > 0 ? [{ id: 'gallery', label: `Gallery (${images.length})` }] : []),
     ...(hasCompliance ? [{ id: 'safety', label: 'Safety & Rules' }] : []),
     { id: 'contact', label: 'Contact & Fees' },
@@ -576,6 +586,29 @@ export default function ClubDetailPage() {
                       ))}
                     </div>
                   ) : <UpgradeCTA context="Results board" />}
+                </div>
+              )}
+
+              {activeTab === 'forsale' && (
+                <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
+                  <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">For Sale</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {clubListings.map((l: any) => (
+                      <Link key={l.id} href={`/listings/${l.id}`}
+                        className="bg-[#0D0F13] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/40 transition-all">
+                        <div className="aspect-[4/3] bg-[#191C23] overflow-hidden">
+                          {l.images?.[0]
+                            ? <img src={l.images[0]} alt={l.title} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center text-[#8A8E99] text-[11px] uppercase tracking-widest">No photo</div>}
+                        </div>
+                        <div className="p-4">
+                          <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="font-black text-[15px] uppercase truncate">{l.title}</p>
+                          <p className="text-[#C9922A] font-black text-[15px] mt-1">R {Number(l.price).toLocaleString('en-ZA')}</p>
+                          {l.city && <p className="text-[11px] text-[#8A8E99] mt-1">{l.city}</p>}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
 
