@@ -106,6 +106,13 @@ export default function AdBanner({ slot, page, className = '' , variant = 'deskt
     ? { w: 320, h: 100, label: '320 × 100' }
     : SLOT_DIMENSIONS[slot];
 
+  // Leaderboards (970x90, 728x90) become 320x100 on phones
+  // via .ad-leaderboard in globals.css. Without it the box
+  // keeps its desktop ratio and collapses to ~35px tall.
+  const isLeaderboard =
+    slot === 'leaderboard_top' || slot === 'leaderboard_mid';
+  const lbClass = isLeaderboard ? ' ad-leaderboard' : '';
+
   const fetchAd = useCallback(async () => {
     // Try page-specific ad first, fall back to 'all' if none found
     const { data: pageAd } = await supabase
@@ -202,7 +209,7 @@ export default function AdBanner({ slot, page, className = '' , variant = 'deskt
   if (loading) {
     return (
       <div
-        className={`bg-[#0D0F13] border border-white/5 flex items-center justify-center flex-shrink-0 ${className}`}
+        className={`bg-[#0D0F13] border border-white/5 flex items-center justify-center flex-shrink-0 ${className}${lbClass}`}
         style={{ width: dims.w, maxWidth: '100%', aspectRatio: `${dims.w} / ${dims.h}` }}
       />
     );
@@ -218,7 +225,7 @@ export default function AdBanner({ slot, page, className = '' , variant = 'deskt
     return (
       <a
         href="/advertise"
-        className={`group relative block flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#15171d] to-[#0D0F13] border border-[#C9922A]/20 hover:border-[#C9922A]/50 transition-all duration-300 ${className}`}
+        className={`group relative block flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#15171d] to-[#0D0F13] border border-[#C9922A]/20 hover:border-[#C9922A]/50 transition-all duration-300 ${className}${lbClass}`}
         style={{ width: dims.w, maxWidth: '100%', aspectRatio: `${dims.w} / ${dims.h}` }}
         aria-label="Advertise on Gun X"
       >
@@ -246,20 +253,24 @@ export default function AdBanner({ slot, page, className = '' , variant = 'deskt
           </div>
         ) : isWide ? (
           /* ── LEADERBOARD 970×90 / 728×90 — horizontal row ── */
-          <div className="h-full flex items-center justify-between px-6 relative z-[1]">
+          <div className="h-full flex items-center justify-between gap-2 px-3 md:px-6 relative z-[1]">
             <div className="flex items-center gap-3">
               <span className="text-2xl">📢</span>
               <div>
-                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[#F0EDE8] font-black uppercase tracking-tight text-lg leading-none">
+                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-[#F0EDE8] font-black uppercase tracking-tight text-base md:text-lg leading-none">
                   Advertise on <span className="text-[#C9922A]">Gun X</span>
                 </p>
-                <p className="text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold mt-0.5">
+                <p className="md:hidden text-[9px] text-[#8A8E99] uppercase tracking-widest font-bold mt-0.5">
+                  From R500/mo
+                </p>
+                <p className="hidden md:block text-[10px] text-[#8A8E99] uppercase tracking-widest font-bold mt-0.5">
                   Reach SA's licensed firearm community · From R500/mo
                 </p>
               </div>
             </div>
-            <span className="text-[10px] text-[#C9922A] font-black uppercase tracking-widest border border-[#C9922A]/40 px-4 py-2 group-hover:bg-[#C9922A] group-hover:text-black transition-all whitespace-nowrap">
-              View Rate Card →
+            <span className="text-[10px] text-[#C9922A] font-black uppercase tracking-widest border border-[#C9922A]/40 px-2 md:px-4 py-1.5 md:py-2 group-hover:bg-[#C9922A] group-hover:text-black transition-all whitespace-nowrap">
+              <span className="md:hidden">Rates</span>
+              <span className="hidden md:inline">View Rate Card</span> &rarr;
             </span>
           </div>
         ) : (
@@ -294,7 +305,7 @@ export default function AdBanner({ slot, page, className = '' , variant = 'deskt
       target="_blank"
       rel="noopener noreferrer sponsored"
       onClick={handleClick}
-      className={`block flex-shrink-0 overflow-hidden relative group ${className}`}
+      className={`block flex-shrink-0 overflow-hidden relative group ${className}${lbClass}`}
       style={{ width: dims.w, maxWidth: '100%', aspectRatio: `${dims.w} / ${dims.h}` }}
       aria-label={`Advertisement: ${ad.title}`}
     >

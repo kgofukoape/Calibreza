@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Leaderboard ads (970x90, 728x90) use a 320x100 box on
+   phones. Set by AdBanner.tsx. !important is needed
+   because the component sizes the box inline. */
+@media (max-width: 767px) {
+  .ad-leaderboard {
+    width: 320px !important;
+    aspect-ratio: 320 / 100 !important;
+  }
+}
