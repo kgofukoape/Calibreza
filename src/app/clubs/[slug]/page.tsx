@@ -245,7 +245,7 @@ export default function ClubDetailPage() {
       )}
 
       {/* LEADERBOARD TOP */}
-      <div className="hidden md:flex w-full justify-center py-3 px-4">
+      <div className="flex w-full justify-center py-3 px-4">
         <AdBanner slot="leaderboard_top" page="clubs_profile" />
       </div>
 
