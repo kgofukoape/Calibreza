@@ -130,6 +130,17 @@ export async function POST(req: NextRequest) {
             // that went missing, and the revenue figures become fiction.
             is_comped:     true,
             comped_reason: reason,
+            // Billing state the comp overwrites, so end_comp can
+            // put a paying account back. A repeat grant keeps the
+            // first snapshot, never the comp values.
+            pre_comp: record.is_comped
+              ? (record.pre_comp ?? null)
+              : {
+                  subscription_tier:   record.subscription_tier ?? null,
+                  subscription_status: record.subscription_status ?? null,
+                  current_period_end:  record.current_period_end ?? null,
+                  billing_start_date:  record.billing_start_date ?? null,
+                },
           };
           message = `${tier} granted to ${label} free for ${months} month${months > 1 ? 's' : ''}, until ${end.toLocaleDateString('en-ZA')}.`;
           break;
@@ -176,23 +187,48 @@ export async function POST(req: NextRequest) {
             return { error: `${label} is not on a comped tier.` };
           }
           // Resume billing if they were paying before the comp started.
-          // Not fatal if it fails: access is correct either way, and an
-          // unpause that did not land is visible in the log.
+          // If the unpause fails we refuse, as grant does: restoring a
+          // paid plan while PayFast stays paused would be the mirror
+          // image of the bug this replaces.
           if (record.payfast_token) {
             const resumed = await unpausePayFastSubscription(record.payfast_token);
             if (!resumed.ok) {
-              console.error(`end_comp: could not unpause ${record.payfast_token}: ${resumed.message}`);
+              return {
+                error: `Comp not ended: ${resumed.message} ` +
+                  'PayFast is still paused, so nothing was changed.',
+              };
             }
           }
 
-          patch = {
-            subscription_tier:   kind === 'club' ? 'listed' : 'free',
-            subscription_status: 'free',
-            current_period_end:  null,
-            is_comped:           false,
-            comped_reason:       null,
-          };
-          message = `Comped tier on ${label} ended. Moved to the free tier.`;
+          // A card on file means PayFast bills again, so put back the
+          // plan they had before the comp. No card, or no snapshot
+          // (a comp granted before this fix): drop to free as before.
+          const snap = record.pre_comp;
+          if (record.payfast_token && snap && snap.subscription_tier) {
+            const st = snap.subscription_status || 'active';
+            patch = {
+              subscription_tier:   snap.subscription_tier,
+              subscription_status: st,
+              current_period_end:  snap.current_period_end ?? null,
+              billing_start_date:  snap.billing_start_date ?? null,
+              is_comped:           false,
+              comped_reason:       null,
+              pre_comp:            null,
+            };
+            message = `Comped tier on ${label} ended. ` +
+              `Restored to ${snap.subscription_tier} (${st}); ` +
+              'PayFast billing resumed.';
+          } else {
+            patch = {
+              subscription_tier:   kind === 'club' ? 'listed' : 'free',
+              subscription_status: 'free',
+              current_period_end:  null,
+              is_comped:           false,
+              comped_reason:       null,
+              pre_comp:            null,
+            };
+            message = `Comped tier on ${label} ended. Moved to the free tier.`;
+          }
           break;
         }
 
