@@ -277,7 +277,7 @@ export default function AdminSubscriptionsPage() {
             restores the plan they had. Cancel and Refund stop PayFast
             billing. Nobody is refunded for part of a month, and Refund
             only records an EFT you make yourself. Change tier does
-            <strong>not</strong> change what PayFast charges: if the
+            {' '}<strong>not</strong> change what PayFast charges: if the
             account pays by card, check PayFast after changing a tier.
           </p>
         </div>
@@ -414,7 +414,9 @@ export default function AdminSubscriptionsPage() {
                           className="text-[10px] font-black uppercase px-2 py-1.5 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/10 rounded-sm transition-all disabled:opacity-40">
                           Grant Free
                         </button>
-                        {['pro', 'premium'].includes(r.subscription_tier) && r.subscription_status !== 'cancelling' && (
+                        {['pro', 'premium', 'active'].includes(r.subscription_tier) &&
+                          !['cancelling', 'cancelled'].includes(r.subscription_status) &&
+                          !r.is_comped && (
                           <button onClick={() => cancelSub(r)} disabled={busyId === r.id}
                             className="text-[10px] font-black uppercase px-2 py-1.5 border border-[#E63946]/30 text-[#E63946] hover:bg-[#E63946]/10 rounded-sm transition-all disabled:opacity-40">
                             Cancel
