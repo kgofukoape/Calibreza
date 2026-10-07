@@ -46,6 +46,14 @@ export default function Navbar() {
   const dropdownRef      = useRef<HTMLDivElement>(null);
   const searchIconRef    = useRef<HTMLDivElement>(null);
   const hoverBarRef      = useRef<HTMLDivElement>(null);
+  // The hover search bar is fixed to the window, so it is placed at the
+  // nav's real bottom edge (the promo banner above pushes the nav down).
+  const navRef           = useRef<HTMLElement>(null);
+  const [barTop, setBarTop] = useState(80);
+  const placeBar = () => {
+    const bottom = navRef.current?.getBoundingClientRect().bottom;
+    setBarTop(Math.max(0, bottom ?? 80));
+  };
   const inlineInputRef   = useRef<HTMLInputElement>(null);
   const hoverInputRef    = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
@@ -169,7 +177,7 @@ export default function Navbar() {
   const handleIconMouseEnter = () => {
     if (inlineMode) return;
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => { if (!inlineMode) setHoverMode(true); }, 150);
+    hoverTimeoutRef.current = setTimeout(() => { if (!inlineMode) { placeBar(); setHoverMode(true); } }, 150);
   };
   const handleIconMouseLeave    = () => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); };
   const handleHoverBarMouseLeave = () => {
@@ -273,7 +281,7 @@ export default function Navbar() {
   return (
     <>
       {/* ── NAVBAR ─────────────────────────────────────────────────────────── */}
-      <nav className="w-full bg-[#0D0F13] border-b border-white/5 z-[100] relative">
+      <nav ref={navRef} className="w-full bg-[#0D0F13] border-b border-white/5 z-[100] relative">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 h-[68px] md:h-[80px] flex items-center justify-between gap-3">
 
           {/* LOGO */}
@@ -601,7 +609,7 @@ export default function Navbar() {
       {/* HOVER SEARCH BAR — desktop only */}
       {hoverMode && !inlineMode && (
         <div ref={hoverBarRef} onMouseEnter={handleHoverBarMouseEnter} onMouseLeave={handleHoverBarMouseLeave}
-          className="hidden lg:block fixed top-[80px] left-0 right-0 z-[99] bg-[#0D0F13] border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.6)] transition-all">
+          style={{ top: barTop }} className="hidden lg:block fixed left-0 right-0 z-[99] bg-[#0D0F13] border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.6)] transition-all">
           <div className="max-w-[1400px] mx-auto px-6 py-4">
             <form onSubmit={handleSubmit} className="relative">
               <div className="flex items-center gap-3 bg-[#13151A] border border-white/10 focus-within:border-[#C9922A]/50 rounded-sm px-4 py-3 transition-all">
