@@ -1,916 +1,851 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 
-const CATEGORY_OPTIONS = [
-  'pistols', 'rifles', 'shotguns', 'revolvers',
-  'air-guns', 'airsoft', 'knives', 'holsters',
-  'magazines', 'ammunition', 'reloading',
+// --- DEALER BULK UPLOAD ------------------------------------------------------
+// A dealer fills in one spreadsheet row per item and selects all their photos
+// at once. Photos are matched to rows by FILE NAME (the "photos" column), the
+// way large marketplaces do it. Everything is checked and shown before a
+// single listing is created, and anything that cannot import comes back as a
+// spreadsheet with the reason, ready to fix and upload again.
+
+// Same ids as the single Add Listing page, so imported stock appears in the
+// same browse categories.
+const CATEGORIES = [
+  { id: 'pistols', label: 'Pistols' },
+  { id: 'bolt-action', label: 'Bolt Action Rifles' },
+  { id: 'semi-auto-rifles', label: 'Semi-Auto Rifles' },
+  { id: 'lever-action', label: 'Lever Action Rifles' },
+  { id: 'pump-action-rifles', label: 'Pump Action Rifles' },
+  { id: 'shotguns', label: 'Shotguns' },
+  { id: 'revolvers', label: 'Revolvers' },
+  { id: 'air-guns', label: 'Air Guns' },
+  { id: 'airsoft', label: 'Airsoft' },
+  { id: 'knives', label: 'Knives & Blades' },
+  { id: 'holsters', label: 'Holsters & Carry' },
+  { id: 'magazines', label: 'Magazines' },
+  { id: 'ammunition', label: 'Ammunition' },
+  { id: 'optics', label: 'Optics & Sights' },
+  { id: 'reloading', label: 'Reloading' },
+  { id: 'accessories', label: 'Accessories & Parts' },
 ];
 
-const SAMPLE_ROWS = [
-  {
-    title: 'Glock 19 Gen 5 — Excellent Condition',
-    description: 'Comes with 3 magazines and original case',
-    price: 12500,
-    category_id: 'pistols',
-    make: 'Glock',
-    model: '19 Gen 5',
-    calibre: '9mm Luger (9x19mm)',
-    condition: 'Like New',
-    action_type: 'Semi-Auto',
-    barrel_length: '102mm',
-    capacity: '15+1',
-    licence_type: 'Section 13',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Remington 700 Hunting Rifle with Scope',
-    description: 'Bolt action hunting rifle, lightly used',
-    price: 18000,
-    category_id: 'rifles',
-    make: 'Remington',
-    model: '700',
-    calibre: '.308 Winchester',
-    condition: 'Good',
-    action_type: 'Bolt Action',
-    barrel_length: '610mm',
-    capacity: '5',
-    licence_type: 'Section 13',
-    is_negotiable: 'true',
-  },
-  {
-    title: 'Mossberg 500 Pump Action Shotgun',
-    description: 'Great home defence shotgun, barely used',
-    price: 9500,
-    category_id: 'shotguns',
-    make: 'Mossberg',
-    model: '500',
-    calibre: '12 Gauge',
-    condition: 'Good',
-    action_type: 'Pump Action',
-    barrel_length: '470mm',
-    capacity: '6+1',
-    licence_type: 'Section 13',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Smith & Wesson Model 686 Revolver',
-    description: 'Classic 357 Magnum revolver in excellent condition',
-    price: 15000,
-    category_id: 'revolvers',
-    make: 'Smith & Wesson',
-    model: '686',
-    calibre: '.357 Magnum',
-    condition: 'Like New',
-    action_type: 'Double Action',
-    barrel_length: '152mm',
-    capacity: '6',
-    licence_type: 'Section 13',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Diana 350 Magnum Air Rifle',
-    description: 'Powerful spring piston air rifle for pest control',
-    price: 3200,
-    category_id: 'air-guns',
-    make: 'Diana',
-    model: '350 Magnum',
-    calibre: '.177',
-    condition: 'Good',
-    action_type: 'Spring Piston',
-    barrel_length: '480mm',
-    capacity: '1',
-    licence_type: 'No Licence Required',
-    is_negotiable: 'true',
-  },
-  {
-    title: 'Tokyo Marui M4 Airsoft Rifle',
-    description: 'High quality AEG airsoft rifle with extras',
-    price: 4500,
-    category_id: 'airsoft',
-    make: 'Tokyo Marui',
-    model: 'M4A1',
-    calibre: '6mm BB',
-    condition: 'Like New',
-    action_type: 'AEG',
-    barrel_length: '363mm',
-    capacity: '300',
-    licence_type: 'No Licence Required',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Benchmade Griptilian Folding Knife',
-    description: 'USA made folding knife, excellent EDC option',
-    price: 2800,
-    category_id: 'knives',
-    make: 'Benchmade',
-    model: 'Griptilian 551',
-    calibre: '',
-    condition: 'Brand New',
-    action_type: '',
-    barrel_length: '',
-    capacity: '',
-    licence_type: '',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Safariland Level 3 Duty Holster — Glock 17',
-    description: 'ALS/SLS retention holster, right hand',
-    price: 1800,
-    category_id: 'holsters',
-    make: 'Safariland',
-    model: '6360',
-    calibre: '',
-    condition: 'Brand New',
-    action_type: '',
-    barrel_length: '',
-    capacity: '',
-    licence_type: '',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Glock 17 OEM 17-Round Magazine',
-    description: 'Factory original Glock magazine, 9mm',
-    price: 650,
-    category_id: 'magazines',
-    make: 'Glock',
-    model: '17 Magazine',
-    calibre: '9mm Luger (9x19mm)',
-    condition: 'Brand New',
-    action_type: '',
-    barrel_length: '',
-    capacity: '17',
-    licence_type: '',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Winchester 9mm FMJ 115gr — 50 Rounds',
-    description: 'Full metal jacket range ammunition',
-    price: 380,
-    category_id: 'ammunition',
-    make: 'Winchester',
-    model: 'USA Forged',
-    calibre: '9mm Luger (9x19mm)',
-    condition: 'Brand New',
-    action_type: '',
-    barrel_length: '',
-    capacity: '50',
-    licence_type: '',
-    is_negotiable: 'false',
-  },
-  {
-    title: 'Dillon Precision RL550C Reloading Press',
-    description: 'Progressive reloading press, complete setup',
-    price: 12000,
-    category_id: 'reloading',
-    make: 'Dillon Precision',
-    model: 'RL550C',
-    calibre: '',
-    condition: 'Good',
-    action_type: '',
-    barrel_length: '',
-    capacity: '',
-    licence_type: '',
-    is_negotiable: 'true',
-  },
+const HEADERS = [
+  'title', 'description', 'price', 'category', 'make', 'model', 'calibre',
+  'condition', 'action_type', 'barrel_length', 'capacity', 'licence_type',
+  'negotiable', 'photos',
 ];
 
-type ParsedRow = {
+// Column names dealers commonly use for the same thing.
+const ALIASES: Record<string, string> = {
+  category_id: 'category', categories: 'category',
+  caliber: 'calibre', calibre_id: 'calibre',
+  license_type: 'licence_type', licence: 'licence_type', license: 'licence_type',
+  is_negotiable: 'negotiable',
+  photo: 'photos', images: 'photos', image: 'photos', pictures: 'photos',
+  photo_files: 'photos',
+  action: 'action_type', barrel: 'barrel_length', brand: 'make',
+  name: 'title', price_zar: 'price', price_r: 'price',
+};
+
+const MAX_ROWS = 500;
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const HOW_TO = [
+  'HOW TO UPLOAD YOUR STOCK',
+  '',
+  '1. Fill in the Stock tab: one row per item. Keep the column names in row 1.',
+  '   Delete the two EXAMPLE rows before uploading.',
+  '2. Required for every item: title, price and category.',
+  '   Category must be one of the values in the Valid values tab (first column).',
+  '   Make, calibre and condition should match the Valid values tab exactly;',
+  '   if not, the item still imports, just without that detail.',
+  '3. Price: numbers only, e.g. 12500 (R 12 500 and 12,500 also work).',
+  '4. negotiable: yes or no.',
+  '5. photos: type the file names of that item\'s photos, separated by commas,',
+  '   e.g. g19-front.jpg, g19-side.jpg. The first one is the cover photo.',
+  '   Up to 5 photos per item. JPG, PNG or WEBP, up to 5MB each.',
+  '6. On the Gun X bulk upload page: choose this spreadsheet, then select all',
+  '   your photos at once. We match them to your items by file name.',
+  '7. Check the preview, then press Import. Rows that cannot import come back',
+  '   as a spreadsheet with the problem written next to each one.',
+  '',
+  'Up to 500 items per file. Save as .xlsx (or .csv) when you are done.',
+];
+
+type Lookup = { id: string; name: string };
+type SheetRow = { line: number; cells: unknown[] };
+
+type Row = {
+  line: number;
+  raw: Record<string, string>;
   title: string;
   description: string;
-  price: string;
-  category_id: string;
-  make: string;
+  price: number | null;
+  categoryId: string | null;
+  makeId: string | null;
   model: string;
-  calibre: string;
-  condition: string;
-  action_type: string;
-  barrel_length: string;
+  calibreId: string | null;
+  conditionId: string | null;
+  actionType: string;
+  barrelLength: string;
   capacity: string;
-  licence_type: string;
-  is_negotiable: string;
-  _error?: string;
+  licenceType: string;
+  negotiable: boolean;
+  photoNames: string[];
+  photos: File[];
+  errors: string[];
+  warnings: string[];
 };
 
-type Dealer = {
-  id: string;
-  business_name: string;
-  slug: string;
-  subscription_tier: string;
-  status: string;
-  city: string;
-  province: string;
+type Result = {
+  line: number;
+  title: string;
+  ok: boolean;
+  message: string;
+  id?: string;
+  photoCount: number;
+  raw: Record<string, string>;
 };
+
+const norm = (s: unknown): string =>
+  String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const headerKey = (h: unknown): string => {
+  const k = norm(h).replace(/[\s\-/]+/g, '_').replace(/[^a-z0-9_]/g, '');
+  return ALIASES[k] || k;
+};
+
+const baseName = (n: string): string =>
+  (n.split(/[\\/]/).pop() || '').trim().toLowerCase();
+
+const dupKey = (title: string, price: number): string => `${norm(title)}|${price}`;
+
+const rand = (n: number): string =>
+  'R ' + n.toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+// Reads rand amounts as South Africans type them: 12500, R 12 500, 12,500,
+// 12 500,00 and 12,500.00 all become 12500.
+function parsePrice(v: unknown): number | null {
+  if (typeof v === 'number') {
+    return isFinite(v) && v > 0 ? Math.round(v * 100) / 100 : null;
+  }
+  let s = String(v ?? '').replace(/[Rr]/g, '').replace(/[\s\u00a0]/g, '');
+  if (!s) return null;
+  if (s.includes('.') && s.includes(',')) {
+    s = s.replace(/,/g, '');
+  } else if (s.includes(',')) {
+    s = /,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.replace(/,/g, '');
+  }
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  const n = parseFloat(s);
+  return n > 0 && n < 100000000 ? n : null;
+}
+
+function parseYes(v: string): boolean {
+  return ['yes', 'y', 'true', '1', 'ja'].includes(norm(v));
+}
+
+function findCategory(v: string): string | null {
+  const k = norm(v);
+  const hit = CATEGORIES.find((c) => c.id === k || norm(c.label) === k);
+  return hit ? hit.id : null;
+}
+
+function categoryHint(v: string): string {
+  if (/^rifles?$/.test(norm(v))) {
+    return 'Category "rifles" is too general: use bolt-action, semi-auto-rifles, ' +
+      'lever-action or pump-action-rifles';
+  }
+  return `Category "${v}" is not one of ours (see the Valid values tab)`;
+}
+
+// CSV with quotes, commas or semicolons (South African Excel often saves
+// semicolon CSVs), and Windows or Mac line endings.
+function parseDelimited(text: string): unknown[][] {
+  const first = text.split(/\r?\n/, 1)[0] || '';
+  const delim = first.split(';').length > first.split(',').length ? ';' : ',';
+  const rows: unknown[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { quoted = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      quoted = true;
+    } else if (c === delim) {
+      row.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else {
+      field += c;
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function friendly(msg: string): string {
+  if (/row-level security/i.test(msg)) {
+    return 'Your account cannot add listings right now. Contact support@gunx.co.za.';
+  }
+  return msg;
+}
 
 export default function BulkUploadPage() {
   const router = useRouter();
-  const [dealer, setDealer] = useState<Dealer | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dealer, setDealer] = useState<any>(null);
+  const [makes, setMakes] = useState<Lookup[]>([]);
+  const [calibres, setCalibres] = useState<Lookup[]>([]);
+  const [conditions, setConditions] = useState<Lookup[]>([]);
+  const [provinceId, setProvinceId] = useState<string | null>(null);
+  const [existing, setExisting] = useState<Set<string>>(new Set());
 
-  const [makes, setMakes] = useState<any[]>([]);
-  const [calibres, setCalibres] = useState<any[]>([]);
-  const [conditions, setConditions] = useState<any[]>([]);
+  const [fileName, setFileName] = useState('');
+  const [table, setTable] = useState<{ headers: string[]; rows: SheetRow[] } | null>(null);
+  const [fileError, setFileError] = useState('');
+  const [photos, setPhotos] = useState<Map<string, File>>(new Map());
+  const [photoNotes, setPhotoNotes] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
 
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
-  const [parseError, setParseError] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadResults, setUploadResults] = useState<{ success: number; failed: number } | null>(null);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  // How many listings this dealer may still create. Read from the database so
-  // it matches the trigger that actually enforces it.
-  const [allowance, setAllowance] = useState<any>(null);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [results, setResults] = useState<Result[] | null>(null);
+  const [notice, setNotice] = useState('');
+
+  const sheetInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    checkAuth();
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const checkAuth = async () => {
+  const load = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.push('/dealer/login'); return; }
+    if (!user) { router.replace('/dealer/login'); return; }
 
-    const { data: dealerData } = await supabase
-      .from('dealers')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    const { data: d } = await supabase
+      .from('dealers').select('*').eq('user_id', user.id).maybeSingle();
+    if (d?.status === 'suspended') { router.replace('/dealer-dashboard'); return; }
+    if (!d || d.status !== 'approved') { router.replace('/business/pending'); return; }
+    setDealer(d);
 
-    // A suspended dealer is still logged in and still owns this account, so
-    // bouncing them to the LOGIN page is confusing and looks like a fault.
-    // Send them to their dashboard instead, where the banner explains exactly
-    // why this feature is paused and how to resolve it.
-    if (dealerData?.status === 'suspended') {
-      router.push('/dealer-dashboard');
-      return;
-    }
-
-    if (!dealerData || dealerData.status !== 'approved') {
-      router.push('/dealer/login');
-      return;
-    }
-
-    setDealer(dealerData);
-    await loadLookups();
+    const [mk, cb, cd, pv, st] = await Promise.all([
+      supabase.from('makes').select('id, name').order('name'),
+      supabase.from('calibres').select('id, name').order('name'),
+      supabase.from('conditions').select('id, name').order('name'),
+      supabase.from('provinces').select('id, name'),
+      supabase.from('listings').select('title, price').eq('dealer_id', d.id).limit(5000),
+    ]);
+    setMakes((mk.data as Lookup[]) || []);
+    setCalibres((cb.data as Lookup[]) || []);
+    setConditions((cd.data as Lookup[]) || []);
+    const prov = ((pv.data as Lookup[]) || []).find((p) => norm(p.name) === norm(d.province));
+    setProvinceId(prov ? prov.id : null);
+    setExisting(new Set(((st.data as any[]) || []).map((l) => dupKey(l.title, Number(l.price)))));
     setLoading(false);
   };
 
-  const loadLookups = async () => {
-    const [makesRes, calibresRes, conditionsRes] = await Promise.all([
-      supabase.from('makes').select('id, name').order('name'),
-      supabase.from('calibres').select('id, name').order('sort_order').order('name'),
-      supabase.from('conditions').select('id, name').order('name'),
-    ]);
-    setMakes(makesRes.data || []);
-    setCalibres(calibresRes.data || []);
-    setConditions(conditionsRes.data || []);
-  };
-
-  const handleDownloadTemplate = () => {
+  // --- Template -------------------------------------------------------------
+  const downloadTemplate = () => {
     const wb = XLSX.utils.book_new();
 
-    // SHEET 1 — Template with sample rows
-    const templateData = [
-      [
-        'title', 'description', 'price', 'category_id', 'make', 'model',
-        'calibre', 'condition', 'action_type', 'barrel_length', 'capacity',
-        'licence_type', 'is_negotiable',
-      ],
-      ...SAMPLE_ROWS.map((row) => [
-        row.title, row.description, row.price, row.category_id, row.make,
-        row.model, row.calibre, row.condition, row.action_type,
-        row.barrel_length, row.capacity, row.licence_type, row.is_negotiable,
+    const stock = XLSX.utils.aoa_to_sheet([
+      HEADERS,
+      ['EXAMPLE: Glock 19 Gen 5 (delete this row)', 'Comes with 3 magazines, original case',
+        12500, 'pistols', 'Glock', '19 Gen 5', '9mm Luger (9x19mm)', 'Like New',
+        'Semi-Auto', '102mm', '15+1', 'Section 13', 'no', 'g19-front.jpg, g19-side.jpg'],
+      ['EXAMPLE: Winchester 9mm FMJ 115gr, 50 rounds (delete this row)', 'Range ammunition',
+        380, 'ammunition', 'Winchester', 'USA Forged', '9mm Luger (9x19mm)', 'Brand New',
+        '', '', '50', '', 'no', 'win-9mm.jpg'],
+    ]);
+    stock['!cols'] = HEADERS.map((h) => ({
+      wch: h === 'title' || h === 'description' ? 42 : h === 'photos' ? 34 : 16,
+    }));
+    XLSX.utils.book_append_sheet(wb, stock, 'Stock');
+
+    const how = XLSX.utils.aoa_to_sheet(HOW_TO.map((l) => [l]));
+    how['!cols'] = [{ wch: 100 }];
+    XLSX.utils.book_append_sheet(wb, how, 'How to');
+
+    const n = Math.max(CATEGORIES.length, makes.length, calibres.length, conditions.length);
+    const vals = XLSX.utils.aoa_to_sheet([
+      ['category (type this)', 'category name', 'make', 'calibre', 'condition'],
+      ...Array.from({ length: n }, (_, i) => [
+        CATEGORIES[i]?.id || '', CATEGORIES[i]?.label || '',
+        makes[i]?.name || '', calibres[i]?.name || '', conditions[i]?.name || '',
       ]),
-    ];
+    ]);
+    vals['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 26 }, { wch: 28 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, vals, 'Valid values');
 
-    const ws1 = XLSX.utils.aoa_to_sheet(templateData);
-
-    // Column widths for Sheet 1
-    ws1['!cols'] = [
-      { wch: 40 }, // title
-      { wch: 40 }, // description
-      { wch: 10 }, // price
-      { wch: 15 }, // category_id
-      { wch: 20 }, // make
-      { wch: 20 }, // model
-      { wch: 25 }, // calibre
-      { wch: 12 }, // condition
-      { wch: 15 }, // action_type
-      { wch: 14 }, // barrel_length
-      { wch: 10 }, // capacity
-      { wch: 15 }, // licence_type
-      { wch: 14 }, // is_negotiable
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws1, 'Template');
-
-    // SHEET 2 — Valid Values reference
-    const maxLen = Math.max(makes.length, calibres.length, conditions.length, CATEGORY_OPTIONS.length);
-
-    const validValuesData = [
-      ['MAKES', 'CALIBRES', 'CONDITIONS', 'CATEGORY IDs'],
-      ...Array.from({ length: maxLen }, (_, i) => [
-        makes[i]?.name || '',
-        calibres[i]?.name || '',
-        conditions[i]?.name || '',
-        CATEGORY_OPTIONS[i] || '',
-      ]),
-    ];
-
-    const ws2 = XLSX.utils.aoa_to_sheet(validValuesData);
-
-    ws2['!cols'] = [
-      { wch: 30 }, // makes
-      { wch: 30 }, // calibres
-      { wch: 20 }, // conditions
-      { wch: 20 }, // categories
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws2, 'Valid Values');
-
-    // Download
-    XLSX.writeFile(wb, 'gunx_bulk_upload_template.xlsx');
+    XLSX.writeFile(wb, 'gunx-stock-template.xlsx');
   };
 
-  const parseCSV = (text: string): ParsedRow[] => {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) return [];
-
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-    const rows: ParsedRow[] = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v) => v.trim());
-      const row: any = {};
-      headers.forEach((header, idx) => {
-        row[header] = values[idx] || '';
-      });
-
-      const errors: string[] = [];
-      if (!row.title) errors.push('Title is required');
-      if (!row.price || isNaN(parseFloat(row.price))) errors.push('Valid price is required');
-      if (!row.category_id || !CATEGORY_OPTIONS.includes(row.category_id)) {
-        errors.push(`Category must be one of: ${CATEGORY_OPTIONS.join(', ')}`);
+  // --- Reading the spreadsheet ---------------------------------------------
+  const readSheet = async (file: File | undefined) => {
+    if (!file) return;
+    setFileError('');
+    setResults(null);
+    setTable(null);
+    setFileName(file.name);
+    const lower = file.name.toLowerCase();
+    try {
+      let aoa: unknown[][];
+      if (lower.endsWith('.csv') || lower.endsWith('.txt')) {
+        aoa = parseDelimited((await file.text()).replace(/^\uFEFF/, ''));
+      } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+        const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+        const name = wb.SheetNames.find((s) => norm(s) === 'stock') || wb.SheetNames[0];
+        aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {
+          header: 1, defval: '', raw: true, blankrows: false,
+        }) as unknown[][];
+      } else {
+        setFileError('Please choose an .xlsx or .csv file.');
+        return;
       }
 
-      if (errors.length > 0) row._error = errors.join(' | ');
-      rows.push(row as ParsedRow);
+      const headers = (aoa[0] || []).map(headerKey);
+      const missing = ['title', 'price', 'category'].filter((h) => !headers.includes(h));
+      if (missing.length) {
+        setFileError(`Row 1 must hold the column names. Missing: ${missing.join(', ')}. ` +
+          'Download the template to see the layout.');
+        return;
+      }
+      const data = aoa.slice(1)
+        .map((cells, i) => ({ line: i + 2, cells }))
+        .filter((r) => r.cells.some((c) => String(c ?? '').trim() !== ''));
+      if (!data.length) {
+        setFileError('The spreadsheet has column names but no items.');
+        return;
+      }
+      if (data.length > MAX_ROWS) {
+        setFileError(`This file has ${data.length} items. Please split it into files ` +
+          `of ${MAX_ROWS} items or fewer.`);
+        return;
+      }
+      setTable({ headers, rows: data });
+    } catch {
+      setFileError('We could not read that file. Save it as .xlsx from Excel or ' +
+        'Google Sheets and try again.');
     }
-
-    return rows;
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // --- Photos ---------------------------------------------------------------
+  const addPhotos = (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    const next = new Map(photos);
+    const notes: string[] = [];
+    Array.from(list).forEach((f) => {
+      if (!PHOTO_TYPES.includes(f.type)) {
+        notes.push(`${f.name}: not a JPG, PNG or WEBP photo, skipped`);
+        return;
+      }
+      if (f.size > MAX_PHOTO_BYTES) {
+        notes.push(`${f.name}: larger than 5MB, skipped`);
+        return;
+      }
+      next.set(baseName(f.name), f);
+    });
+    setPhotos(next);
+    setPhotoNotes(notes);
+    setResults(null);
+  };
 
-    const isCSV = file.name.endsWith('.csv');
-    const isXLSX = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+  const thumbs = useMemo(() => {
+    const m = new Map<File, string>();
+    photos.forEach((f) => m.set(f, URL.createObjectURL(f)));
+    return m;
+  }, [photos]);
 
-    if (!isCSV && !isXLSX) {
-      setParseError('Please upload a .csv or .xlsx file only.');
-      return;
-    }
+  useEffect(() => () => {
+    thumbs.forEach((u) => URL.revokeObjectURL(u));
+  }, [thumbs]);
 
-    setCsvFile(file);
-    setParseError('');
-    setParsedRows([]);
-    setUploadResults(null);
+  // --- Checking every row ---------------------------------------------------
+  const rows: Row[] = useMemo(() => {
+    if (!table) return [];
+    const byName = (list: Lookup[]) => new Map(list.map((x) => [norm(x.name), x.id]));
+    const mk = byName(makes);
+    const cb = byName(calibres);
+    const cd = byName(conditions);
+    const seen = new Set<string>();
 
-    if (isXLSX) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try {
-          const data = new Uint8Array(ev.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    return table.rows.map(({ line, cells }) => {
+      const raw: Record<string, string> = {};
+      table.headers.forEach((h, j) => {
+        if (h) raw[h] = String(cells[j] ?? '').trim();
+      });
+      const errors: string[] = [];
+      const warnings: string[] = [];
 
-          const rows: ParsedRow[] = json.map((row: any) => {
-            const errors: string[] = [];
-            if (!row.title) errors.push('Title is required');
-            if (!row.price || isNaN(parseFloat(String(row.price)))) errors.push('Valid price is required');
-            if (!row.category_id || !CATEGORY_OPTIONS.includes(String(row.category_id))) {
-              errors.push(`Category must be one of: ${CATEGORY_OPTIONS.join(', ')}`);
-            }
-            return {
-              title: String(row.title || ''),
-              description: String(row.description || ''),
-              price: String(row.price || ''),
-              category_id: String(row.category_id || ''),
-              make: String(row.make || ''),
-              model: String(row.model || ''),
-              calibre: String(row.calibre || ''),
-              condition: String(row.condition || ''),
-              action_type: String(row.action_type || ''),
-              barrel_length: String(row.barrel_length || ''),
-              capacity: String(row.capacity || ''),
-              licence_type: String(row.licence_type || ''),
-              is_negotiable: String(row.is_negotiable || 'false'),
-              _error: errors.length > 0 ? errors.join(' | ') : undefined,
-            };
-          });
+      const title = raw.title || '';
+      if (!title) errors.push('Title is missing');
+      else if (/^example/i.test(title)) errors.push('This is an example row: delete it from your spreadsheet');
+      else if (title.length > 150) errors.push('Title is longer than 150 characters');
 
-          if (rows.length === 0) {
-            setParseError('No data rows found. Please check the file.');
-            return;
-          }
-          setParsedRows(rows);
-          setStep(2);
-        } catch {
-          setParseError('Failed to parse Excel file. Please check the format.');
-        }
+      const price = parsePrice(raw.price);
+      if (price === null) errors.push(`Price "${raw.price || ''}" is not an amount we can read`);
+
+      const categoryId = raw.category ? findCategory(raw.category) : null;
+      if (!raw.category) errors.push('Category is missing');
+      else if (!categoryId) errors.push(categoryHint(raw.category));
+
+      const lookup = (val: string | undefined, map: Map<string, string>, label: string) => {
+        if (!val) return null;
+        const id = map.get(norm(val));
+        if (!id) warnings.push(`${label} "${val}" is not in our list, so it is saved without a ${label.toLowerCase()}`);
+        return id || null;
       };
-      reader.readAsArrayBuffer(file);
-    } else {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = ev.target?.result as string;
-        try {
-          const rows = parseCSV(text);
-          if (rows.length === 0) {
-            setParseError('No data rows found. Please check the file.');
-            return;
-          }
-          setParsedRows(rows);
-          setStep(2);
-        } catch {
-          setParseError('Failed to parse CSV. Please check the format.');
-        }
+      const makeId = lookup(raw.make, mk, 'Make');
+      const calibreId = lookup(raw.calibre, cb, 'Calibre');
+      const conditionId = lookup(raw.condition, cd, 'Condition');
+
+      const photoNames = (raw.photos || '').split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+      const files: File[] = [];
+      if (photoNames.length === 0) {
+        warnings.push('No photos: you can add them after importing');
+      } else if (photos.size === 0) {
+        warnings.push('Photos are listed but not selected yet (step 3)');
+      } else {
+        photoNames.forEach((n) => {
+          const f = photos.get(baseName(n));
+          if (f) files.push(f);
+          else warnings.push(`Photo "${n}" was not among the photos you selected`);
+        });
+      }
+      if (files.length > MAX_PHOTOS) {
+        warnings.push(`Only the first ${MAX_PHOTOS} photos are used`);
+        files.length = MAX_PHOTOS;
+      }
+
+      if (title && price !== null) {
+        const k = dupKey(title, price);
+        if (existing.has(k)) errors.push('Already in your stock with the same title and price');
+        else if (seen.has(k)) errors.push('Same title and price as an earlier row in this file');
+        seen.add(k);
+      }
+
+      return {
+        line, raw, title,
+        description: raw.description || '',
+        price, categoryId, makeId,
+        model: raw.model || '',
+        calibreId, conditionId,
+        actionType: raw.action_type || '',
+        barrelLength: raw.barrel_length || '',
+        capacity: raw.capacity || '',
+        licenceType: raw.licence_type || '',
+        negotiable: parseYes(raw.negotiable || ''),
+        photoNames, photos: files, errors, warnings,
       };
-      reader.readAsText(file);
-    }
-  };
+    });
+  }, [table, makes, calibres, conditions, photos, existing]);
 
-  const findId = (list: any[], name: string): string | null => {
-    const found = list.find((item) =>
-      item.name.toLowerCase() === name.toLowerCase()
-    );
-    return found?.id || null;
-  };
+  const unusedPhotos = useMemo(() => {
+    const used = new Set<string>();
+    rows.forEach((r) => r.photoNames.forEach((n) => used.add(baseName(n))));
+    return Array.from(photos.keys()).filter((k) => !used.has(k));
+  }, [rows, photos]);
 
-  const handleUpload = async () => {
-    if (!dealer || parsedRows.length === 0) return;
-    const validRows = parsedRows.filter((r) => !r._error);
-    if (validRows.length === 0) return;
+  const importable = rows.filter((r) => r.errors.length === 0);
+  const withNotes = importable.filter((r) => r.warnings.length > 0).length;
+  const blocked = rows.length - importable.length;
 
-    // ── Allowance check BEFORE importing ────────────────────────────────
-    // Without this, a free-tier dealer uploads forty rows, the database trigger
-    // refuses at row six, and they are left with a partial import and a raw
-    // Postgres error with no indication of which rows landed.
+  // --- Import ---------------------------------------------------------------
+  const runImport = async () => {
+    if (!dealer || importable.length === 0) return;
+    setNotice('');
+
+    let list = importable;
     const { data: { user } } = await supabase.auth.getUser();
-    let remaining: number | null = null;
-
     if (user) {
-      const { data: allow } = await supabase
-        .rpc('listing_allowance', { p_user_id: user.id });
-      setAllowance(allow);
-
+      const { data: allow } = await supabase.rpc('listing_allowance', { p_user_id: user.id });
       if (allow && allow.unlimited !== true) {
-        remaining = allow.remaining ?? 0;
-
-        if (remaining <= 0) {
-          alert(
-            `Your free listing allowance for this ${allow.period} is used up ` +
-            `(${allow.used} of ${allow.allowance}). Upgrade your plan to import in bulk.`
-          );
+        const left = Number(allow.remaining ?? 0);
+        if (left <= 0) {
+          setNotice(`Your listing allowance for this ${allow.period} is used up ` +
+            `(${allow.used} of ${allow.allowance}). Upgrade your plan to import more.`);
           return;
         }
-
-        if (validRows.length > remaining) {
-          const proceed = confirm(
-            `You have ${remaining} listing${remaining !== 1 ? 's' : ''} left in your allowance ` +
-            `but this file has ${validRows.length} rows.\n\n` +
-            `Import the first ${remaining} now, or cancel and upgrade your plan?`
-          );
-          if (!proceed) return;
+        if (list.length > left) {
+          const go = confirm(`Your plan has room for ${left} more listing(s), but ` +
+            `${list.length} items are ready.\n\nImport the first ${left} now?`);
+          if (!go) return;
+          list = list.slice(0, left);
         }
       }
     }
 
-    // Only import what the allowance covers. Attempting the rest would fail at
-    // the database and leave the dealer guessing which rows made it.
-    const rowsToImport = remaining === null ? validRows : validRows.slice(0, remaining);
+    setImporting(true);
+    setProgress({ done: 0, total: list.length });
+    const out: Result[] = [];
 
-    setUploading(true);
-    let success = 0;
-    let failed = 0;
-    const skipped = validRows.length - rowsToImport.length;
+    // Four items at a time, each item's photos uploaded together: several
+    // times faster than one by one, gentle enough on storage. The list was
+    // already trimmed to the plan allowance, so this cannot overshoot it.
+    const BATCH = 4;
+    let done = 0;
 
-    for (const row of rowsToImport) {
-      try {
-        const makeId = findId(makes, row.make);
-        const calibreId = findId(calibres, row.calibre);
-        const conditionId = findId(conditions, row.condition);
+    const importOne = async (r: Row): Promise<Result> => {
+      const uploaded = await Promise.all(r.photos.map(async (f) => {
+        const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `${dealer.id}/${Date.now()}-` +
+          `${Math.random().toString(36).slice(2)}.${ext}`;
+        const { data, error } = await supabase.storage
+          .from('listings').upload(path, f, { cacheControl: '3600', upsert: false });
+        if (error || !data) return null;
+        return supabase.storage.from('listings').getPublicUrl(data.path).data.publicUrl;
+      }));
+      // Promise.all keeps the order, so the first photo stays the cover.
+      const urls = uploaded.filter((u): u is string => !!u);
+      const photoFail = uploaded.length - urls.length;
 
-        const { error } = await supabase.from('listings').insert({
-          title: row.title,
-          description: row.description || '',
-          price: parseFloat(row.price),
-          is_negotiable: row.is_negotiable === 'true',
-          category_id: row.category_id,
-          make_id: makeId,
-          model: row.model || '',
-          calibre_id: calibreId,
-          condition_id: conditionId,
-          action_type: row.action_type || '',
-          barrel_length: row.barrel_length || '',
-          capacity: row.capacity || '',
-          licence_type: row.licence_type || '',
-          city: dealer.city || '',
-          province_id: null,
-          dealer_id: dealer.id,
-          listing_type: 'dealer',
-          status: 'active',
-          images: [],
-          views_count: 0,
-          is_featured: false,
+      const { data: ins, error } = await supabase.from('listings').insert({
+        title: r.title,
+        description: r.description,
+        price: r.price,
+        is_negotiable: r.negotiable,
+        category_id: r.categoryId,
+        make_id: r.makeId,
+        model: r.model,
+        calibre_id: r.calibreId,
+        condition_id: r.conditionId,
+        action_type: r.actionType,
+        barrel_length: r.barrelLength,
+        capacity: r.capacity,
+        licence_type: r.licenceType,
+        province_id: provinceId,
+        city: dealer.city || '',
+        status: 'active',
+        images: urls,
+        dealer_id: dealer.id,
+        listing_type: 'dealer',
+        views_count: 0,
+        is_featured: false,
+      }).select('id').single();
+
+      if (error || !ins) {
+        return { line: r.line, title: r.title, ok: false, raw: r.raw, photoCount: 0,
+          message: friendly(error?.message || 'Not saved') };
+      }
+      return { line: r.line, title: r.title, ok: true, raw: r.raw, id: ins.id,
+        photoCount: urls.length,
+        message: photoFail ? `${photoFail} photo(s) did not upload` : 'Imported' };
+    };
+
+    for (let i = 0; i < list.length; i += BATCH) {
+      const chunk = list.slice(i, i + BATCH);
+      const settled = await Promise.allSettled(chunk.map(importOne));
+      settled.forEach((s, j) => {
+        const r = chunk[j];
+        out.push(s.status === 'fulfilled' ? s.value : {
+          line: r.line, title: r.title, ok: false, raw: r.raw, photoCount: 0,
+          message: 'Unexpected error, please try again',
         });
-
-        if (error) { failed++; } else { success++; }
-      } catch { failed++; }
+      });
+      done += chunk.length;
+      setProgress({ done, total: list.length });
     }
 
-    setUploadResults({ success, failed: failed + skipped });
-    setUploading(false);
-    setStep(3);
+    setResults(out);
+    setImporting(false);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/dealer/login');
+  const downloadToFix = () => {
+    const bad = [
+      ...rows.filter((r) => r.errors.length).map((r) => ({ ...r.raw, problem: r.errors.join('; ') })),
+      ...(results || []).filter((x) => !x.ok).map((x) => ({ ...x.raw, problem: x.message })),
+    ];
+    const ws = XLSX.utils.json_to_sheet(bad, { header: [...HEADERS, 'problem'] });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+    XLSX.writeFile(wb, 'gunx-stock-to-fix.xlsx');
   };
 
-  const validRows = parsedRows.filter((r) => !r._error);
-  const errorRows = parsedRows.filter((r) => r._error);
+  const reset = () => {
+    setTable(null);
+    setFileName('');
+    setFileError('');
+    setPhotos(new Map());
+    setPhotoNotes([]);
+    setResults(null);
+    setNotice('');
+    if (sheetInput.current) sheetInput.current.value = '';
+    if (photoInput.current) photoInput.current.value = '';
+  };
+
+  // --- UI -------------------------------------------------------------------
+  const card = 'bg-[#13151A] border border-white/5 rounded-sm p-4 sm:p-6';
+  const stepTitle = 'text-[11px] font-black uppercase tracking-[2px] text-[#C9922A] mb-2';
+  const btn = 'w-full sm:w-auto bg-[#C9922A] text-black font-black uppercase tracking-widest ' +
+    'text-[12px] px-5 py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-40';
+  const btnGhost = 'w-full sm:w-auto border border-white/15 text-[#F0EDE8] font-black uppercase ' +
+    'tracking-widest text-[12px] px-5 py-3 rounded-sm hover:bg-white/5 transition-all';
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-        <div className="text-[#C9922A] text-xl font-bold">Loading...</div>
+        <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading...</p>
       </div>
     );
   }
 
+  const ok = (results || []).filter((r) => r.ok);
+  const failed = (results || []).filter((r) => !r.ok);
+  const needPhotos = ok.filter((r) => r.photoCount === 0);
+
   return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex">
-
-      {/* SIDEBAR */}
-      <aside className="w-[280px] bg-[#13151A] border-r border-white/5 flex flex-col">
-        <div className="p-6 border-b border-white/5">
-          <Link href="/" className="flex flex-col items-start group">
-            <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black text-[#F0EDE8] leading-none tracking-tighter uppercase group-hover:text-[#C9922A] transition-colors">
-              GUN <span className="text-[#C9922A] group-hover:text-[#F0EDE8]">X</span>
-            </span>
-            <span className="text-[9px] font-bold text-[#8A8E99] tracking-[0.3em] uppercase mt-1">Dealer Dashboard</span>
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8]">
+      <main className="max-w-[960px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-5">
+        <div>
+          <Link href="/dealer-dashboard" className="text-[12px] text-[#8A8E99] hover:text-[#C9922A]">
+            &larr; Dealer dashboard
           </Link>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="text-3xl sm:text-4xl font-black uppercase mt-2">
+            Bulk <span className="text-[#C9922A]">upload</span>
+          </h1>
+          <p className="text-sm text-[#8A8E99] mt-1">
+            Add many items at once from a spreadsheet, with their photos.
+          </p>
         </div>
 
-        <div className="p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#C9922A] flex items-center justify-center text-black text-xl font-black rounded-sm">
-              {dealer?.business_name?.charAt(0) || 'D'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-sm truncate">{dealer?.business_name}</h3>
-              <p className="text-xs text-[#8A8E99] uppercase tracking-wider">{dealer?.subscription_tier || 'Free'} Plan</p>
-            </div>
+        {/* HOW IT WORKS */}
+        <div className={card}>
+          <p className={stepTitle}>How it works</p>
+          <ol className="list-decimal pl-5 space-y-2 text-sm text-[#C9CCD3] leading-relaxed">
+            <li>Download the template and fill in one row per item. Title, price and category are required.</li>
+            <li>
+              In the <strong className="text-[#F0EDE8]">photos</strong> column, type the file names of that
+              item&apos;s photos, separated by commas, e.g. <code className="text-[#C9922A]">g19-front.jpg, g19-side.jpg</code>.
+              The first photo is the cover. Up to 5 per item.
+            </li>
+            <li>Choose your filled-in spreadsheet below.</li>
+            <li>
+              Select all your photos at once (open the folder and press Ctrl+A, or Cmd+A on a Mac).
+              We match them to your items by file name. Capital letters do not matter.
+            </li>
+            <li>Check the preview, then press Import. Anything that cannot import comes back with the reason.</li>
+          </ol>
+        </div>
+
+        {/* STEP 1 */}
+        <div className={card}>
+          <p className={stepTitle}>Step 1: Template</p>
+          <p className="text-sm text-[#8A8E99] mb-4">
+            The template has three tabs: Stock (fill this in), How to, and Valid values
+            (the exact categories, makes, calibres and conditions we recognise).
+          </p>
+          <button onClick={downloadTemplate} className={btnGhost}>Download template (.xlsx)</button>
+        </div>
+
+        {/* STEP 2 */}
+        <div className={card}>
+          <p className={stepTitle}>Step 2: Your spreadsheet</p>
+          <input ref={sheetInput} type="file" accept=".xlsx,.xls,.csv" className="hidden"
+            onChange={(e) => readSheet(e.target.files?.[0])} />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <button onClick={() => sheetInput.current?.click()} className={btn} disabled={importing}>
+              {fileName ? 'Choose a different file' : 'Choose spreadsheet'}
+            </button>
+            {fileName && <span className="text-sm text-[#C9CCD3] break-all">{fileName}</span>}
           </div>
+          {fileError && <p className="mt-3 text-sm text-[#E63946]">{fileError}</p>}
+          {table && <p className="mt-3 text-sm text-[#8A8E99]">{rows.length} item(s) found.</p>}
         </div>
 
-        <nav className="flex-1 p-4">
-          <ul className="space-y-1">
-            <li>
-              <Link href="/dealer-dashboard" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>📊</span><span>Overview</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/inventory" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>📦</span><span>Inventory</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/add-listing" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>➕</span><span>Add Listing</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/bulk-upload" className="flex items-center gap-3 px-4 py-3 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm text-[#C9922A] font-bold text-sm">
-                <span>📁</span><span>Bulk Upload</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/analytics" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>📈</span><span>Analytics</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/subscription" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>💳</span><span>Subscription</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/profile" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>⚙️</span><span>Profile</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/dealer-dashboard/promote" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-sm text-[#8A8E99] hover:text-[#F0EDE8] font-bold text-sm transition-colors">
-                <span>⭐</span><span>Promote Listings</span>
-              </Link>
-            </li>
-          </ul>
-        </nav>
-
-        <div className="p-4 border-t border-white/5 space-y-2">
-          <Link href={`/dealers/${dealer?.slug}`} target="_blank" className="block text-center px-4 py-2 bg-white/5 hover:bg-white/10 rounded-sm text-sm font-bold transition-colors">
-            View Storefront
-          </Link>
-          <button onClick={handleLogout} className="w-full text-center px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-sm text-red-400 text-sm font-bold transition-colors">
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-y-auto">
-
-        <header className="bg-[#13151A] border-b border-white/5 px-8 py-6 flex items-center justify-between">
-          <div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase tracking-tight">
-              Bulk <span className="text-[#C9922A]">Upload</span>
-            </h1>
-            <p className="text-[#8A8E99] text-sm mt-1">Import multiple listings at once using a CSV or Excel file.</p>
-          </div>
-          <button
-            onClick={handleDownloadTemplate}
-            className="flex items-center gap-2 bg-[#C9922A] text-black px-5 py-2.5 rounded-sm text-sm font-black uppercase tracking-widest hover:brightness-110 transition-all"
+        {/* STEP 3 */}
+        <div className={card}>
+          <p className={stepTitle}>Step 3: Photos</p>
+          <input ref={photoInput} type="file" multiple accept="image/jpeg,image/png,image/webp"
+            className="hidden" onChange={(e) => addPhotos(e.target.files)} />
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); addPhotos(e.dataTransfer.files); }}
+            className={'border-2 border-dashed rounded-sm p-6 text-center transition-all ' +
+              (dragging ? 'border-[#C9922A] bg-[#C9922A]/5' : 'border-white/10')}
           >
-            ⬇️ Download Template
-          </button>
-        </header>
-
-        <div className="p-8 space-y-8 max-w-5xl">
-
-          {/* Step Indicator */}
-          <div className="flex items-center gap-0">
-            {[
-              { num: 1, label: 'Upload File' },
-              { num: 2, label: 'Review Data' },
-              { num: 3, label: 'Results' },
-            ].map((s, i) => (
-              <React.Fragment key={s.num}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-black transition-all ${
-                    step >= s.num ? 'bg-[#C9922A] text-black' : 'bg-white/10 text-[#8A8E99]'
-                  }`}>
-                    {step > s.num ? '✓' : s.num}
-                  </div>
-                  <span className={`text-[11px] font-black uppercase tracking-widest ${
-                    step >= s.num ? 'text-[#F0EDE8]' : 'text-[#8A8E99]'
-                  }`}>
-                    {s.label}
-                  </span>
-                </div>
-                {i < 2 && (
-                  <div className={`flex-1 h-px mx-4 ${step > s.num ? 'bg-[#C9922A]' : 'bg-white/10'}`} />
-                )}
-              </React.Fragment>
-            ))}
+            <p className="text-sm text-[#C9CCD3] mb-3">Drag all your photos here, or</p>
+            <button onClick={() => photoInput.current?.click()} className={btn} disabled={importing}>
+              Select photos
+            </button>
+            <p className="text-[12px] text-[#8A8E99] mt-3">JPG, PNG or WEBP, up to 5MB each.</p>
           </div>
-
-          {/* STEP 1 — Upload */}
-          {step === 1 && (
-            <div className="space-y-6">
-
-              {/* Instructions */}
-              <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-4">
-                  How It <span className="text-[#C9922A]">Works</span>
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {[
-                    { step: '1', icon: '⬇️', title: 'Download Template', desc: 'Get our Excel template. Sheet 1 has sample data, Sheet 2 has all valid values for makes, calibres and conditions.' },
-                    { step: '2', icon: '✏️', title: 'Fill In Your Data', desc: 'Replace the sample rows with your listings. Use the Valid Values sheet as reference. No serial numbers required.' },
-                    { step: '3', icon: '📤', title: 'Upload & Review', desc: 'Upload your completed file (.csv or .xlsx), review the parsed data, then confirm the import.' },
-                  ].map((item) => (
-                    <div key={item.step} className="flex gap-4">
-                      <div className="w-8 h-8 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm flex items-center justify-center text-[#C9922A] font-black text-sm flex-shrink-0">
-                        {item.step}
-                      </div>
-                      <div>
-                        <div className="text-lg mb-1">{item.icon}</div>
-                        <h3 className="font-black text-sm uppercase tracking-widest text-[#F0EDE8] mb-1">{item.title}</h3>
-                        <p className="text-xs text-[#8A8E99] leading-relaxed">{item.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* CSV Fields Reference */}
-              <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-4">
-                  Field <span className="text-[#C9922A]">Reference</span>
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {[
-                    { field: 'title', required: true, note: 'Full listing title' },
-                    { field: 'description', required: false, note: 'Listing description' },
-                    { field: 'price', required: true, note: 'Number only e.g. 12500' },
-                    { field: 'category_id', required: true, note: CATEGORY_OPTIONS.join(', ') },
-                    { field: 'make', required: false, note: 'Brand name — see Valid Values sheet' },
-                    { field: 'model', required: false, note: 'e.g. 19 Gen 5' },
-                    { field: 'calibre', required: false, note: 'See Valid Values sheet' },
-                    { field: 'condition', required: false, note: 'Brand New, Like New, Good, Fair' },
-                    { field: 'action_type', required: false, note: 'e.g. Semi-Auto, Bolt Action' },
-                    { field: 'barrel_length', required: false, note: 'e.g. 102mm' },
-                    { field: 'capacity', required: false, note: 'e.g. 15+1' },
-                    { field: 'licence_type', required: false, note: 'e.g. Section 13' },
-                    { field: 'is_negotiable', required: false, note: 'true or false' },
-                  ].map((f) => (
-                    <div key={f.field} className="flex items-start gap-3 py-2 border-b border-white/5 last:border-0">
-                      <div className="flex-shrink-0 flex items-center gap-2">
-                        <code className="text-[11px] font-black text-[#C9922A] bg-[#C9922A]/10 px-2 py-0.5 rounded-sm">
-                          {f.field}
-                        </code>
-                        {f.required && (
-                          <span className="text-[9px] font-black uppercase text-red-400 border border-red-400/30 px-1.5 py-0.5 rounded-sm">Required</span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-[#8A8E99] leading-relaxed">{f.note}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Upload Area */}
-              {parseError && (
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-sm text-red-400 font-bold text-sm">
-                  ❌ {parseError}
-                </div>
-              )}
-
-              <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-4">
-                  Upload <span className="text-[#C9922A]">Your File</span>
-                </h2>
-                <label className="flex flex-col items-center justify-center w-full h-[160px] border-2 border-dashed border-white/10 rounded-sm cursor-pointer hover:border-[#C9922A]/30 transition-all">
-                  <span className="text-4xl mb-3">📁</span>
-                  <p className="text-sm font-bold text-[#F0EDE8] mb-1">Click to upload your file</p>
-                  <p className="text-xs text-[#8A8E99]">.csv or .xlsx · Max 5MB</p>
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-              </div>
+          {photos.size > 0 && (
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
+              <span className="text-[#C9CCD3]">{photos.size} photo(s) selected.</span>
+              <button onClick={() => { setPhotos(new Map()); setPhotoNotes([]); }}
+                className="text-[#8A8E99] hover:text-[#E63946] text-left sm:ml-3 underline">
+                Clear photos
+              </button>
             </div>
           )}
-
-          {/* STEP 2 — Review */}
-          {step === 2 && (
-            <div className="space-y-6">
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#13151A] border border-white/5 rounded-sm p-4 text-center">
-                  <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#F0EDE8]">{parsedRows.length}</div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mt-1">Total Rows</div>
-                </div>
-                <div className="bg-[#13151A] border border-[#2A9C6E]/20 rounded-sm p-4 text-center">
-                  <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#2A9C6E]">{validRows.length}</div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mt-1">Valid</div>
-                </div>
-                <div className="bg-[#13151A] border border-red-500/20 rounded-sm p-4 text-center">
-                  <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-red-400">{errorRows.length}</div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mt-1">Errors</div>
-                </div>
-              </div>
-
-              {errorRows.length > 0 && (
-                <div className="bg-[#13151A] border border-red-500/20 rounded-sm p-6">
-                  <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase mb-4 text-red-400">
-                    ❌ Rows with Errors ({errorRows.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {errorRows.map((row, i) => (
-                      <div key={i} className="bg-red-500/5 border border-red-500/10 rounded-sm p-3">
-                        <p className="text-sm font-bold text-[#F0EDE8] mb-1">{row.title || `Row ${i + 1}`}</p>
-                        <p className="text-xs text-red-400">{row._error}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-[#8A8E99] mt-4">These rows will be skipped. Only valid rows will be imported.</p>
-                </div>
-              )}
-
-              {validRows.length > 0 && (
-                <div className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-white/5">
-                    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase text-[#2A9C6E]">
-                      ✅ Valid Rows — Ready to Import ({validRows.length})
-                    </h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-white/5 bg-[#0D0F13]">
-                          {['Title', 'Category', 'Price', 'Make', 'Model', 'Condition'].map((h) => (
-                            <th key={h} className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {validRows.map((row, i) => (
-                          <tr key={i} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                            <td className="px-4 py-3 font-bold text-[#F0EDE8] max-w-[200px] truncate">{row.title}</td>
-                            <td className="px-4 py-3 text-[#8A8E99]">{row.category_id}</td>
-                            <td className="px-4 py-3 font-black text-[#C9922A]">R {parseFloat(row.price).toLocaleString('en-ZA')}</td>
-                            <td className="px-4 py-3 text-[#8A8E99]">{row.make || '—'}</td>
-                            <td className="px-4 py-3 text-[#8A8E99]">{row.model || '—'}</td>
-                            <td className="px-4 py-3 text-[#8A8E99]">{row.condition || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => { setStep(1); setCsvFile(null); setParsedRows([]); setParseError(''); }}
-                  className="px-6 py-3 border border-white/10 rounded-sm text-sm font-black uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 transition-all"
-                >
-                  ← Upload Different File
-                </button>
-                {validRows.length > 0 && (
-                  <button
-                    onClick={handleUpload}
-                    disabled={uploading}
-                    className="flex-1 bg-[#C9922A] text-black px-8 py-3 rounded-sm font-black uppercase tracking-widest text-[13px] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {uploading ? `Importing ${validRows.length} listings...` : `Import ${validRows.length} Listing${validRows.length !== 1 ? 's' : ''}`}
-                  </button>
-                )}
-              </div>
-            </div>
+          {photoNotes.length > 0 && (
+            <ul className="mt-3 text-[12px] text-[#E8A33D] space-y-1">
+              {photoNotes.map((n) => <li key={n}>{n}</li>)}
+            </ul>
           )}
-
-          {/* STEP 3 — Results */}
-          {step === 3 && uploadResults && (
-            <div className="max-w-2xl mx-auto text-center">
-              <div className="bg-[#13151A] border border-white/5 rounded-sm p-12">
-                <div className="text-6xl mb-6">
-                  {uploadResults.failed === 0 ? '✅' : uploadResults.success === 0 ? '❌' : '⚠️'}
-                </div>
-                <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-6">
-                  Import <span className="text-[#C9922A]">Complete</span>
-                </h2>
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                  <div className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/20 rounded-sm p-4">
-                    <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black text-[#2A9C6E]">
-                      {uploadResults.success}
-                    </div>
-                    <div className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mt-1">Successfully Imported</div>
-                  </div>
-                  <div className={`border rounded-sm p-4 ${uploadResults.failed > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-white/5 border-white/10'}`}>
-                    <div style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className={`text-4xl font-black ${uploadResults.failed > 0 ? 'text-red-400' : 'text-[#8A8E99]'}`}>
-                      {uploadResults.failed}
-                    </div>
-                    <div className="text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mt-1">Failed</div>
-                  </div>
-                </div>
-                <p className="text-[#8A8E99] text-sm mb-8">
-                  {uploadResults.success > 0
-                    ? `${uploadResults.success} listing${uploadResults.success !== 1 ? 's' : ''} added to your inventory as active. You can add images from the inventory page.`
-                    : 'No listings were imported. Please check your file and try again.'}
-                </p>
-                <div className="flex gap-4 justify-center">
-                  <Link
-                    href="/dealer-dashboard/inventory"
-                    className="bg-[#C9922A] text-black px-8 py-3 rounded-sm font-black uppercase tracking-widest text-[13px] hover:brightness-110 transition-all"
-                  >
-                    View Inventory
-                  </Link>
-                  <button
-                    onClick={() => { setStep(1); setCsvFile(null); setParsedRows([]); setUploadResults(null); setParseError(''); }}
-                    className="border border-white/10 text-[#8A8E99] px-8 py-3 rounded-sm font-black uppercase tracking-widest text-[13px] hover:bg-white/5 transition-all"
-                  >
-                    Upload Another
-                  </button>
-                </div>
-              </div>
-            </div>
+          {table && unusedPhotos.length > 0 && (
+            <p className="mt-3 text-[12px] text-[#E8A33D]">
+              {unusedPhotos.length} photo(s) are not named in any row and will not be used:{' '}
+              {unusedPhotos.slice(0, 8).join(', ')}{unusedPhotos.length > 8 ? '...' : ''}
+            </p>
           )}
         </div>
+
+        {/* STEP 4 */}
+        {table && !results && (
+          <div className={card}>
+            <p className={stepTitle}>Step 4: Check and import</p>
+            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+              <div className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 rounded-sm p-3">
+                <p className="text-2xl font-black text-[#2A9C6E]">{importable.length - withNotes}</p>
+                <p className="text-[10px] uppercase tracking-widest text-[#8A8E99]">Ready</p>
+              </div>
+              <div className="bg-[#E8A33D]/10 border border-[#E8A33D]/30 rounded-sm p-3">
+                <p className="text-2xl font-black text-[#E8A33D]">{withNotes}</p>
+                <p className="text-[10px] uppercase tracking-widest text-[#8A8E99]">With notes</p>
+              </div>
+              <div className="bg-[#E63946]/10 border border-[#E63946]/30 rounded-sm p-3">
+                <p className="text-2xl font-black text-[#E63946]">{blocked}</p>
+                <p className="text-[10px] uppercase tracking-widest text-[#8A8E99]">Will not import</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {rows.map((r) => {
+                const bad = r.errors.length > 0;
+                const note = !bad && r.warnings.length > 0;
+                return (
+                  <div key={r.line}
+                    className={'border rounded-sm p-3 ' + (bad ? 'border-[#E63946]/40'
+                      : note ? 'border-[#E8A33D]/30' : 'border-white/10')}>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] uppercase tracking-widest text-[#8A8E99]">
+                          Row {r.line} &middot;{' '}
+                          <span className={bad ? 'text-[#E63946]' : note ? 'text-[#E8A33D]' : 'text-[#2A9C6E]'}>
+                            {bad ? 'Will not import' : note ? 'Imports with notes' : 'Ready'}
+                          </span>
+                        </p>
+                        <p className="text-sm font-bold truncate">{r.title || '(no title)'}</p>
+                        <p className="text-[12px] text-[#8A8E99]">
+                          {r.price !== null ? rand(r.price) : 'No price'}
+                          {r.categoryId ? ` \u00b7 ${CATEGORIES.find((c) => c.id === r.categoryId)?.label}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    {r.photos.length > 0 && (
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {r.photos.map((f, i) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={i} src={thumbs.get(f)} alt="" loading="lazy" decoding="async"
+                            className="w-12 h-12 object-cover rounded-sm border border-white/10" />
+                        ))}
+                      </div>
+                    )}
+                    {(r.errors.length > 0 || r.warnings.length > 0) && (
+                      <ul className="mt-2 space-y-1 text-[12px]">
+                        {r.errors.map((m) => <li key={m} className="text-[#E63946]">{m}</li>)}
+                        {r.warnings.map((m) => <li key={m} className="text-[#E8A33D]">{m}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {notice && <p className="mt-4 text-sm text-[#E63946]">{notice}</p>}
+
+            {importing ? (
+              <div className="mt-5">
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#C9922A] transition-all"
+                    style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
+                </div>
+                <p className="text-sm text-[#8A8E99] mt-2">
+                  Importing {progress.done} of {progress.total}... keep this page open.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                <button onClick={runImport} className={btn} disabled={importable.length === 0}>
+                  Import {importable.length} item(s)
+                </button>
+                {blocked > 0 && (
+                  <button onClick={downloadToFix} className={btnGhost}>Download rows to fix</button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* RESULTS */}
+        {results && (
+          <div className={card}>
+            <p className={stepTitle}>Done</p>
+            <p className="text-sm text-[#C9CCD3] mb-4">
+              {ok.length} item(s) imported{failed.length + blocked > 0
+                ? `, ${failed.length + blocked} not imported` : ''}.
+            </p>
+
+            {failed.length > 0 && (
+              <div className="mb-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#E63946] mb-2">Not saved</p>
+                <ul className="space-y-1 text-[12px]">
+                  {failed.map((f) => (
+                    <li key={f.line} className="text-[#C9CCD3]">
+                      Row {f.line}: {f.title} &middot; <span className="text-[#E63946]">{f.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {needPhotos.length > 0 && (
+              <div className="mb-4">
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#E8A33D] mb-2">
+                  Needs photos ({needPhotos.length})
+                </p>
+                <ul className="space-y-1 text-[12px]">
+                  {needPhotos.map((n) => (
+                    <li key={n.id}>
+                      <Link href={`/dealer-dashboard/add-listing?edit=${n.id}`}
+                        className="text-[#C9922A] hover:brightness-125">
+                        {n.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link href="/dealer-dashboard/inventory" className={btn + ' text-center'}>View inventory</Link>
+              {failed.length + blocked > 0 && (
+                <button onClick={downloadToFix} className={btnGhost}>Download rows to fix</button>
+              )}
+              <button onClick={reset} className={btnGhost}>Upload another file</button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
