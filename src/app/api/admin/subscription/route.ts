@@ -7,7 +7,11 @@ import {
 } from '@/lib/adminApi';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { DEALER_PLANS } from '@/lib/plans';
-import { pausePayFastSubscription, unpausePayFastSubscription } from '@/lib/payfastApi';
+import {
+  pausePayFastSubscription,
+  unpausePayFastSubscription,
+  cancelPayFastSubscription,
+} from '@/lib/payfastApi';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -234,38 +238,93 @@ export async function POST(req: NextRequest) {
 
         // ── CANCEL ───────────────────────────────────────────────────────
         case 'cancel': {
+          // No refunds for part of a month: cancelling stops future
+          // billing at PayFast, nothing more. If PayFast refuses we
+          // change nothing, so the platform never shows cancelled
+          // while the card keeps being charged. An account already
+          // cancelling (from its dashboard) may already be cancelled
+          // at PayFast, so a refusal there is reported, not fatal.
+          const freeTier = kind === 'club' ? 'listed' : 'free';
+          const already = ['cancelling', 'cancelled']
+            .includes(record.subscription_status);
+          let pfNote = '';
+          if (record.payfast_token) {
+            const pf = await cancelPayFastSubscription(record.payfast_token);
+            if (!pf.ok && !already) {
+              return {
+                error: `Not cancelled: ${pf.message} ` +
+                  'PayFast billing is unchanged, so nothing was changed.',
+              };
+            }
+            pfNote = pf.ok
+              ? ' PayFast billing stopped.'
+              : ` PayFast: ${pf.message}`;
+          }
+
           if (body.immediate === true) {
             patch = {
-              subscription_tier:   'free',
+              subscription_tier:   freeTier,
               subscription_status: 'cancelled',
               current_period_end:  now.toISOString(),
               cancellation_requested_at: now.toISOString(),
+              pending_tier:        null,
+              pending_change_type: null,
+              is_comped:           false,
+              comped_reason:       null,
+              pre_comp:            null,
             };
-            message = `${label} cancelled immediately and moved to the free tier.`;
+            message = `${label} cancelled immediately and moved to ` +
+              `the ${freeTier} tier. No refund.` + pfNote;
           } else {
-            // They keep what they paid for. Cutting access the day someone
+            // They keep what they paid for until the period ends, then
+            // the nightly cron moves them to the free tier (it looks
+            // for pending_tier). Cutting access the day someone
             // cancels produces chargebacks and CPA complaints.
+            const endsOn = record.current_period_end || record.trial_end_date;
             patch = {
               subscription_status: 'cancelling',
               cancellation_requested_at: now.toISOString(),
+              pending_tier:        freeTier,
+              pending_change_type: 'cancel',
             };
             message = `${label} will end on ${
-              record.current_period_end
-                ? new Date(record.current_period_end).toLocaleDateString('en-ZA')
+              endsOn
+                ? new Date(endsOn).toLocaleDateString('en-ZA')
                 : 'the current period end'
-            }. Access continues until then.`;
+            }. Access continues until then. No refund.` + pfNote;
           }
           break;
         }
 
-        // ── REFUND ───────────────────────────────────────────────────────
-        // Records a refund. Does NOT move money: PayFast has no general refund
-        // API on a standard merchant account, so the transfer is an EFT you
-        // make. Saying so plainly beats implying the money has already gone.
+        // REFUND
+        // Records a refund. Does NOT move money: PayFast has no general
+        // refund API on a standard merchant account, so the transfer is
+        // an EFT you make. For exceptions only (e.g. a double charge):
+        // a normal cancellation is never refunded.
         case 'refund': {
           const amount = Number(body.amount);
           if (!Number.isFinite(amount) || amount <= 0) {
             return { error: 'A positive amount is required' };
+          }
+
+          // Stop PayFast first. If it refuses, record nothing: a refund
+          // logged while the card keeps being charged is followed by
+          // another charge.
+          const freeTier = kind === 'club' ? 'listed' : 'free';
+          const already = ['cancelling', 'cancelled']
+            .includes(record.subscription_status);
+          let pfNote = '';
+          if (record.payfast_token) {
+            const pf = await cancelPayFastSubscription(record.payfast_token);
+            if (!pf.ok && !already) {
+              return {
+                error: `Refund not recorded: ${pf.message} ` +
+                  'PayFast billing is unchanged.',
+              };
+            }
+            pfNote = pf.ok
+              ? ' PayFast billing stopped.'
+              : ` PayFast: ${pf.message}`;
           }
 
           await supabase.from('invoices').insert({
@@ -278,11 +337,18 @@ export async function POST(req: NextRequest) {
           });
 
           patch = {
-            subscription_tier:   'free',
+            subscription_tier:   freeTier,
             subscription_status: 'cancelled',
             current_period_end:  now.toISOString(),
+            pending_tier:        null,
+            pending_change_type: null,
+            is_comped:           false,
+            comped_reason:       null,
+            pre_comp:            null,
           };
-          message = `Refund of R${amount.toLocaleString('en-ZA')} recorded against ${label} and the subscription cancelled. Transfer the money by EFT — this does not move funds.`;
+          message = `Refund of R${amount.toLocaleString('en-ZA')} ` +
+            `recorded against ${label}; subscription cancelled.` +
+            pfNote + ' Transfer the money by EFT: this does not move funds.';
           break;
         }
 

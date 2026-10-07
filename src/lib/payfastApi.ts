@@ -104,3 +104,19 @@ export async function unpausePayFastSubscription(
   if (!token) return { ok: false, message: 'No PayFast subscription on record.' };
   return call(token, 'unpause');
 }
+
+// Cancel stops the subscription for good: no further charges.
+// Used by admin Cancel and Refund. Nothing is refunded here, and
+// access already paid for is kept on our side until the period
+// ends (status 'cancelling').
+export async function cancelPayFastSubscription(
+  token: string | null,
+): Promise<PayFastApiResult> {
+  if (!token) {
+    return { ok: false, message: 'No PayFast subscription on record.' };
+  }
+  const res = await call(token, 'cancel');
+  return res.ok
+    ? { ok: true, message: 'Subscription cancelled at PayFast.' }
+    : res;
+}

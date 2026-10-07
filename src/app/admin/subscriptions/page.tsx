@@ -187,9 +187,9 @@ export default function AdminSubscriptionsPage() {
   const cancelSub = async (entity: any) => {
     const label = entity.business_name || entity.name || 'this account';
     if (!confirm(
-      `Mark ${label}'s subscription as cancelling?\n\n` +
-      `They keep access until their paid period ends.\n` +
-      `You must also cancel the recurring charge in the PayFast dashboard.`
+      `Cancel ${label}'s subscription?\n\n` +
+      `PayFast billing stops now. They keep access until their\n` +
+      `paid period ends, then move to the free tier. No refund.`
     )) return;
 
     const reason = prompt('Why is it being cancelled? (Recorded in the audit log.)');
@@ -213,7 +213,7 @@ export default function AdminSubscriptionsPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Cancel failed');
 
-      setMsg({ kind: 'ok', text: `${json.message} Now cancel the recurring charge in PayFast.` });
+      setMsg({ kind: 'ok', text: json.message });
       fetchRows();
     } catch (err: any) {
       setMsg({ kind: 'err', text: `Failed: ${err.message}` });
@@ -272,11 +272,13 @@ export default function AdminSubscriptionsPage() {
         {/* PAYFAST WARNING — this is the honest bit */}
         <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-sm p-4">
           <p className="text-[12px] text-[#F59E0B] leading-relaxed">
-            <strong className="uppercase tracking-widest font-black">Platform access only</strong><br/>
-            Changes on this page control what the account can do on Gun X. They do <strong>not</strong> start or
-            stop money moving. Cancelling from the dealer or club dashboard does now stop the recurring charge at
-            PayFast, but ending a comp or changing a tier here does not - if that account has a live PayFast
-            subscription, stop it in the PayFast dashboard or they keep being billed for a plan you removed here.
+            <strong className="uppercase tracking-widest font-black">How this page affects PayFast</strong><br/>
+            Grant comp pauses PayFast billing. End comp resumes it and
+            restores the plan they had. Cancel and Refund stop PayFast
+            billing. Nobody is refunded for part of a month, and Refund
+            only records an EFT you make yourself. Change tier does
+            <strong>not</strong> change what PayFast charges: if the
+            account pays by card, check PayFast after changing a tier.
           </p>
         </div>
 
