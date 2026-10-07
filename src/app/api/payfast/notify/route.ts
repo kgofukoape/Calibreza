@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { JOB_BOOST } from '@/lib/jobPackages';
+import { cancelPayFastSubscription } from '@/lib/payfastApi';
 
 // ─── PAYFAST ITN (Instant Transaction Notification) ──────────────────────────
 // SECURITY: this endpoint grants paid features, so it must never trust the
@@ -246,6 +247,17 @@ export async function POST(req: NextRequest) {
 
         const nowIso = new Date().toISOString();
 
+        // Read the token on record BEFORE overwriting it. A new token
+        // means a new PayFast subscription (upgrade, re-subscribe or a
+        // retried checkout); the old one must be cancelled or the card
+        // is billed for both. Monthly charges carry the same token.
+        const { data: prevDealer } = await supabase
+          .from('dealers')
+          .select('payfast_token')
+          .eq('id', dealerId)
+          .maybeSingle();
+        const oldDealerToken: string | null = prevDealer?.payfast_token || null;
+
         const update: Record<string, any> = {
           subscription_tier: plan,
           subscription_status: isCardConfirmation ? 'trial' : 'active',
@@ -277,6 +289,26 @@ export async function POST(req: NextRequest) {
           console.error('Dealer subscription UPDATE FAILED for ' + dealerId + ': ' + updErr.message);
         } else if (!updatedRows || updatedRows.length === 0) {
           console.error('Dealer subscription update matched NO ROWS for id ' + dealerId);
+        }
+
+        // Stop the subscription this one replaced, now the new one is
+        // saved. Not fatal: one already cancelled is simply refused.
+        if (oldDealerToken && pfToken && oldDealerToken !== pfToken
+            && updatedRows && updatedRows.length > 0) {
+          const old = await cancelPayFastSubscription(oldDealerToken);
+          console.log('Replaced dealer subscription ' + oldDealerToken
+            + ' for ' + dealerId + ': ' + old.message);
+          const { error: evErr } = await supabase
+            .from('subscription_events').insert({
+              entity_type: 'dealer',
+              entity_id: dealerId,
+              event_type: 'subscription_replaced',
+              to_tier: plan,
+              actor: 'system',
+              notes: 'Old PayFast subscription ' + oldDealerToken
+                + ': ' + old.message,
+            });
+          if (evErr) console.error('replace event log failed: ' + evErr.message);
         }
 
         // The ledger is what burns a founding slot and stops the same business
@@ -389,6 +421,17 @@ export async function POST(req: NextRequest) {
 
         const clubNow = new Date().toISOString();
 
+        // Read the token on record BEFORE overwriting it. A new token
+        // means a new PayFast subscription (upgrade, re-subscribe or a
+        // retried checkout); the old one must be cancelled or the card
+        // is billed for both. Monthly charges carry the same token.
+        const { data: prevClub } = await supabase
+          .from('clubs')
+          .select('payfast_token')
+          .eq('id', clubId)
+          .maybeSingle();
+        const oldClubToken: string | null = prevClub?.payfast_token || null;
+
         const clubUpdate: Record<string, any> = {
           payfast_token: pfToken,
           subscription_status: isCardConfirmation ? 'trial' : 'active',
@@ -416,6 +459,26 @@ export async function POST(req: NextRequest) {
           console.error('Range subscription UPDATE FAILED for ' + clubId + ': ' + clubUpdErr.message);
         } else if (!clubRows || clubRows.length === 0) {
           console.error('Range subscription update matched NO ROWS for id ' + clubId);
+        }
+
+        // Stop the subscription this one replaced, now the new one is
+        // saved. Not fatal: one already cancelled is simply refused.
+        if (oldClubToken && pfToken && oldClubToken !== pfToken
+            && clubRows && clubRows.length > 0) {
+          const old = await cancelPayFastSubscription(oldClubToken);
+          console.log('Replaced club subscription ' + oldClubToken
+            + ' for ' + clubId + ': ' + old.message);
+          const { error: evErr } = await supabase
+            .from('subscription_events').insert({
+              entity_type: 'club',
+              entity_id: clubId,
+              event_type: 'subscription_replaced',
+              to_tier: 'active',
+              actor: 'system',
+              notes: 'Old PayFast subscription ' + oldClubToken
+                + ': ' + old.message,
+            });
+          if (evErr) console.error('replace event log failed: ' + evErr.message);
         }
 
         // The ledger burns a founding slot and stops the same club taking
