@@ -326,16 +326,17 @@ export default function ServiceApplyPage() {
       if (error) throw error;
 
       // Email admin
-      await fetch('/api/notify', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type:     'service_applied',
-          name:     form.name,
-          city:     form.city,
-          province: form.province,
-          email:    form.email,
-        }),
+      // Forwards the details and 48-hour document links to the
+      // admin inbox. The server looks up this user's own row.
+      const { data: appSess } = await supabase.auth.getSession();
+      const appTok = appSess.session?.access_token || '';
+      await fetch('/api/applications/notify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${appTok}`,
+        },
+        body: JSON.stringify({ kind: 'service' }),
       });
 
       const consentRecorded = await recordConsent('service_application', false, form.name);

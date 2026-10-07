@@ -246,16 +246,17 @@ function RangeApplyInner() {
 
       // ── Notify admin ─────────────────────────────────────────────────────
       try {
-        await fetch('/api/notify', {
+        // Forwards the details and 48-hour document links to the
+        // admin inbox. The server looks up this user's own row.
+        const { data: appSess } = await supabase.auth.getSession();
+        const appTok = appSess.session?.access_token || '';
+        await fetch('/api/applications/notify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type:     'club_applied',
-            name:     form.name,
-            city:     form.city,
-            province: form.province,
-            email:    form.email,
-          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${appTok}`,
+          },
+          body: JSON.stringify({ kind: 'club' }),
         });
       } catch (notifyErr) {
         console.error('Notify failed (non-blocking):', notifyErr);
