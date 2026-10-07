@@ -268,6 +268,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Upgrading during a free trial needs its own trial rules (the new
+    // plan would need the same free period), so it stays manual for now.
+    if (isTrialling) {
+      return NextResponse.json(
+        { error: 'Upgrading during your free trial is done by our team ' +
+            'for now. Email support@gunx.co.za and we will switch you.' },
+        { status: 400 },
+      );
+    }
+
     const quote = calculateProration(currentTier, targetTier, periodEnd);
 
     return NextResponse.json({
@@ -275,9 +285,10 @@ export async function POST(req: NextRequest) {
       currentTier,
       targetTier,
       ...quote,
-      // Honest about the operational constraint — the old recurring charge at
-      // PayFast must be stopped, or the customer pays twice.
-      requiresOldSubscriptionCancellation: PLAN_PRICES[currentTier] > 0,
+      // The old PayFast subscription is cancelled automatically when the
+      // new one's first payment arrives (payfast/notify), so nothing is
+      // left for support to do and the customer is never billed twice.
+      requiresOldSubscriptionCancellation: false,
     });
   }
 

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { DEALER_PLANS } from '@/lib/plans';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { calculateProration, isUpgrade } from '@/lib/proration';
 
 // POST /api/payfast/dealer-subscribe
 //
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
     // 3. Their dealer record - must exist and be approved
     const { data: dealer, error: dealerErr } = await supabase
       .from('dealers')
-      .select('id, business_name, email, status, trial_used, saps_dealer_number, registration_number')
+      .select('id, business_name, email, status, trial_used, saps_dealer_number, registration_number, subscription_tier, subscription_status, payfast_token')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -139,10 +140,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Approved dealer account required' }, { status: 403 });
     }
 
+    // 3b. One live subscription per dealer. A second checkout used to
+    //     overwrite the stored token and leave the first subscription
+    //     billing at PayFast. The only second checkout allowed is an
+    //     upgrade from an active paid plan; its first payment cancels
+    //     the old subscription (payfast/notify).
+    const liveStatuses = ['active', 'trial', 'cancelling', 'past_due'];
+    const curTier: string = dealer.subscription_tier || 'free';
+    const curStatus: string = dealer.subscription_status || 'free';
+    const hasLive = !!dealer.payfast_token
+      && curTier !== 'free'
+      && liveStatuses.includes(curStatus);
+    const upgrading = hasLive && curStatus === 'active'
+      && isUpgrade(curTier, plan);
+    if (hasLive && !upgrading) {
+      const why: Record<string, string> = {
+        trial: 'You are on a free trial. To change plans during the ' +
+          'trial, email support@gunx.co.za.',
+        cancelling: 'Your current plan runs until its paid-up date. ' +
+          'You can choose a new plan once it ends.',
+        past_due: 'Your last payment did not go through. Email ' +
+          'support@gunx.co.za and we will sort it out.',
+      };
+      return NextResponse.json({
+        error: why[curStatus] ||
+          'You already have this plan or a higher one. Choose a higher ' +
+          'plan to upgrade.',
+      }, { status: 409 });
+    }
+
     // 4. Trial eligibility. Tied to the BUSINESS, not the email address: a
     //    dealer who cancels, deletes the account and signs up again with a new
     //    address is matched on their SAPS and CIPC numbers in the ledger.
-    let trialEligible = !dealer.trial_used;
+    let trialEligible = !dealer.trial_used && !upgrading;
 
     if (trialEligible) {
       const { data: usedBefore, error: usedErr } = await supabase.rpc('trial_already_used', {
@@ -180,7 +210,17 @@ export async function POST(req: NextRequest) {
     let flag: string;
     let description: string;
 
-    if (trialEligible) {
+    if (upgrading) {
+      // Strict difference for the days left, from the shared lib so
+      // the checkout charges exactly what the quote showed.
+      const q = calculateProration(curTier, plan);
+      amount = q.amountDueToday;
+      firstCharge = firstOfNextMonth(today);
+      flag = 'prorated';
+      const dw = q.unusedDays === 1 ? 'day' : 'days';
+      description = `Upgrade from ${curTier}: the difference for ` +
+        `${q.unusedDays} ${dw}, then R${fullPrice} on the 1st of each month`;
+    } else if (trialEligible) {
       const months = isFounding ? FOUNDING_TRIAL_MONTHS : STANDARD_TRIAL_MONTHS;
       const trialEnd = addMonths(today, months);
       // If the free period happens to end exactly on a 1st, bill that day

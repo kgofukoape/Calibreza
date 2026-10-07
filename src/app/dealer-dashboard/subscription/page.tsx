@@ -254,9 +254,12 @@ export default function SubscriptionPage() {
     }
   };
 
-  const handlePayFastSubscription = async () => {
-    if (!selectedPlan || !dealer) return;
-    const plan = PLANS.find((p) => p.id === selectedPlan);
+  const handlePayFastSubscription = async (planOverride?: unknown) => {
+    // The upgrade box passes the plan to buy; the subscribe button
+    // passes a click event, so only a string counts as a plan.
+    const planId = typeof planOverride === 'string' ? planOverride : selectedPlan;
+    if (!planId || !dealer) return;
+    const plan = PLANS.find((p) => p.id === planId);
     if (!plan || plan.price === 0) return;
     setRedirecting(true);
 
@@ -275,7 +278,7 @@ export default function SubscriptionPage() {
       const res = await fetch('/api/payfast/dealer-subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan: selectedPlan }),
+        body: JSON.stringify({ plan: planId }),
       });
       const json = await res.json().catch(() => ({}));
 
@@ -502,8 +505,8 @@ export default function SubscriptionPage() {
 
               <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-4 mb-5 space-y-2">
                 <div className="flex justify-between text-[13px]">
-                  <span className="text-[#8A8E99]">{upgradeQuote.targetTier} plan</span>
-                  <span className="text-[#F0EDE8] font-bold">R{Number(upgradeQuote.newPlanPrice).toFixed(2)}</span>
+                  <span className="text-[#8A8E99]">{upgradeQuote.targetTier}{upgradeQuote.canProrate ? `, ${upgradeQuote.unusedDays} days` : ' plan'}</span>
+                  <span className="text-[#F0EDE8] font-bold">R{Number(upgradeQuote.newPlanPortion ?? upgradeQuote.newPlanPrice).toFixed(2)}</span>
                 </div>
                 {upgradeQuote.canProrate && (
                   <div className="flex justify-between text-[13px]">
@@ -536,17 +539,14 @@ export default function SubscriptionPage() {
               )}
 
               <div className="flex flex-wrap gap-3">
-                <a
-                  href={`mailto:support@gunx.co.za?subject=Upgrade%20to%20${encodeURIComponent(upgradeQuote.targetTier)}&body=${encodeURIComponent(
-                    `Please upgrade my account to ${upgradeQuote.targetTier}.\n\n` +
-                    `Business: ${dealer?.business_name || ''}\n` +
-                    `Current plan: ${upgradeQuote.currentTier}\n` +
-                    `Quoted today: R${Number(upgradeQuote.amountDueToday).toFixed(2)}\n` +
-                    `Then: R${Number(upgradeQuote.recurringAmount).toFixed(2)}/month`
-                  )}`}
-                  className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:brightness-110 transition-all">
-                  Request This Upgrade
-                </a>
+                <button
+                  onClick={() => handlePayFastSubscription(upgradeQuote.targetTier)}
+                  disabled={redirecting}
+                  className="w-full sm:w-auto bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
+                  {redirecting
+                    ? 'Opening PayFast...'
+                    : `Pay R${Number(upgradeQuote.amountDueToday).toFixed(2)} and upgrade`}
+                </button>
                 <button onClick={() => setUpgradeQuote(null)}
                   className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-5 py-3 rounded-sm hover:bg-white/5 transition-all">
                   Close
