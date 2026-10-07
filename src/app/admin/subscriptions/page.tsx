@@ -148,7 +148,9 @@ export default function AdminSubscriptionsPage() {
     const label = entity.business_name || entity.name || 'this account';
     if (!confirm(
       `End the comped ${entity.subscription_tier} on ${label}?\n\n` +
-      `They move to the free tier immediately. No refund applies — this was granted, not paid for.`
+      `With a PayFast card on file they go back to the plan ` +
+      `they had before the comp; otherwise they move to the ` +
+      `free tier. No refund applies.`
     )) return;
 
     const reason = prompt('Why is the comp ending? (Recorded in the audit log.)');
@@ -173,7 +175,7 @@ export default function AdminSubscriptionsPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Could not end the comp');
 
-      setMsg({ kind: 'ok', text: `Comped tier on ${label} ended. Moved to free.` });
+      setMsg({ kind: 'ok', text: json.message || 'Comp ended.' });
       fetchRows();
     } catch (err: any) {
       setMsg({ kind: 'err', text: `Failed: ${err.message}` });
