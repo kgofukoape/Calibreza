@@ -19,7 +19,7 @@ const MOBILE_NAV_LINKS = [
   { href: '/jobs',              label: 'Industry Jobs' },
   { href: '/advocacy',          label: 'Advocacy' },
   { href: '/press',             label: 'Press Releases' },
-  { href: '/firearm-ownership', label: 'FA Ownership' },
+  { href: '/firearm-ownership', label: 'Ownership' },
 ];
 
 export default function Navbar() {
@@ -352,7 +352,7 @@ export default function Navbar() {
             <Link href="/services"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
             <Link href="/jobs"              className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
             <Link href="/advocacy"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Advocacy</Link>
-            <Link href="/firearm-ownership" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">FA Ownership</Link>
+            <Link href="/firearm-ownership" className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Ownership</Link>
           </div>
 
           {/* RIGHT — Search + Post Ad + Auth + Hamburger */}
@@ -379,10 +379,25 @@ export default function Navbar() {
             </div>
 
             {/* Post Ad */}
-            <Link href="/sell" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="bg-[#C9922A] text-black px-3 md:px-6 py-2 md:py-3 rounded-[2px] font-black uppercase tracking-widest text-[12px] md:text-[14px] hover:brightness-110 transition-all flex-shrink-0">
-              + Post Ad
-            </Link>
+            {/* Fixed-size slot so the bar never shifts; the pill opens
+                leftwards over it on hover. Phones get the + only. */}
+            <div className="relative flex-shrink-0 w-10 h-10 md:w-11 md:h-11">
+              <Link href="/sell" aria-label="Post an ad" title="Post an ad"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                className="group absolute right-0 top-0 z-20 h-full flex items-center
+                  rounded-full bg-[#C9922A] text-black hover:brightness-110
+                  focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-white/60 transition-all">
+                <span className="hidden md:inline-block max-w-0 overflow-hidden
+                  whitespace-nowrap font-black uppercase tracking-widest text-[14px]
+                  transition-all duration-300 group-hover:max-w-[140px] group-hover:pl-5
+                  group-focus-visible:max-w-[140px] group-focus-visible:pl-5">
+                  Post Ad
+                </span>
+                <span className="w-10 md:w-11 text-center text-[24px] font-black
+                  leading-none">+</span>
+              </Link>
+            </div>
 
             {/* Auth — desktop only */}
             {!loading && user && (
