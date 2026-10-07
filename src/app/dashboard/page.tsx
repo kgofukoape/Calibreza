@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { pendingRedirect } from '@/lib/businessStatus';
 import { supabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -19,6 +20,9 @@ export default function DashboardPage() {
     try {
       const currentUser = await getCurrentUser();
       if (!currentUser) { router.push('/login'); return; }
+      // An unapproved business account waits on /business/pending.
+      const goPending = await pendingRedirect(currentUser.id);
+      if (goPending) { router.replace(goPending); return; }
       setUser(currentUser);
 
       const { data } = await supabase

@@ -22,7 +22,7 @@ export default function DealerDashboardPage() {
       // paid features and their listings are hidden from the public. Locking
       // them out entirely would leave them with no way to understand or fix it.
       if (!dealerData || !['approved', 'suspended'].includes(dealerData.status)) {
-        router.push('/dealer/login');
+        router.replace('/business/pending');
         return;
       }
       setDealer(dealerData);

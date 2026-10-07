@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { pendingRedirect } from '@/lib/businessStatus';
 import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
@@ -75,6 +76,9 @@ export default function SellPage() {
   const loadInitialData = async () => {
     const currentUser = await getCurrentUser();
     if (!currentUser) { router.push('/login'); return; }
+    // An unapproved business account waits on /business/pending.
+    const goPending = await pendingRedirect(currentUser.id);
+    if (goPending) { router.replace(goPending); return; }
     setUser(currentUser);
 
     const [makesData, calibresData, conditionsData, provincesData, countData] = await Promise.all([

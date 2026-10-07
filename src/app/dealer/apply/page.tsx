@@ -245,7 +245,7 @@ export default function DealerApplyPage() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.push('/dashboard'), 4000);
+      setTimeout(() => router.push('/business/pending'), 4000);
 
     } catch (err: any) {
       setError(err.message || 'Application failed. Please try again.');
