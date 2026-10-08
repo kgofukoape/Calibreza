@@ -223,7 +223,9 @@ function RangeApplyInner() {
         associations: form.associations,
         shoot_days: shootDays.filter(sd => sd.day),
         range_fee: form.range_fee ? parseFloat(form.range_fee) : null,
-        facility_type: form.facility_type,
+        // Club or range is facility_type; indoor/outdoor is range_setting.
+        facility_type: 'range',
+        range_setting: form.facility_type,
         lane_count: form.lane_count ? parseInt(form.lane_count) : null,
         max_distance_m: form.max_distance_m ? parseInt(form.max_distance_m) : null,
         covered_lanes: form.covered_lanes,
