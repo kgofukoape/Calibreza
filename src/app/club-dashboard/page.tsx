@@ -34,6 +34,7 @@ export default function ClubDashboardPage() {
   const router = useRouter();
   const [club, setClub] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [trialFlash, setTrialFlash] = useState<{ days: number; end: string } | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Profile
@@ -91,6 +92,23 @@ export default function ClubDashboardPage() {
     const { data, error } = await supabase.from('clubs').select('*').eq('user_id', user.id).single();
     if (error || !data) { router.push('/dealer/login'); return; }
     setClub(data);
+    // One-off trial welcome (shown on Overview): only the first time
+    if (data.subscription_status === 'trial' && data.trial_end_date) {
+      try {
+        const key = `gx_trial_flash_club_${data.id}`;
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, '1');
+          const endMs = new Date(data.trial_end_date).getTime();
+          setTrialFlash({
+            days: Math.max(0, Math.ceil((endMs - Date.now()) / 86400000)),
+            end: new Date(endMs).toLocaleDateString('en-ZA', {
+              day: 'numeric', month: 'long', year: 'numeric',
+              timeZone: 'Africa/Johannesburg',
+            }),
+          });
+        }
+      } catch { /* private browsing: skip the welcome */ }
+    }
     setPf(data);
     setLogoPreview(data.logo_url || '');
     setCoverPreview(data.cover_url || '');
@@ -460,6 +478,27 @@ export default function ClubDashboardPage() {
           {/* ── OVERVIEW ── */}
           {activeTab === 'overview' && (
             <>
+              {/* ONE-OFF TRIAL WELCOME: shown once after the free trial starts, then
+                  never again (remembered in this browser). */}
+              {trialFlash && (
+                <div className="rounded-sm p-5 border bg-[#2A9C6E]/10 border-[#2A9C6E]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 text-[#2A9C6E]">
+                      Free trial active
+                    </p>
+                    <p style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase leading-none mb-1">
+                      {trialFlash.days} day{trialFlash.days === 1 ? '' : 's'} left on your free trial
+                    </p>
+                    <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                      Every Active plan feature is open until {trialFlash.end}. Nothing is charged until then.
+                    </p>
+                  </div>
+                  <button onClick={() => setTrialFlash(null)}
+                    className="border border-[#2A9C6E]/40 text-[#2A9C6E] font-black uppercase tracking-widest text-[11px] px-6 py-3 rounded-sm hover:bg-[#2A9C6E]/10 transition-all flex-shrink-0">
+                    Got it
+                  </button>
+                </div>
+              )}
               {club?.cover_url && (
                 <div className="w-full rounded-sm overflow-hidden border border-white/5" style={{height:'180px'}}>
                   <img src={club.cover_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:'center'}} />
