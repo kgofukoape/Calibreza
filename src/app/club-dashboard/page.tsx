@@ -91,9 +91,14 @@ export default function ClubDashboardPage() {
     if (!user) { router.push('/dealer/login'); return; }
     const { data, error } = await supabase.from('clubs').select('*').eq('user_id', user.id).single();
     if (error || !data) { router.push('/dealer/login'); return; }
+    // Not approved yet: the pending page. Suspended still gets in to read why.
+    if (!['active', 'suspended'].includes(data.status)) {
+      router.replace('/business/pending');
+      return;
+    }
     setClub(data);
     // Free trial banner (shown on Overview for the whole no-card trial)
-    if (data.subscription_status === 'trial' && data.trial_end_date && !data.payfast_token) {
+    if (data.subscription_status === 'trial' && data.trial_end_date && !data.payfast_token && data.facility_type !== 'club') {
       const endMs = new Date(data.trial_end_date).getTime();
       setTrialFlash({
         days: Math.max(0, Math.ceil((endMs - Date.now()) / 86400000)),
@@ -397,7 +402,7 @@ export default function ClubDashboardPage() {
     { id: 'compliance', label: 'Compliance', icon: '🛡️' },
     { id: 'profile', label: 'Edit Profile', icon: '✏️' },
     { id: 'members', label: 'Members', icon: '👥' },
-    { id: 'subscription', label: 'Subscription', icon: '💳' },
+    ...(club?.facility_type === 'club' ? [] : [{ id: 'subscription', label: 'Subscription', icon: '💳' }]),
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ];
 

@@ -473,6 +473,7 @@ export async function GET(req: NextRequest) {
     const { data: clubTrials } = await supabase
       .from('clubs')
       .select('id, name, email, trial_end_date, payfast_token, trial_reminder_sent_for')
+      .neq('facility_type', 'club')
       .eq('subscription_status', 'trial')
       .not('trial_end_date', 'is', null);
 

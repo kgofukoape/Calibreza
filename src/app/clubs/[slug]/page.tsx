@@ -198,16 +198,18 @@ export default function ClubDetailPage() {
     { id: 'contact', label: 'Contact & Fees' },
   ];
 
+  // Visitors see how to reach the club or range. Upgrade offers belong in
+  // the owner's dashboard, not on the public page.
   const UpgradeCTA = ({ context }: { context: string }) => (
-    <div className="bg-[#13151A] border border-[#C9922A]/30 rounded-sm p-8 text-center">
-      <div className="text-4xl mb-4">🎯</div>
-      <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-2">Upgrade to <span className="text-[#C9922A]">Active</span></h2>
-      <p className="text-[#8A8E99] text-[13px] mb-2 max-w-md mx-auto">{context} is only available to ranges on the <strong className="text-[#F0EDE8]">Active plan</strong>.</p>
-      <p className="text-[#C9922A] font-black text-[13px] mb-6 uppercase tracking-widest">R499/month · 2 months free · Cancel anytime</p>
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <Link href="/clubs/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:brightness-110 transition-all">Start 2 Months Free →</Link>
-        {club.phone && <a href={`tel:${club.phone}`} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">📞 Call Range Directly</a>}
-      </div>
+    <div className="bg-[#13151A] border border-white/10 rounded-sm p-8 text-center">
+      <p className="text-[#8A8E99] text-[13px] mb-6 max-w-md mx-auto">
+        {context} is not available online for this {isRange ? 'range' : 'club'}. Contact them directly.
+      </p>
+      {club.phone && (
+        <a href={`tel:${club.phone}`} className="inline-block border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
+          Call the {isRange ? 'range' : 'club'}
+        </a>
+      )}
     </div>
   );
 
@@ -215,7 +217,7 @@ export default function ClubDetailPage() {
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
 
-      {!isPremium && !isInTrial && (
+      {!isPremium && !isInTrial && isRange && (
         <div className="bg-[#191C23] border-b border-[#C9922A]/20 px-4 py-3">
           <div className="max-w-[1400px] mx-auto flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
@@ -225,9 +227,6 @@ export default function ClubDetailPage() {
                 <p className="text-[11px] text-[#8A8E99]">Booking system, live status & results board not active on this profile</p>
               </div>
             </div>
-            {club.is_verified === false && (
-              <Link href="/clubs/pricing" className="flex-shrink-0 text-[11px] font-black uppercase tracking-widest text-[#C9922A] border border-[#C9922A]/30 px-4 py-2 rounded-sm hover:bg-[#C9922A]/10 transition-all">Upgrade — 2 Months Free →</Link>
-            )}
           </div>
         </div>
       )}
@@ -692,7 +691,6 @@ export default function ClubDetailPage() {
                   {club.phone && <a href={`tel:${club.phone}`} className="w-full border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">📞 Call {isRange ? 'Range' : 'Club'}</a>}
                   {club.email && <a href={`mailto:${club.email}`} className="w-full border border-white/10 text-[#8A8E99] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">✉ Email</a>}
                   {club.website && <a href={club.website} target="_blank" rel="noopener noreferrer" className="w-full border border-white/10 text-[#8A8E99] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">🌐 Website</a>}
-                  {!isPremium && <Link href="/clubs/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="w-full border border-[#C9922A]/30 text-[#C9922A] bg-[#C9922A]/5 font-black uppercase tracking-widest text-[11px] py-2.5 rounded-sm hover:bg-[#C9922A]/10 transition-all text-center">Upgrade — 2 Months Free</Link>}
                 </div>
               </div>
 

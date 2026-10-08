@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     const { data: club, error: clubErr } = await supabase
       .from('clubs')
-      .select('id, name, email, status, subscription_status, trial_used, saps_reg_number, responsible_person_email, payfast_token, trial_end_date')
+      .select('id, name, email, status, subscription_status, trial_used, saps_reg_number, responsible_person_email, payfast_token, trial_end_date, facility_type')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -129,6 +129,12 @@ export async function POST(req: NextRequest) {
     // application has been reviewed and the club is live on the directory.
     if (!club || club.status !== 'active') {
       return NextResponse.json({ error: 'Approved club account required' }, { status: 403 });
+    }
+    // Club listings are free (agreed Oct 2026); only ranges subscribe.
+    if (club.facility_type === 'club') {
+      return NextResponse.json(
+        { error: 'Club listings are free. There is nothing to subscribe to.' },
+        { status: 400 });
     }
     // A club on its free no-card trial may subscribe at any time (agreed
     // Oct 2026): R0 today, first charge on the 1st after the trial ends.
