@@ -19,7 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   other:     '📋 Other',
 };
 
-const STATUS_FILTERS = ['all', 'pending', 'active', 'rejected'];
+const STATUS_FILTERS = ['all', 'pending', 'info_requested', 'active', 'suspended', 'rejected'];
 
 export default function AdminServicesPage() {
   const router = useRouter();
@@ -216,6 +216,8 @@ export default function AdminServicesPage() {
     pending:  services.filter(s => s.status === 'pending').length,
     active:   services.filter(s => s.status === 'active').length,
     rejected: services.filter(s => s.status === 'rejected').length,
+    info_requested: services.filter(s => s.status === 'info_requested').length,
+    suspended: services.filter(s => s.status === 'suspended').length,
   };
 
   if (loading) return (
@@ -346,6 +348,14 @@ export default function AdminServicesPage() {
                         View Profile ↗
                       </Link>
                     )}
+                    <button onClick={() => handleSuspend(selected)} disabled={actionLoading === selected.id}
+                      className={`text-[10px] font-black uppercase tracking-widest border px-3 py-2 rounded-sm transition-all disabled:opacity-40 ${
+                        selected.status === 'suspended'
+                          ? 'text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/10'
+                          : 'text-[#F59E0B] border-[#F59E0B]/30 hover:bg-[#F59E0B]/10'
+                      }`}>
+                      {actionLoading === selected.id ? '...' : selected.status === 'suspended' ? 'Reinstate' : 'Suspend'}
+                    </button>
                     <button onClick={() => handleDelete(selected.id)} disabled={actionLoading === selected.id}
                       className="text-[10px] font-black uppercase tracking-widest text-[#E63946] border border-[#E63946]/30 px-3 py-2 rounded-sm hover:bg-[#E63946]/10 transition-all disabled:opacity-40">
                       Delete
