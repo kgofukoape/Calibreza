@@ -110,7 +110,7 @@ export function jobPackageFor(
   }
 
   if (kind === 'club') {
-    // Clubs are Listed (free) or Active (R399). Anything paid counts as active.
+    // Clubs are Listed (free) or Active (R499). Anything paid counts as active.
     if (tier && tier !== 'free' && tier !== 'listed') return JOB_PACKAGES.club_active;
     return JOB_PACKAGES.club_free;
   }

@@ -14,7 +14,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 //     first FOUNDING_CLUB_LIMIT) get 2 months, everyone after gets 1.
 //
 //   NO TRIAL (this club has had one before)
-//     Pay for the days left in this month, then R399 on the 1st of each month.
+//     Pay for the days left in this month, then R499 on the 1st of each month.
 //
 // Four things were wrong with the previous version:
 //   1. It took a clubId from the request body with NO authentication, so anyone
@@ -39,7 +39,7 @@ const PAYFAST_URL = IS_SANDBOX
   ? 'https://sandbox.payfast.co.za/eng/process'
   : 'https://www.payfast.co.za/eng/process';
 
-const CLUB_PRICE = 399;
+const CLUB_PRICE = 499;
 const FOUNDING_LIMIT = parseInt(process.env.FOUNDING_CLUB_LIMIT || '50', 10);
 const FOUNDING_TRIAL_MONTHS = 2;
 const STANDARD_TRIAL_MONTHS = 1;

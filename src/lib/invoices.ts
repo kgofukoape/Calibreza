@@ -101,7 +101,7 @@ export function dealerMonthlyLine(tier: string, monthLabel: string): InvoiceLine
   };
 }
 
-export const CLUB_MONTHLY_PRICE = 399;
+export const CLUB_MONTHLY_PRICE = 499;
 
 export function clubMonthlyLine(monthLabel: string): InvoiceLine {
   return {

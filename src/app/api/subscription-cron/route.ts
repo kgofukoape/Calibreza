@@ -71,6 +71,75 @@ async function logEvent(entityId: string, eventType: string, from: string, to: s
   }
 }
 
+// -- Club trial reminders ----------------------------------------------------
+// Days left on which a club on its free 60-day trial is emailed (agreed
+// Oct 2026): halfway, two weeks, one week, then every second day.
+const CLUB_TRIAL_REMINDERS = [30, 14, 7, 5, 3, 1];
+
+const CLUB_LOSES = [
+  'online booking and RSVPs',
+  'live status (open or closed, lanes, ammo in stock)',
+  'the shoot results board',
+  'booking analytics',
+  'your photo gallery',
+];
+
+async function clubTrialEmail(to: string | null, name: string, daysLeft: number): Promise<boolean> {
+  if (!to || !process.env.RESEND_API_KEY) return false;
+  const p = (t: string) => `<p style="margin:0 0 14px;line-height:1.6;">${t}</p>`;
+  const safe = String(name || 'your club')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const list = '<ul style="margin:0 0 14px;padding-left:18px;line-height:1.7;">' +
+    CLUB_LOSES.map((x) => `<li>${x}</li>`).join('') + '</ul>';
+  const button = `<a href="${BASE_URL}/club-dashboard" style="display:inline-block;` +
+    `background:#C9922A;color:#000;font-weight:bold;font-size:14px;text-transform:uppercase;` +
+    `letter-spacing:2px;padding:14px 28px;border-radius:4px;text-decoration:none;">Subscribe</a>`;
+
+  let subject: string;
+  let body: string;
+  if (daysLeft <= 0) {
+    subject = `Your free trial has ended: ${name}`;
+    body = p(`The free Active trial for <strong>${safe}</strong> has ended, so your ` +
+      'club is now on the free Listed plan. You are still in the Gun X directory, but these ' +
+      'are switched off:') + list +
+      p('Subscribe any time to switch them back on: you pay for the days left in this ' +
+        'month, then R499 on the 1st of each month.') + button;
+  } else {
+    const when = daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
+    subject = daysLeft === 30
+      ? `Halfway through your free trial: ${name}`
+      : daysLeft === 1
+        ? `Your free trial ends tomorrow: ${name}`
+        : `${daysLeft} days left on your free trial: ${name}`;
+    body = p(`The free Active trial for <strong>${safe}</strong> ends ${when}. ` +
+      'If you do not subscribe, your club stays listed on Gun X for free, but these ' +
+      'switch off:') + list +
+      p('<strong style="color:#C9922A;">Subscribe now and you pay R0 today.</strong> ' +
+        'Your first R499 is charged on the 1st after your trial ends, so you keep every ' +
+        'free day.') + button;
+  }
+
+  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;` +
+    `background:#0D0F13;color:#C9CCD3;padding:32px;border-radius:8px;">` +
+    `<h1 style="color:#C9922A;font-size:22px;margin:0 0 20px;">Gun X</h1>${body}</div>`;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Gun X <notifications@gunx.co.za>',
+        to: [to], reply_to: 'support@gunx.co.za', subject, html,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const token = req.nextUrl.searchParams.get('token');
@@ -392,6 +461,64 @@ export async function GET(req: NextRequest) {
     }
   } catch (e: any) {
     result.errors.push(`trials: ${e.message}`);
+  }
+
+  // -- CLUB TRIALS (no card) ------------------------------------------------
+  // Clubs and ranges get 60 days of the Active plan free on approval, with
+  // no card. Reminders go out at the days in CLUB_TRIAL_REMINDERS (once each,
+  // recorded in trial_reminder_sent_for so a second run sends nothing), and
+  // when the 60 days are up the club drops to the free Listed plan. A club
+  // that subscribed during the trial has a PayFast token and is left alone.
+  try {
+    const { data: clubTrials } = await supabase
+      .from('clubs')
+      .select('id, name, email, trial_end_date, payfast_token, trial_reminder_sent_for')
+      .eq('subscription_status', 'trial')
+      .not('trial_end_date', 'is', null);
+
+    for (const c of clubTrials || []) {
+      if (c.payfast_token) continue;
+      const daysLeft = Math.ceil((new Date(c.trial_end_date).getTime() - now.getTime()) / 86400000);
+
+      if (daysLeft > 0) {
+        if (CLUB_TRIAL_REMINDERS.includes(daysLeft) && c.trial_reminder_sent_for !== daysLeft) {
+          const sent = await clubTrialEmail(c.email, c.name, daysLeft);
+          if (sent) {
+            await supabase.from('clubs')
+              .update({ trial_reminder_sent_for: daysLeft }).eq('id', c.id);
+            result.trial_warnings_sent++;
+          } else {
+            result.errors.push(`club trial email ${c.id}: not sent`);
+          }
+        }
+        continue;
+      }
+
+      // Trial over, no card: back to the free Listed plan
+      const { error: cErr } = await supabase.from('clubs').update({
+        subscription_tier: 'listed',
+        subscription_status: 'free',
+        current_period_end: null,
+        pending_tier: null,
+        pending_change_type: null,
+        trial_reminder_sent_for: 0,
+      }).eq('id', c.id);
+      if (cErr) {
+        result.errors.push(`club trial end ${c.id}: ${cErr.message}`);
+        continue;
+      }
+      try {
+        await supabase.from('subscription_events').insert({
+          entity_type: 'club', entity_id: c.id, event_type: 'trial_ended',
+          from_tier: 'active', to_tier: 'listed', actor: 'system',
+          notes: 'Free 60-day Active trial ended without a subscription.',
+        });
+      } catch { /* the event log is a record, not a gate */ }
+      await clubTrialEmail(c.email, c.name, 0);
+      result.trials_ended++;
+    }
+  } catch (e: any) {
+    result.errors.push(`club trials: ${e.message}`);
   }
 
   // ── 3. ARCHIVE REMINDER — 7 days on the free tier ──────────────────────────

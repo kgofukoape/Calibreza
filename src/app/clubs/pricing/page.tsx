@@ -22,7 +22,7 @@ const ACTIVE_FEATURES = [
 const FAQS = [
   {
     q: 'When do I get charged?',
-    a: 'Your first 2 months are completely free. We collect your card details upfront but your first payment of R399 only processes on day 61.',
+    a: 'Your first 2 months are completely free. We collect your card details upfront but your first payment of R499 only processes on day 61.',
   },
   {
     q: 'Can I cancel before the trial ends?',
@@ -30,7 +30,7 @@ const FAQS = [
   },
   {
     q: 'What happens after the free trial?',
-    a: 'Your subscription automatically continues at R399/month. You will receive an email reminder 7 days before your trial ends.',
+    a: 'Your subscription automatically continues at R499/month. You will receive an email reminder 7 days before your trial ends.',
   },
   {
     q: 'What payment methods are accepted?',
@@ -42,7 +42,7 @@ const FAQS = [
   },
   {
     q: 'Is there a setup fee?',
-    a: 'No setup fee. No hidden costs. Just R399/month after your 2-month free trial.',
+    a: 'No setup fee. No hidden costs. Just R499/month after your 2-month free trial.',
   },
 ];
 
@@ -98,7 +98,7 @@ export default function ClubsPricingPage() {
             </Link>
           </div>
 
-          <p className="text-[#5A5E69] text-[11px] mt-4 uppercase tracking-widest">No setup fee · Cancel anytime · R399/month after trial</p>
+          <p className="text-[#5A5E69] text-[11px] mt-4 uppercase tracking-widest">No setup fee · Cancel anytime · R499/month after trial</p>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default function ClubsPricingPage() {
             </Link>
           </div>
 
-          {/* ACTIVE — R399 */}
+          {/* ACTIVE — R499 */}
           <div className="bg-[#13151A] border-2 border-[#C9922A] rounded-sm p-7 flex flex-col relative overflow-hidden">
             {/* Popular badge */}
             <div className="absolute top-4 right-4 bg-[#C9922A] text-black text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-sm">
@@ -149,14 +149,14 @@ export default function ClubsPricingPage() {
             <div className="mb-6">
               <p className="text-[10px] font-black uppercase tracking-widest text-[#C9922A] mb-1">Active</p>
               <div className="flex items-end gap-2">
-                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-5xl font-black text-[#C9922A]">R399</p>
+                <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-5xl font-black text-[#C9922A]">R499</p>
                 <p className="text-[#8A8E99] text-[13px] mb-1">/month</p>
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 text-[#2A9C6E] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-sm">
                   2 months free
                 </span>
-                <span className="text-[#5A5E69] text-[11px]">then R399/month</span>
+                <span className="text-[#5A5E69] text-[11px]">then R499/month</span>
               </div>
             </div>
 
@@ -259,7 +259,7 @@ export default function ClubsPricingPage() {
             Get Started Free →
           </Link>
           <p className="text-[#5A5E69] text-[11px] mt-4 uppercase tracking-widest">
-            Cancel anytime · No lock-in · R399/month after 2 months free
+            Cancel anytime · No lock-in · R499/month after 2 months free
           </p>
         </div>
       </div>

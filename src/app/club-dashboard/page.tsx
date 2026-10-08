@@ -133,7 +133,7 @@ export default function ClubDashboardPage() {
 
   useEffect(() => { if (club && activeTab === 'bookings') fetchSlotsForDate(selectedSlotDate); }, [selectedSlotDate, club, activeTab]);
 
-  // Start the R399 range subscription (2 months free, first charge day 60).
+  // Start the R499 range subscription (2 months free, first charge day 60).
   // The API returns PayFast form params which we submit as a real form POST —
   // PayFast requires a form submission, not a fetch redirect.
   const handleSubscribe = async () => {

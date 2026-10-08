@@ -203,7 +203,7 @@ export default function ClubDetailPage() {
       <div className="text-4xl mb-4">🎯</div>
       <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-2">Upgrade to <span className="text-[#C9922A]">Active</span></h2>
       <p className="text-[#8A8E99] text-[13px] mb-2 max-w-md mx-auto">{context} is only available to ranges on the <strong className="text-[#F0EDE8]">Active plan</strong>.</p>
-      <p className="text-[#C9922A] font-black text-[13px] mb-6 uppercase tracking-widest">R399/month · 2 months free · Cancel anytime</p>
+      <p className="text-[#C9922A] font-black text-[13px] mb-6 uppercase tracking-widest">R499/month · 2 months free · Cancel anytime</p>
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         <Link href="/clubs/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-3 rounded-sm hover:brightness-110 transition-all">Start 2 Months Free →</Link>
         {club.phone && <a href={`tel:${club.phone}`} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">📞 Call Range Directly</a>}

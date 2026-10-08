@@ -177,7 +177,15 @@ async function sendDecisionEmail(o: {
         '5 days before your first charge, and you can cancel, or switch to Pro or ' +
         'Free, at any time before then.');
     } else {
-      body += p('Your profile is live on Gun X and your dashboard is open.');
+      if (o.entityType === 'club' && !o.entity.trial_used && !o.entity.payfast_token) {
+        body += p('<strong style="color:#C9922A;">Your Active plan is free for 60 days. ' +
+          'No card needed.</strong>');
+        body += p('Online booking, live status, the results board and every other ' +
+          'Active feature are switched on now. After 60 days you can carry on at ' +
+          'R499 per month, or stay listed on Gun X for free.');
+      } else {
+        body += p('Your profile is live on Gun X and your dashboard is open.');
+      }
     }
     body += button(`${SITE}/business/login`, 'Sign in');
   } else if (o.target === 'rejected') {
@@ -305,6 +313,22 @@ export async function POST(req: NextRequest) {
         update.review_note = note;
       } else if (target === config.activeStatus) {
         update.review_note = null;
+        // Clubs and ranges: 60 days of the Active plan free, no card needed
+        // (agreed Oct 2026). Once only: never for a club that has had a
+        // trial or already pays. The nightly job ends it after 60 days.
+        if (entityType === 'club' && entity.status !== target
+            && !entity.trial_used && !entity.payfast_token) {
+          const start = new Date();
+          const end = new Date(start.getTime() + 60 * 24 * 60 * 60 * 1000);
+          Object.assign(update, {
+            subscription_tier: 'active',
+            subscription_status: 'trial',
+            trial_start_date: start.toISOString(),
+            trial_end_date: end.toISOString(),
+            current_period_end: end.toISOString(),
+            trial_used: true,
+          });
+        }
       }
       if (target === 'info_requested' && Array.isArray(body?.clearDocs)) {
         const allowed = CLEARABLE_DOCS[entityType] || [];

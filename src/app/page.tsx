@@ -37,7 +37,7 @@ const OFFERS = [
   {
     icon: '🎯',
     headline: 'Shooting Ranges — List Free for 2 Months',
-    detail: 'Booking system, live status & results board. R399/month after trial.',
+    detail: 'Booking system, live status & results board. R499/month after trial.',
     cta: 'Start Free →',
     href: '/clubs/pricing',
   },
@@ -216,7 +216,7 @@ export default function HomePage() {
                   <span className="text-2xl">🎯</span>
                   <div>
                     <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="font-black text-[16px] uppercase">Own a Shooting Range?</p>
-                    <p className="text-[11px] text-[#8A8E99]">Online booking · Live status · Results board · 2 months free · Then R399/month</p>
+                    <p className="text-[11px] text-[#8A8E99]">Online booking · Live status · Results board · 2 months free · Then R499/month</p>
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">

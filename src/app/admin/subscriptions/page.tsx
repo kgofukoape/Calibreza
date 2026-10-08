@@ -14,7 +14,7 @@ import AdminNav from '@/components/admin/AdminNav';
 // PayFast dashboard. The banner in the UI says so, so nobody is misled.
 
 // Dealers and clubs do not share a tier vocabulary. Clubs use listed and
-// active, where active is the paid R399 range plan.
+// active, where active is the paid R499 range plan.
 const DEALER_TIERS = ['free', 'pro', 'premium'];
 const CLUB_TIERS = ['free', 'listed', 'active'];
 
@@ -92,7 +92,7 @@ export default function AdminSubscriptionsPage() {
   const grantFree = async (entity: any) => {
     const label = entity.business_name || entity.name || 'this account';
     // Dealers and clubs do not share a tier vocabulary: dealers use pro and
-    // premium, clubs use listed and active, where active is the paid R399 tier.
+    // premium, clubs use listed and active, where active is the paid R499 tier.
     // Offering "premium" to a club produced "Invalid tier for club" every time.
     const isDealerTab = tab === 'dealers';
     const tier = prompt(

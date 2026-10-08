@@ -143,7 +143,7 @@ export function SubscriptionTab({ club, subLoading, handleSubscribe, onChanged }
             {trialEndStr ? <>. First charge on {trialEndStr}.</> : '.'}
           </p>
         ) : isActive ? (
-          <p className="text-[13px] text-[#C9922A]">Active &amp; billing — R399/month</p>
+          <p className="text-[13px] text-[#C9922A]">Active &amp; billing — R499/month</p>
         ) : (
           <p className="text-[13px] text-[#8A8E99] leading-relaxed">
             Your range is listed in the public directory. Booking, live status and the results board need the Active plan.
@@ -160,7 +160,7 @@ export function SubscriptionTab({ club, subLoading, handleSubscribe, onChanged }
             </h3>
             <div className="flex items-center gap-3 flex-wrap">
               <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A]">
-                R399<span className="text-[16px] text-[#8A8E99] font-bold">/month</span>
+                R499<span className="text-[16px] text-[#8A8E99] font-bold">/month</span>
               </p>
               <span className="bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 text-[#2A9C6E] text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-sm">
                 2 months free
@@ -199,7 +199,7 @@ export function SubscriptionTab({ club, subLoading, handleSubscribe, onChanged }
           </h3>
 
           <div className="flex flex-col gap-0 mb-5">
-            <Row label="Plan" value="Active — R399/month" />
+            <Row label="Plan" value="Active — R499/month" />
             <Row
               label="Status"
               value={isCancelling ? `Cancelling — ${daysLeft} day${daysLeft === 1 ? '' : 's'} of access left`
