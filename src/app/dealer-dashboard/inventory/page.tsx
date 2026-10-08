@@ -54,6 +54,9 @@ export default function DealerInventoryPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -300,6 +303,85 @@ export default function DealerInventoryPage() {
     setListings(prev => prev.filter(l => l.id !== id));
   };
 
+  // --- BULK ACTIONS --------------------------------------------------------
+  // Select many listings, act once. Each action only touches the listings it
+  // makes sense for, and the rows actually changed are counted from what the
+  // database returns, so the message never claims more than happened.
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const allShownSelected = filtered.length > 0 && filtered.every((l) => selected.has(l.id));
+  const toggleAll = () =>
+    setSelected(allShownSelected ? new Set() : new Set(filtered.map((l) => l.id)));
+
+  const runBulk = async (kind: 'sold' | 'inactive' | 'active' | 'delete') => {
+    const picked = filtered.filter((l) => selected.has(l.id));
+    const targets = picked.filter((l) => {
+      if (kind === 'sold') return l.status !== 'sold' && l.status !== 'archived';
+      if (kind === 'inactive') return l.status === 'active';
+      if (kind === 'active') return l.status === 'inactive' || l.status === 'sold';
+      return true;
+    });
+    if (targets.length === 0) {
+      setBulkMsg('None of the selected listings can take that action.');
+      return;
+    }
+    const word = { sold: 'Mark', inactive: 'Deactivate', active: 'Activate', delete: 'Delete' }[kind];
+    const tail = kind === 'sold' ? ' as sold' : '';
+    const warn = kind === 'delete' ? '\n\nDeleted listings cannot be brought back.' : '';
+    if (!confirm(`${word} ${targets.length} listing(s)${tail}?${warn}`)) return;
+
+    setBulkBusy(true);
+    setBulkMsg(null);
+    const ids = targets.map((l) => l.id);
+    let done: string[] = [];
+
+    if (kind === 'delete') {
+      // One at a time: the database refuses to delete a reported listing,
+      // and that refusal must not stop the rest.
+      for (const id of ids) {
+        const { data, error } = await supabase
+          .from('listings').delete().eq('id', id).select('id');
+        if (!error && data && data.length) done.push(id);
+      }
+    } else {
+      const patch = kind === 'active'
+        ? { status: 'active',
+            expires_at: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
+            expiry_notified_at: null }
+        : { status: kind };
+      const { data, error } = await supabase
+        .from('listings').update(patch).in('id', ids).select('id');
+      if (error) {
+        setBulkBusy(false);
+        setBulkMsg(`Nothing was changed: ${error.message}`);
+        return;
+      }
+      done = (data || []).map((r: any) => r.id);
+    }
+
+    const doneSet = new Set(done);
+    if (kind === 'delete') {
+      setListings((prev) => prev.filter((l) => !doneSet.has(l.id)));
+    } else {
+      setListings((prev) => prev.map((l) => (doneSet.has(l.id) ? { ...l, status: kind } : l)));
+    }
+    setSelected(new Set());
+    setBulkBusy(false);
+
+    const past = { sold: 'marked sold', inactive: 'deactivated', active: 'activated', delete: 'deleted' }[kind];
+    const failed = ids.length - done.length;
+    setBulkMsg(`${done.length} listing(s) ${past}.` + (failed
+      ? ` ${failed} could not be changed` +
+        (kind === 'delete' ? ' (a listing that has been reported cannot be deleted).' : '.')
+      : ''));
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/dealer/login');
@@ -326,6 +408,7 @@ export default function DealerInventoryPage() {
     active: listings.filter((l) => l.status === 'active').length,
     inactive: listings.filter((l) => l.status === 'inactive').length,
     sold: listings.filter((l) => l.status === 'sold').length,
+    archived: listings.filter((l) => l.status === 'archived').length,
   };
 
   if (loading) {
@@ -472,7 +555,7 @@ export default function DealerInventoryPage() {
             {(['all', 'active', 'inactive', 'sold', 'archived'] as const).map((filter) => (
               <button
                 key={filter}
-                onClick={() => setActiveFilter(filter)}
+                onClick={() => { setActiveFilter(filter); setSelected(new Set()); }}
                 className={`px-4 py-2 rounded-sm text-[11px] font-black uppercase tracking-widest transition-all ${
                   activeFilter === filter
                     ? 'bg-[#C9922A] text-black'
@@ -507,12 +590,49 @@ export default function DealerInventoryPage() {
             </div>
           )}
 
+          {/* Bulk actions: select many, act once */}
+          {filtered.length > 0 && (
+            <div className="sticky top-0 z-10 bg-[#13151A] border border-white/5 rounded-sm px-4 py-3 mb-3 flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#8A8E99] cursor-pointer mr-2">
+                <input type="checkbox" checked={allShownSelected} onChange={toggleAll}
+                  className="w-4 h-4 accent-[#C9922A] cursor-pointer" />
+                {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
+              </label>
+              {selected.size > 0 && (
+                <>
+                  <button onClick={() => runBulk('sold')} disabled={bulkBusy}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-[#C9922A]/30 text-[#C9922A] rounded-sm hover:bg-[#C9922A]/10 disabled:opacity-40">
+                    Mark sold</button>
+                  <button onClick={() => runBulk('inactive')} disabled={bulkBusy}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-white/10 text-[#8A8E99] rounded-sm hover:text-[#F0EDE8] disabled:opacity-40">
+                    Deactivate</button>
+                  <button onClick={() => runBulk('active')} disabled={bulkBusy}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-[#2A9C6E]/30 text-[#2A9C6E] rounded-sm hover:bg-[#2A9C6E]/10 disabled:opacity-40">
+                    Activate</button>
+                  <button onClick={() => runBulk('delete')} disabled={bulkBusy}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 border border-red-400/30 text-red-400 rounded-sm hover:bg-red-400/10 disabled:opacity-40">
+                    Delete</button>
+                  <button onClick={() => setSelected(new Set())} disabled={bulkBusy}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 text-[#8A8E99] hover:text-[#F0EDE8]">
+                    Clear</button>
+                  {bulkBusy && <span className="text-[11px] text-[#8A8E99]">Working...</span>}
+                </>
+              )}
+            </div>
+          )}
+          {bulkMsg && (
+            <div className="bg-[#C9922A]/10 border border-[#C9922A]/30 rounded-sm p-3 mb-3 flex items-start justify-between gap-4">
+              <p className="text-[12px] text-[#F0EDE8]">{bulkMsg}</p>
+              <button onClick={() => setBulkMsg(null)} className="text-[#8A8E99] hover:text-[#F0EDE8] text-sm">x</button>
+            </div>
+          )}
+
           {/* Listings Table */}
           {filtered.length > 0 && (
             <div className="bg-[#13151A] border border-white/5 rounded-sm overflow-hidden">
 
               {/* Table Header */}
-              <div className="grid grid-cols-[72px_1fr_150px_120px_130px] bg-[#0D0F13] px-6 py-3 border-b border-white/5">
+              <div className="grid grid-cols-[96px_1fr_150px_120px_130px] bg-[#0D0F13] px-6 py-3 border-b border-white/5">
                 <span className="text-[10px] text-[#8A8E99] font-black uppercase tracking-widest"></span>
                 <span className="text-[10px] text-[#8A8E99] font-black uppercase tracking-widest">Listing</span>
                 <span className="text-[10px] text-[#8A8E99] font-black uppercase tracking-widest">Price</span>
@@ -525,15 +645,21 @@ export default function DealerInventoryPage() {
                 <div key={listing.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-all">
 
                   {/* Top row — listing info */}
-                  <div className="grid grid-cols-[72px_1fr_150px_120px_130px] px-6 pt-4 pb-2 items-center">
+                  <div className="grid grid-cols-[96px_1fr_150px_120px_130px] px-6 pt-4 pb-2 items-center">
 
                     {/* Thumbnail */}
+                    <div className="flex items-center gap-3">
+                    <input type="checkbox" checked={selected.has(listing.id)}
+                      onChange={() => toggleOne(listing.id)}
+                      aria-label={`Select ${listing.title}`}
+                      className="w-4 h-4 accent-[#C9922A] flex-shrink-0 cursor-pointer" />
                     <div className="w-12 h-12 bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden flex items-center justify-center">
                       {listing.images && listing.images.length > 0 ? (
                         <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-xl">🔫</span>
                       )}
+                    </div>
                     </div>
 
                     {/* Title + Category */}
@@ -573,7 +699,7 @@ export default function DealerInventoryPage() {
                   </div>
 
                   {/* Bottom row — actions */}
-                  <div className="px-6 pb-4 flex items-center gap-3 ml-[72px]">
+                  <div className="px-6 pb-4 flex items-center gap-3 ml-[96px]">
 
                     {/* View */}
                     <Link
