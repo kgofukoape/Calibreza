@@ -10,6 +10,7 @@ export default function DealerDashboardPage() {
   const [dealer, setDealer] = useState<any>(null);
   const [stats, setStats] = useState({ totalListings: 0, activeListings: 0, archivedListings: 0, activeJobs: 0, totalViews: 0 });
   const [loading, setLoading] = useState(true);
+  const [trialFlash, setTrialFlash] = useState<{ days: number; end: string } | null>(null);
 
   useEffect(() => {
     async function checkAuth() {
@@ -26,6 +27,23 @@ export default function DealerDashboardPage() {
         return;
       }
       setDealer(dealerData);
+      // One-off trial welcome (see the banner below): only the first time
+      if (dealerData.subscription_status === 'trial' && dealerData.trial_end_date) {
+        try {
+          const key = `gx_trial_flash_${dealerData.id}`;
+          if (!localStorage.getItem(key)) {
+            localStorage.setItem(key, '1');
+            const endMs = new Date(dealerData.trial_end_date).getTime();
+            setTrialFlash({
+              days: Math.max(0, Math.ceil((endMs - Date.now()) / 86400000)),
+              end: new Date(endMs).toLocaleDateString('en-ZA', {
+                day: 'numeric', month: 'long', year: 'numeric',
+                timeZone: 'Africa/Johannesburg',
+              }),
+            });
+          }
+        } catch { /* private browsing: skip the welcome */ }
+      }
 
       // Fetch standard listings stats
       const { data: listings } = await supabase.from('listings').select('status').eq('dealer_id', dealerData.id);
@@ -115,6 +133,29 @@ export default function DealerDashboardPage() {
                 restored automatically. To discuss this, email{' '}
                 <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-125">support@gunx.co.za</a>.
               </p>
+            </div>
+          )}
+
+          {/* ONE-OFF TRIAL WELCOME: shown the first time the dealer opens the
+              dashboard after starting the free trial, then never again (remembered
+              in this browser). The email 5 days before the first charge does the rest. */}
+          {trialFlash && (
+            <div className="rounded-sm p-5 mb-8 border bg-[#2A9C6E]/10 border-[#2A9C6E]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 text-[#2A9C6E]">
+                  Free Premium trial active
+                </p>
+                <p style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase leading-none mb-1">
+                  {trialFlash.days} day{trialFlash.days === 1 ? '' : 's'} left on your free trial
+                </p>
+                <p className="text-[12px] text-[#8A8E99] leading-relaxed">
+                  Every Premium feature is open until {trialFlash.end}. Nothing is charged until then.
+                </p>
+              </div>
+              <button onClick={() => setTrialFlash(null)}
+                className="border border-[#2A9C6E]/40 text-[#2A9C6E] font-black uppercase tracking-widest text-[11px] px-6 py-3 rounded-sm hover:bg-[#2A9C6E]/10 transition-all flex-shrink-0">
+                Got it
+              </button>
             </div>
           )}
 
