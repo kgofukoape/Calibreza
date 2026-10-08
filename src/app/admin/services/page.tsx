@@ -367,7 +367,7 @@ export default function AdminServicesPage() {
                 <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
                   <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Approval Status</p>
                   <div className="flex gap-3 flex-wrap">
-                    {selected.status !== 'active' && (
+                    {selected.status !== 'active' && selected.status !== 'suspended' && (
                       <button onClick={() => handleApprove(selected.id)} disabled={actionLoading === selected.id}
                         className="bg-[#10B981] text-white font-black uppercase tracking-widest text-[11px] px-6 py-2.5 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
                         {actionLoading === selected.id ? '...' : '✓ Approve & Activate'}
@@ -379,7 +379,7 @@ export default function AdminServicesPage() {
                         ✕ Reject
                       </button>
                     )}
-                    {selected.status !== 'active' && (
+                    {selected.status !== 'active' && selected.status !== 'suspended' && (
                       <button onClick={() => setDecision({ id: selected.id, kind: 'info_requested' })}
                         disabled={actionLoading === selected.id}
                         className="border border-[#3B82F6]/30 text-[#3B82F6] font-black uppercase tracking-widest text-[11px] px-6 py-2.5 rounded-sm hover:bg-[#3B82F6]/10 transition-all disabled:opacity-50">
