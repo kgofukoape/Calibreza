@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     const { data: club, error: clubErr } = await supabase
       .from('clubs')
-      .select('id, name, email, status, subscription_status, trial_used, saps_reg_number, responsible_person_email')
+      .select('id, name, email, status, subscription_status, trial_used, saps_reg_number, responsible_person_email, payfast_token, trial_end_date')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -130,7 +130,14 @@ export async function POST(req: NextRequest) {
     if (!club || club.status !== 'active') {
       return NextResponse.json({ error: 'Approved club account required' }, { status: 403 });
     }
-    if (club.subscription_status === 'active' || club.subscription_status === 'trial') {
+    // A club on its free no-card trial may subscribe at any time (agreed
+    // Oct 2026): R0 today, first charge on the 1st after the trial ends.
+    // A trial that has already run out falls through to pro rata below.
+    const trialEndMs = club.trial_end_date ? new Date(club.trial_end_date).getTime() : 0;
+    const onFreeTrial = club.subscription_status === 'trial'
+      && !club.payfast_token && trialEndMs > Date.now();
+    if (club.subscription_status === 'active'
+        || (club.subscription_status === 'trial' && !!club.payfast_token)) {
       return NextResponse.json({ error: 'Already subscribed' }, { status: 400 });
     }
 
@@ -173,7 +180,21 @@ export async function POST(req: NextRequest) {
     let flag: string;
     let description: string;
 
-    if (trialEligible) {
+    if (onFreeTrial) {
+      // Free no-card trial: R0 today, first charge on the 1st after the
+      // trial ends (or on the end day itself if that is a 1st).
+      const endSast = new Date(trialEndMs + 2 * 60 * 60 * 1000);
+      const endYmd: Ymd = {
+        y: endSast.getUTCFullYear(),
+        m: endSast.getUTCMonth() + 1,
+        d: endSast.getUTCDate(),
+      };
+      firstCharge = endYmd.d === 1 ? endYmd : firstOfNextMonth(endYmd);
+      amount = 0;
+      flag = 'trial';
+      description = `Free trial continues, then R${CLUB_PRICE} on the 1st of each month ` +
+        `from ${ymdString(firstCharge)}`;
+    } else if (trialEligible) {
       const months = isFounding ? FOUNDING_TRIAL_MONTHS : STANDARD_TRIAL_MONTHS;
       const trialEnd = addMonths(today, months);
       firstCharge = trialEnd.d === 1 ? trialEnd : firstOfNextMonth(trialEnd);

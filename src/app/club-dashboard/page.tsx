@@ -92,22 +92,18 @@ export default function ClubDashboardPage() {
     const { data, error } = await supabase.from('clubs').select('*').eq('user_id', user.id).single();
     if (error || !data) { router.push('/dealer/login'); return; }
     setClub(data);
-    // One-off trial welcome (shown on Overview): only the first time
-    if (data.subscription_status === 'trial' && data.trial_end_date) {
-      try {
-        const key = `gx_trial_flash_club_${data.id}`;
-        if (!localStorage.getItem(key)) {
-          localStorage.setItem(key, '1');
-          const endMs = new Date(data.trial_end_date).getTime();
-          setTrialFlash({
-            days: Math.max(0, Math.ceil((endMs - Date.now()) / 86400000)),
-            end: new Date(endMs).toLocaleDateString('en-ZA', {
-              day: 'numeric', month: 'long', year: 'numeric',
-              timeZone: 'Africa/Johannesburg',
-            }),
-          });
-        }
-      } catch { /* private browsing: skip the welcome */ }
+    // Free trial banner (shown on Overview for the whole no-card trial)
+    if (data.subscription_status === 'trial' && data.trial_end_date && !data.payfast_token) {
+      const endMs = new Date(data.trial_end_date).getTime();
+      setTrialFlash({
+        days: Math.max(0, Math.ceil((endMs - Date.now()) / 86400000)),
+        end: new Date(endMs).toLocaleDateString('en-ZA', {
+          day: 'numeric', month: 'long', year: 'numeric',
+          timeZone: 'Africa/Johannesburg',
+        }),
+      });
+    } else {
+      setTrialFlash(null);
     }
     setPf(data);
     setLogoPreview(data.logo_url || '');
@@ -478,24 +474,28 @@ export default function ClubDashboardPage() {
           {/* ── OVERVIEW ── */}
           {activeTab === 'overview' && (
             <>
-              {/* ONE-OFF TRIAL WELCOME: shown once after the free trial starts, then
-                  never again (remembered in this browser). */}
+              {/* FREE TRIAL BANNER: shown for the whole 60-day no-card trial (agreed
+                  Oct 2026). Amber in the last 7 days. Gone once they subscribe. */}
               {trialFlash && (
-                <div className="rounded-sm p-5 border bg-[#2A9C6E]/10 border-[#2A9C6E]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className={`rounded-sm p-5 border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  trialFlash.days <= 7 ? 'bg-[#F59E0B]/10 border-[#F59E0B]/40' : 'bg-[#2A9C6E]/10 border-[#2A9C6E]/30'
+                }`}>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 text-[#2A9C6E]">
-                      Free trial active
+                    <p className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${
+                      trialFlash.days <= 7 ? 'text-[#F59E0B]' : 'text-[#2A9C6E]'}`}>
+                      Free Active trial
                     </p>
                     <p style={{fontFamily:"'Barlow Condensed', sans-serif"}} className="text-2xl font-black uppercase leading-none mb-1">
-                      {trialFlash.days} day{trialFlash.days === 1 ? '' : 's'} left on your free trial
+                      {trialFlash.days} day{trialFlash.days === 1 ? '' : 's'} left
                     </p>
                     <p className="text-[12px] text-[#8A8E99] leading-relaxed">
-                      Every Active plan feature is open until {trialFlash.end}. Nothing is charged until then.
+                      Every Active feature is on until {trialFlash.end}. Subscribe to keep them:
+                      R0 today, your first R499 is on the 1st after your trial ends.
                     </p>
                   </div>
-                  <button onClick={() => setTrialFlash(null)}
-                    className="border border-[#2A9C6E]/40 text-[#2A9C6E] font-black uppercase tracking-widest text-[11px] px-6 py-3 rounded-sm hover:bg-[#2A9C6E]/10 transition-all flex-shrink-0">
-                    Got it
+                  <button onClick={() => setActiveTab('subscription')}
+                    className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[11px] px-6 py-3 rounded-sm hover:brightness-110 transition-all flex-shrink-0">
+                    Subscribe
                   </button>
                 </div>
               )}
