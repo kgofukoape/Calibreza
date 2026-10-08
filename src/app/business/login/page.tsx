@@ -69,7 +69,7 @@ export default function BusinessLoginPage() {
 
       if (dealer) {
         if (dealer.status !== BUSINESS_TYPES.dealer.approvedStatus) {
-          setOutcome({ kind: 'pending', label: 'dealer application', status: dealer.status });
+          router.replace('/business/pending');
           setLoading(false);
           return;
         }
@@ -90,7 +90,7 @@ export default function BusinessLoginPage() {
         const isRange = club.facility_type !== 'club';
         const type = isRange ? BUSINESS_TYPES.range : BUSINESS_TYPES.club;
         if (club.status !== type.approvedStatus) {
-          setOutcome({ kind: 'pending', label: `${type.label.toLowerCase()} application`, status: club.status });
+          router.replace('/business/pending');
           setLoading(false);
           return;
         }
@@ -123,7 +123,7 @@ export default function BusinessLoginPage() {
 
       if (service) {
         if (service.status !== BUSINESS_TYPES.service.approvedStatus) {
-          setOutcome({ kind: 'pending', label: 'service application', status: service.status });
+          router.replace('/business/pending');
           setLoading(false);
           return;
         }

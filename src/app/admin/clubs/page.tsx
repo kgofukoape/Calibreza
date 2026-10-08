@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminNav from '@/components/admin/AdminNav';
+import DecisionModal, { type DecisionKind } from '@/components/admin/DecisionModal';
 import { openDocument, DOCUMENT_BUCKETS } from '@/lib/documents';
 
 export default function AdminClubsPage() {
@@ -11,6 +12,7 @@ export default function AdminClubsPage() {
   const [clubs, setClubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [decision, setDecision] = useState<{ id: string; kind: DecisionKind } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<any>(null);
   const [filter, setFilter] = useState<'all' | 'verified' | 'unverified'>('all');
@@ -110,13 +112,15 @@ export default function AdminClubsPage() {
   const handleVerify = (id: string) => setVerified(id, true);
   const handleUnverify = (id: string) => setVerified(id, false);
 
-  const handleStatusChange = async (id: string, status: string) => {
+  const handleStatusChange = async (id: string, status: string,
+    extra: { reason?: string; clearDocs?: string[] } = {}) => {
     setBusyId(id);
     setModMsg(null);
     try {
-      const { res, data } = await adminAction({ entityId: id, action: 'set_status', status });
+      const { res, data } = await adminAction({ entityId: id, action: 'set_status', status, ...extra });
       if (res.ok) {
-        patchClub(id, { status });
+        patchClub(id, data.update || { status });
+        setDecision(null);
         setModMsg({ kind: 'ok', text: data.message || 'Updated.' });
       } else setModMsg({ kind: 'err', text: data.error || 'Could not change status.' });
     } catch {
@@ -307,6 +311,55 @@ export default function AdminClubsPage() {
                         <span key={d} className="text-[10px] font-black uppercase px-2 py-1 rounded-sm border border-[#C9922A]/20 bg-[#C9922A]/5 text-[#C9922A]">{d}</span>
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                {/* Application decision: same four choices as dealers */}
+                <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Application Status</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { s: 'pending', label: 'Pending' },
+                      { s: 'active', label: 'Approve' },
+                      { s: 'info_requested', label: 'Request info' },
+                      { s: 'rejected', label: 'Reject' },
+                    ].map(({ s: status, label }) => (
+                      <button key={status}
+                        onClick={() => (status === 'rejected' || status === 'info_requested')
+                          ? setDecision({ id: selected.id, kind: status as DecisionKind })
+                          : handleStatusChange(selected.id, status)}
+                        disabled={busyId === selected.id
+                          || (selected.status === status && status !== 'info_requested')}
+                        className={`flex-1 min-w-[45%] py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
+                          selected.status === status
+                            ? status === 'active' ? 'bg-[#10B981] text-white'
+                              : status === 'pending' ? 'bg-[#F59E0B] text-black'
+                              : status === 'info_requested' ? 'bg-[#3B82F6] text-white'
+                              : 'bg-[#E63946] text-white'
+                            : 'bg-white/5 text-white/40 hover:bg-white/10'
+                        }`}>{label}</button>
+                    ))}
+                    {selected.review_note && (
+                      <p className="basis-full text-[11px] text-white/60 mt-2 whitespace-pre-wrap">
+                        <span className="text-white/40 uppercase tracking-widest font-black text-[9px]">Last note sent: </span>
+                        {selected.review_note}
+                      </p>
+                    )}
+                    {decision && decision.id === selected.id && (
+                      <DecisionModal
+                        kind={decision.kind}
+                        name={selected.name}
+                        busy={busyId === selected.id}
+                        docs={[
+                          ['saps_registration_url', 'SAPS registration'],
+                          ['compliance_cert_url', 'Compliance certificate'],
+                          ['business_registration_url', 'Business registration'],
+                        ].map(([key, label]) => ({ key, label, present: !!selected[key] }))}
+                        onCancel={() => setDecision(null)}
+                        onSubmit={(note, clearDocs) =>
+                          handleStatusChange(selected.id, decision.kind, { reason: note, clearDocs })}
+                      />
+                    )}
                   </div>
                 </div>
 

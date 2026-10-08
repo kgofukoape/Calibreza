@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminNav from '@/components/admin/AdminNav';
+import DecisionModal, { type DecisionKind } from '@/components/admin/DecisionModal';
 import { openDocument, DOCUMENT_BUCKETS } from '@/lib/documents';
 import { documentsFor, mandatoryDocumentsFor } from '@/lib/serviceRequirements';
 
@@ -32,6 +33,7 @@ export default function AdminServicesPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectModal, setRejectModal]   = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [decision, setDecision] = useState<{ id: string; kind: DecisionKind } | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -166,10 +168,32 @@ export default function AdminServicesPage() {
     setActionLoading(null);
   };
 
+  const handleRequestInfo = async (id: string, note: string, clearDocs: string[]) => {
+    setActionLoading(id);
+    setModMsg(null);
+    try {
+      const { res, data } = await adminAction({
+        entityId: id, action: 'set_status', status: 'info_requested',
+        reason: note, clearDocs,
+      });
+      if (res.ok) {
+        const patch = data.update || { status: 'info_requested' };
+        setServices(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
+        if (selected?.id === id) setSelected((p: any) => ({ ...p, ...patch }));
+        setModMsg({ kind: 'ok', text: data.message || 'Request sent.' });
+        setDecision(null);
+      } else setModMsg({ kind: 'err', text: data.error || 'Could not send the request.' });
+    } catch {
+      setModMsg({ kind: 'err', text: 'Could not reach the server.' });
+    }
+    setActionLoading(null);
+  };
+
   const handleReject = async () => {
     if (!rejectModal || !rejectReason.trim()) return;
     setActionLoading(rejectModal.id);
-    await adminAction({ entityId: rejectModal.id, action: 'set_status', status: 'rejected' });
+    await adminAction({ entityId: rejectModal.id, action: 'set_status', status: 'rejected',
+      reason: rejectReason.trim() });
     setServices(prev => prev.map(s => s.id === rejectModal.id ? { ...s, status: 'rejected' } : s));
     if (selected?.id === rejectModal.id) setSelected((p: any) => ({ ...p, status: 'rejected' }));
     setRejectModal(null);
@@ -344,6 +368,30 @@ export default function AdminServicesPage() {
                         className="border border-[#E63946]/30 text-[#E63946] font-black uppercase tracking-widest text-[11px] px-6 py-2.5 rounded-sm hover:bg-[#E63946]/10 transition-all">
                         ✕ Reject
                       </button>
+                    )}
+                    {selected.status !== 'active' && (
+                      <button onClick={() => setDecision({ id: selected.id, kind: 'info_requested' })}
+                        disabled={actionLoading === selected.id}
+                        className="border border-[#3B82F6]/30 text-[#3B82F6] font-black uppercase tracking-widest text-[11px] px-6 py-2.5 rounded-sm hover:bg-[#3B82F6]/10 transition-all disabled:opacity-50">
+                        Request info
+                      </button>
+                    )}
+                    {selected.review_note && (
+                      <p className="basis-full text-[11px] text-white/60 whitespace-pre-wrap">
+                        <span className="text-white/40 uppercase tracking-widest font-black text-[9px]">Last note sent: </span>
+                        {selected.review_note}
+                      </p>
+                    )}
+                    {decision && decision.id === selected.id && (
+                      <DecisionModal
+                        kind="info_requested"
+                        name={selected.name}
+                        busy={actionLoading === selected.id}
+                        docs={[{ key: 'psira_certificate_url', label: 'PSIRA certificate',
+                          present: !!selected.psira_certificate_url }]}
+                        onCancel={() => setDecision(null)}
+                        onSubmit={(note, clearDocs) => handleRequestInfo(selected.id, note, clearDocs)}
+                      />
                     )}
                     {selected.status === 'active' && (
                       <span className="flex items-center gap-2 text-[#10B981] font-black text-[11px] uppercase tracking-widest">
@@ -535,7 +583,7 @@ export default function AdminServicesPage() {
               placeholder="e.g. Incomplete information, unable to verify credentials..."
               className="w-full bg-[#080B12] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#E8EAF0] resize-none focus:outline-none focus:border-[#E63946]/50 mb-4" />
             <div className="flex gap-3">
-              <button onClick={handleReject} disabled={!rejectReason.trim()}
+              <button onClick={handleReject} disabled={rejectReason.trim().length < 5}
                 className="flex-1 bg-red-500 text-white font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 disabled:opacity-50">
                 Reject
               </button>
