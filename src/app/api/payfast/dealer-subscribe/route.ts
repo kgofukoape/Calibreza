@@ -188,6 +188,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // The free trial is always Premium (agreed Oct 2026). A dealer who has
+    // never had a trial can only start one on Premium; they can change plan
+    // or cancel before the first charge.
+    if (trialEligible && plan !== 'premium') {
+      return NextResponse.json(
+        { error: 'The free trial is on Premium. Start your Premium trial first; ' +
+          'you can change plan or cancel before your first charge.' },
+        { status: 400 },
+      );
+    }
+
     // 5. Founding slot, counted from the ledger so a deleted account does not
     //    return its slot. Two dealers checking out at the same moment may both
     //    be offered the last slot; whatever they were shown is honoured.
@@ -240,6 +251,23 @@ export async function POST(req: NextRequest) {
       description = `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} to month end, then R${fullPrice} on the 1st of each month`;
     }
 
+    // Preview: what checkout would charge, without starting it. The start-
+    // trial page uses this to show the exact trial length and first charge.
+    if (body?.preview === true) {
+      return NextResponse.json({
+        summary: {
+          pay_today: amount.toFixed(2),
+          recurring: fullPrice.toFixed(2),
+          first_charge_on: ymdString(firstCharge),
+          trial: trialEligible,
+          founding: isFounding,
+          trial_months: trialEligible
+            ? (isFounding ? FOUNDING_TRIAL_MONTHS : STANDARD_TRIAL_MONTHS)
+            : 0,
+        },
+      });
+    }
+
     // 7. Build the checkout fields in PayFast's documented order
     const origin = req.nextUrl.origin;
     const businessName = (dealer.business_name || 'Dealer').trim();
@@ -247,8 +275,14 @@ export async function POST(req: NextRequest) {
     const raw: Array<[string, string]> = [
       ['merchant_id', process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || ''],
       ['merchant_key', process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || ''],
-      ['return_url', `${origin}/dealer-dashboard/subscription?success=true`],
-      ['cancel_url', `${origin}/dealer-dashboard/subscription?cancel=true`],
+      // A trial checkout comes back to the start-trial page, which waits
+      // for PayFast to confirm the card before opening the dashboard.
+      ['return_url', trialEligible
+        ? `${origin}/dealer-dashboard/start-trial?done=1`
+        : `${origin}/dealer-dashboard/subscription?success=true`],
+      ['cancel_url', trialEligible
+        ? `${origin}/dealer-dashboard/start-trial?cancel=1`
+        : `${origin}/dealer-dashboard/subscription?cancel=true`],
       ['notify_url', `${origin}/api/payfast/notify`],
       ['name_first', businessName],
       ['email_address', (dealer.email || user.email || '').trim()],
