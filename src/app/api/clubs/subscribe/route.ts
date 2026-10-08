@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
       const endSast = new Date(trialEndMs + 2 * 60 * 60 * 1000);
       const endYmd: Ymd = {
         y: endSast.getUTCFullYear(),
-        m: endSast.getUTCMonth() + 1,
+        m: endSast.getUTCMonth(), // 0-based, like every Ymd in this file
         d: endSast.getUTCDate(),
       };
       firstCharge = endYmd.d === 1 ? endYmd : firstOfNextMonth(endYmd);
