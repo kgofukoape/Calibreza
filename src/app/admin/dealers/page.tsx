@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminNav from '@/components/admin/AdminNav';
+import DecisionModal, { type DecisionKind } from '@/components/admin/DecisionModal';
 import { openDocument, DOCUMENT_BUCKETS } from '@/lib/documents';
 
 const TIERS = ['free', 'pay_per_ad', 'pro', 'premium'];
@@ -47,6 +48,7 @@ export default function AdminDealersPage() {
   const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [modMsg, setModMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [decision, setDecision] = useState<{ id: string; kind: DecisionKind } | null>(null);
   const [suspending, setSuspending] = useState<string | null>(null);
   const [changingTier, setChangingTier]   = useState<string | null>(null);
 
@@ -94,18 +96,20 @@ export default function AdminDealersPage() {
   // Writes also go through the admin route. The only UPDATE policy on dealers
   // is `auth.uid() = user_id`, i.e. a dealer may edit only their own row — so
   // every admin write from the browser was silently rejected by RLS.
-  const handleStatusChange = async (dealerId: string, newStatus: string) => {
+  const handleStatusChange = async (dealerId: string, newStatus: string,
+    extra: { reason?: string; clearDocs?: string[] } = {}) => {
     setActionLoading(dealerId);
     setModMsg(null);
     try {
       const res = await fetch('/api/admin/suspend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'set_status', status: newStatus }),
+        body: JSON.stringify({ entityType: 'dealer', entityId: dealerId, action: 'set_status', status: newStatus, ...extra }),
       });
       const data = await res.json();
       if (res.ok) {
         setModMsg({ kind: 'ok', text: data.message || 'Updated.' });
+        setDecision(null);
         const patch = data.update || { status: newStatus };
         setDealers(prev => prev.map(d => d.id === dealerId ? ({ ...d, ...patch } as any) : d));
         if (selectedDealer?.id === dealerId) {
@@ -435,18 +439,49 @@ export default function AdminDealersPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-[#0D1420] border border-white/5 rounded-sm p-4">
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Application Status</p>
-                    <div className="flex gap-2">
-                      {['pending', 'approved', 'rejected'].map(status => (
-                        <button key={status} onClick={() => handleStatusChange(selectedDealer.id, status)}
-                          disabled={actionLoading === selectedDealer.id || selectedDealer.status === status}
-                          className={`flex-1 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { s: 'pending', label: 'Pending' },
+                        { s: 'approved', label: 'Approve' },
+                        { s: 'info_requested', label: 'Request info' },
+                        { s: 'rejected', label: 'Reject' },
+                      ].map(({ s: status, label }) => (
+                        <button key={status}
+                          onClick={() => (status === 'rejected' || status === 'info_requested')
+                            ? setDecision({ id: selectedDealer.id, kind: status as DecisionKind })
+                            : handleStatusChange(selectedDealer.id, status)}
+                          disabled={actionLoading === selectedDealer.id
+                            || (selectedDealer.status === status && status !== 'info_requested')}
+                          className={`flex-1 min-w-[45%] py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
                             selectedDealer.status === status
                               ? status === 'approved' ? 'bg-[#10B981] text-white'
                                 : status === 'pending' ? 'bg-[#F59E0B] text-black'
+                                : status === 'info_requested' ? 'bg-[#3B82F6] text-white'
                                 : 'bg-[#E63946] text-white'
                               : 'bg-white/5 text-white/40 hover:bg-white/10'
-                          }`}>{status}</button>
+                          }`}>{label}</button>
                       ))}
+                      {(selectedDealer as any).review_note && (
+                        <p className="basis-full text-[11px] text-white/60 mt-2 whitespace-pre-wrap">
+                          <span className="text-white/40 uppercase tracking-widest font-black text-[9px]">Last note sent: </span>
+                          {(selectedDealer as any).review_note}
+                        </p>
+                      )}
+                      {decision && decision.id === selectedDealer.id && (
+                        <DecisionModal
+                          kind={decision.kind}
+                          name={selectedDealer.business_name}
+                          busy={actionLoading === selectedDealer.id}
+                          docs={[
+                            ['saps_certificate_url', 'SAPS dealer certificate'],
+                            ['business_registration_url', 'Business registration'],
+                            ['id_document_url', 'ID document'],
+                          ].map(([key, label]) => ({ key, label, present: !!(selectedDealer as any)[key] }))}
+                          onCancel={() => setDecision(null)}
+                          onSubmit={(note, clearDocs) =>
+                            handleStatusChange(selectedDealer.id, decision.kind, { reason: note, clearDocs })}
+                        />
+                      )}
                     </div>
                   </div>
 

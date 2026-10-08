@@ -19,6 +19,8 @@ export interface BusinessStatus {
   /** Still waiting on us: not approved and not suspended. */
   needsApproval: boolean;
   createdAt: string | null;
+  /** The full row, for the review note and document fields. */
+  row: any;
 }
 
 export async function isBusinessAccount(userId: string): Promise<boolean> {
@@ -42,6 +44,7 @@ function build(type: BusinessType, row: any, name: string): BusinessStatus {
     // suspension; it is not waiting for a first approval.
     needsApproval: !approved && status !== 'suspended',
     createdAt: row?.created_at || null,
+    row,
   };
 }
 

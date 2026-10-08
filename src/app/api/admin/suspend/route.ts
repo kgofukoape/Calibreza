@@ -44,7 +44,7 @@ const TABLES: Record<string, {
   dealer: {
     table: 'dealers',
     activeStatus: 'approved',
-    statuses: ['pending', 'approved', 'rejected'],
+    statuses: ['pending', 'approved', 'rejected', 'info_requested'],
     // is_verified was missing, so the verification page could not award a
     // dealer their badge through this route even though it could for a club.
     fields: ['is_verified'],
@@ -52,13 +52,13 @@ const TABLES: Record<string, {
   club: {
     table: 'clubs',
     activeStatus: 'active',
-    statuses: ['pending', 'active', 'rejected'],
+    statuses: ['pending', 'active', 'rejected', 'info_requested'],
     fields: ['is_verified'],
   },
   service: {
     table: 'services',
     activeStatus: 'active',
-    statuses: ['pending', 'active', 'rejected'],
+    statuses: ['pending', 'active', 'rejected', 'info_requested'],
     // saps_accredited is CLAIMED on the application form and GRANTED here. The
     // database guard forces it to false on insert, because it shows on the
     // public listing and a self-awarded value is a false credential.
@@ -115,6 +115,121 @@ const TABLES: Record<string, {
   },
 };
 
+// --- DECISION EMAILS -------------------------------------------------------
+// Approve, reject and request-information decisions are emailed to the
+// applicant. Request-information can clear named documents so the applicant
+// can upload new copies from their pending page; the old files stay in
+// storage as a record.
+
+const CLEARABLE_DOCS: Record<string, string[]> = {
+  dealer: ['saps_certificate_url', 'business_registration_url', 'id_document_url'],
+  club: ['saps_registration_url', 'compliance_cert_url', 'business_registration_url'],
+  service: ['psira_certificate_url'],
+};
+
+const DOC_LABELS: Record<string, string> = {
+  saps_certificate_url: 'SAPS dealer certificate',
+  business_registration_url: 'Business registration',
+  id_document_url: 'ID document',
+  saps_registration_url: 'SAPS registration',
+  compliance_cert_url: 'Compliance certificate',
+  psira_certificate_url: 'PSIRA certificate',
+};
+
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
+
+const escHtml = (v: unknown): string =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+async function sendDecisionEmail(o: {
+  entityType: string; entity: any; target: string;
+  activeStatus: string; note: string; cleared: string[];
+}): Promise<true | string> {
+  const to: string = o.entity.email || '';
+  if (!to) return 'no email address on the application';
+  if (!process.env.RESEND_API_KEY) return 'email is not configured';
+
+  const name = o.entity.business_name || o.entity.name || 'your business';
+  const kind = o.entityType === 'dealer' ? 'dealer'
+    : o.entityType === 'club' ? 'club or range' : 'service provider';
+  const p = (t: string) => `<p style="margin:0 0 14px;line-height:1.6;">${t}</p>`;
+  const button = (href: string, label: string) =>
+    `<a href="${href}" style="display:inline-block;background:#C9922A;color:#000;` +
+    `font-weight:bold;font-size:14px;text-transform:uppercase;letter-spacing:2px;` +
+    `padding:14px 28px;border-radius:4px;text-decoration:none;">${label}</a>`;
+  const quote = (t: string) =>
+    `<div style="border-left:3px solid #C9922A;padding:8px 14px;margin:0 0 14px;` +
+    `color:#F0EDE8;white-space:pre-wrap;">${escHtml(t)}</div>`;
+
+  let subject = '';
+  let body = '';
+  if (o.target === o.activeStatus) {
+    subject = `${name} is approved on Gun X`;
+    body = p(`Good news: your ${kind} account for <strong>${escHtml(name)}</strong> ` +
+      'has been approved.');
+    if (o.entityType === 'dealer') {
+      body += p('<strong style="color:#C9922A;">Next step: start your free Premium ' +
+        'trial. You pay R0 today.</strong>');
+      body += p('Sign in and add your card through PayFast. You get every Premium ' +
+        'feature free for 2 months (our first 50 dealers) or 1 month. We email you ' +
+        '5 days before your first charge, and you can cancel, or switch to Pro or ' +
+        'Free, at any time before then.');
+    } else {
+      body += p('Your profile is live on Gun X and your dashboard is open.');
+    }
+    body += button(`${SITE}/business/login`, 'Sign in');
+  } else if (o.target === 'rejected') {
+    subject = `Your Gun X application for ${name}`;
+    body = p(`We could not approve the ${kind} application for ` +
+      `<strong>${escHtml(name)}</strong>. The reason:`);
+    body += quote(o.note);
+    body += p('If you can resolve this, or think it is a mistake, reply to this ' +
+      'email or write to support@gunx.co.za.');
+  } else {
+    subject = `We need a little more for ${name}`;
+    body = p(`Thank you for applying. Before we can approve ` +
+      `<strong>${escHtml(name)}</strong> we need the following:`);
+    body += quote(o.note);
+    if (o.cleared.length) {
+      body += p('Please upload new copies of: <strong>' +
+        o.cleared.map((c) => DOC_LABELS[c] || c).join(', ') + '</strong>.');
+    }
+    body += p('Sign in and you will see exactly what to do on your application page.');
+    body += button(`${SITE}/business/login`, 'Sign in');
+  }
+
+  const html =
+    `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;` +
+    `background:#0D0F13;color:#C9CCD3;padding:32px;border-radius:8px;">` +
+    `<h1 style="color:#C9922A;font-size:22px;margin:0 0 20px;">Gun X</h1>` +
+    body + `</div>`;
+
+  const cc = o.entity.responsible_person_email &&
+    String(o.entity.responsible_person_email).toLowerCase() !== to.toLowerCase()
+    ? [o.entity.responsible_person_email] : undefined;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Gun X <notifications@gunx.co.za>',
+        to: [to], cc, reply_to: 'support@gunx.co.za',
+        subject, html,
+      }),
+    });
+    if (!res.ok) return `Resend refused it: ${(await res.text()).slice(0, 160)}`;
+    return true;
+  } catch (e: any) {
+    return e?.message || 'unknown error';
+  }
+}
+
 export async function POST(req: NextRequest) {
   // ── Admin only ─────────────────────────────────────────────────────────────
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -169,37 +284,53 @@ export async function POST(req: NextRequest) {
 
     const update: Record<string, any> = { status: target };
 
-    // Grant the 2-month free Pro trial on first approval, once only
-    if (
-      entityType === 'dealer' &&
-      target === 'approved' &&
-      !entity.trial_used &&
-      !['pro', 'premium'].includes(entity.subscription_tier || '')
-    ) {
-      const end = new Date();
-      end.setDate(end.getDate() + 60);
-      update.subscription_tier = 'pro';
-      update.subscription_status = 'trial';
-      update.trial_start_date = now;
-      update.trial_end_date = end.toISOString();
-      update.current_period_end = end.toISOString();
+    // Approval does not start a trial. The trial begins only when the dealer
+    // puts a card on file through PayFast (R0 today), which records it in
+    // the trial ledger and the founding count. Granting one here gave a
+    // second free trial and skipped both.
+
+    // Decisions on an application (dealers, clubs, service providers)
+    const isApplication = ['dealer', 'club', 'service'].includes(entityType);
+    const note = reason.trim();
+    let cleared: string[] = [];
+    if (isApplication) {
+      if (target === 'rejected' || target === 'info_requested') {
+        if (note.length < 5) {
+          return NextResponse.json({
+            error: target === 'rejected'
+              ? 'Give the applicant a reason (at least 5 characters).'
+              : 'Tell the applicant what you need (at least 5 characters).',
+          }, { status: 400 });
+        }
+        update.review_note = note;
+      } else if (target === config.activeStatus) {
+        update.review_note = null;
+      }
+      if (target === 'info_requested' && Array.isArray(body?.clearDocs)) {
+        const allowed = CLEARABLE_DOCS[entityType] || [];
+        cleared = (body.clearDocs as unknown[])
+          .filter((c): c is string => typeof c === 'string' && allowed.includes(c));
+        cleared.forEach((c) => { update[c] = null; });
+      }
     }
 
     const { error } = await supabase.from(config.table).update(update).eq('id', entityId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    if (update.trial_start_date) {
-      try {
-        await supabase.from('subscription_events').insert({
-          entity_type: entityType,
-          entity_id: entityId,
-          event_type: 'trial_started',
-          from_tier: entity.subscription_tier || 'free',
-          to_tier: 'pro',
-          actor: 'admin',
-          notes: '2-month free Pro trial granted on approval',
-        });
-      } catch { /* non-blocking */ }
+    // Tell the applicant: once per real change of decision, or whenever a
+    // new information request is sent.
+    let emailNote = '';
+    const decided = ['rejected', 'info_requested', config.activeStatus].includes(target);
+    const changed = entity.status !== target
+      || (target === 'info_requested' && entity.review_note !== note);
+    if (isApplication && decided && changed) {
+      const sent = await sendDecisionEmail({
+        entityType, entity, target,
+        activeStatus: config.activeStatus, note, cleared,
+      });
+      emailNote = sent === true
+        ? ' Email sent to the applicant.'
+        : ` Email NOT sent: ${sent}`;
     }
 
     // WHO CHANGED THIS, AND WHEN.
@@ -222,9 +353,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       status: target,
       update,
-      message: update.trial_start_date
-        ? 'Approved, and the 2-month free Pro trial has started.'
-        : `Status set to ${target}.`,
+      message: `Status set to ${target}.${emailNote}`,
     });
   }
 
