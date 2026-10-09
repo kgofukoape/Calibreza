@@ -19,6 +19,11 @@ const CONFIG: Record<string, { table: string; bucket: string; docs: string[] }> 
     bucket: 'dealer-documents',
     docs: ['saps_certificate_url', 'business_registration_url', 'id_document_url'],
   },
+  shooting_club: {
+    table: 'shooting_clubs',
+    bucket: 'business-documents',
+    docs: ['affiliation_letter_url', 'accreditation_cert_url', 'business_registration_url', 'constitution_url'],
+  },
   club: {
     table: 'clubs',
     bucket: 'business-documents',
@@ -49,7 +54,9 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const kind = body?.kind === 'range' ? 'club' : String(body?.kind || '');
+  const raw = String(body?.kind || '');
+  // Ranges live in the clubs table; shooting clubs have their own.
+  const kind = raw === 'range' ? 'club' : raw === 'club' ? 'shooting_club' : raw;
   const cfg = CONFIG[kind];
   const action = String(body?.action || '');
   if (!cfg || !['upload', 'submit'].includes(action)) {

@@ -77,6 +77,20 @@ export default function BusinessLoginPage() {
         return;
       }
 
+      // -- Shooting clubs (their own table) ---------------------------------
+      const { data: shootingClub } = await supabase
+        .from('shooting_clubs').select('status').eq('user_id', user.id).maybeSingle();
+      if (shootingClub) {
+        // Suspended clubs still open the portal, read-only, to see why.
+        if (!['approved', 'suspended'].includes(shootingClub.status)) {
+          router.replace('/business/pending');
+          setLoading(false);
+          return;
+        }
+        router.push(BUSINESS_TYPES.club.dashboardPath);
+        return;
+      }
+
       // ── Clubs and ranges (one table, facility_type distinguishes them) ────
       const { data: club } = await supabase
         .from('clubs').select('status, facility_type').eq('user_id', user.id).maybeSingle();

@@ -27,7 +27,7 @@ export interface BusinessType {
   /** Where they land once approved. */
   dashboardPath: string;
   /** Table holding the business record. */
-  table: 'dealers' | 'clubs' | 'services' | 'advocacy_groups';
+  table: 'dealers' | 'clubs' | 'services' | 'advocacy_groups' | 'shooting_clubs';
   /** The status value that means "approved" for this type. */
   approvedStatus: string;
   /** Consent bundle recorded when the application is submitted. */
@@ -55,11 +55,11 @@ export const BUSINESS_TYPES: Record<BusinessTypeId, BusinessType> = {
     blurb: 'List your club, disciplines, shoot days and membership details.',
     icon: '🎯',
     applyPath: '/clubs/apply',
-    dashboardPath: '/club-dashboard',
-    table: 'clubs',
-    approvedStatus: 'active',
+    dashboardPath: '/club-portal',
+    table: 'shooting_clubs',
+    approvedStatus: 'approved',
     consentContext: 'club_application',
-    requirements: 'Club details, disciplines and association memberships',
+    requirements: 'SAPS accreditation or affiliation proof, CIPC registration or constitution',
   },
   range: {
     id: 'range',

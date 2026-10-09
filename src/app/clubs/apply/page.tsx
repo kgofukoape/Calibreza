@@ -74,6 +74,7 @@ export default function ClubApplyPage() {
     rp_name: '', rp_role: '', rp_email: '', rp_phone: '',
     shoots_at: '' as '' | 'own' | 'other',
     range_setting: '', shoots_at_range: '',
+    cipc_number: '', valid_until: '',
   });
 
   const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
@@ -92,9 +93,12 @@ export default function ClubApplyPage() {
           return;
         }
         setUserId(user.id);
-        const { data: ex } = await supabase
-          .from('clubs').select('status').eq('user_id', user.id).maybeSingle();
-        if (ex) setExisting(ex.status);
+        // Any club or range already on this account counts.
+        const [{ data: sc }, { data: rg }] = await Promise.all([
+          supabase.from('shooting_clubs').select('status').eq('user_id', user.id).maybeSingle(),
+          supabase.from('clubs').select('status').eq('user_id', user.id).maybeSingle(),
+        ]);
+        if (sc || rg) setExisting((sc || rg)!.status);
         const meta = user.user_metadata || {};
         setF((p) => ({
           ...p,
@@ -146,6 +150,9 @@ export default function ClubApplyPage() {
       p.push('Responsible person: name, role, email and phone');
     }
     if (!f.shoots_at) p.push('Where the club shoots');
+    if (cipcDoc && !f.cipc_number.trim()) p.push('CIPC registration number');
+    if (!f.valid_until) p.push('Valid until date for your affiliation or accreditation');
+    else if (f.valid_until < new Date().toISOString().slice(0, 10)) p.push('A valid until date that has not passed');
     if (f.shoots_at === 'own' && !f.range_setting) p.push('Indoor or outdoor range');
     if (f.shoots_at === 'other' && !f.shoots_at_range.trim()) p.push('The range you use');
     if (!acceptTerms || !acceptPrivacy) p.push('Accept the Terms and Privacy Policy');
@@ -180,11 +187,10 @@ export default function ClubApplyPage() {
 
       const slug = f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-      const { error } = await supabase.from('clubs').insert({
+      const { error } = await supabase.from('shooting_clubs').insert({
         user_id: userId,
         name: f.name.trim(),
         slug,
-        facility_type: 'club',
         description: f.description.trim(),
         founded_year: f.founded_year ? parseInt(f.founded_year, 10) : null,
         disciplines: f.disciplines,
@@ -206,9 +212,10 @@ export default function ClubApplyPage() {
         accreditation_cert_url,
         affiliation_letter_url,
         associations,
+        cipc_number: f.cipc_number.trim() || null,
+        compliance_valid_until: f.valid_until,
         business_registration_url: cipcPath,
         constitution_url: constitutionPath,
-        responsible_person: f.rp_name.trim(),
         responsible_person_name: f.rp_name.trim(),
         responsible_person_role: f.rp_role.trim(),
         responsible_person_email: f.rp_email.trim(),
@@ -216,8 +223,6 @@ export default function ClubApplyPage() {
         shoots_at: f.shoots_at,
         range_setting: f.shoots_at === 'own' ? f.range_setting : null,
         shoots_at_range: f.shoots_at === 'other' ? f.shoots_at_range.trim() : null,
-        status: 'pending',
-        is_verified: false,
       });
       if (error) throw new Error(error.message);
 
@@ -232,7 +237,7 @@ export default function ClubApplyPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${s.session?.access_token || ''}`,
           },
-          body: JSON.stringify({ kind: 'club' }),
+          body: JSON.stringify({ kind: 'shooting_club' }),
         });
       } catch (e) {
         console.error('Notify failed (non-blocking):', e);
@@ -484,9 +489,20 @@ export default function ClubApplyPage() {
               </div>
             )}
 
+            {f.compliance_status && (
+              <div>
+                <label className={label}>
+                  {f.compliance_status === 'affiliated' ? 'Affiliation letter valid until *' : 'Accreditation valid until *'}
+                </label>
+                <input type="date" className={input} value={f.valid_until}
+                  onChange={(e) => set('valid_until', e.target.value)} />
+              </div>
+            )}
             <div className="flex flex-col gap-3">
               <label className={label}>Proof the club exists * (upload one or both)</label>
               {fileField('CIPC registration certificate (company or NPC)', cipcDoc, setCipcDoc)}
+              <input className={input} value={f.cipc_number} onChange={(e) => set('cipc_number', e.target.value)}
+                placeholder="CIPC registration number, e.g. 2015/123456/08 (required with a CIPC certificate)" />
               {fileField('Signed club constitution (voluntary association)', constitutionDoc, setConstitutionDoc)}
             </div>
 

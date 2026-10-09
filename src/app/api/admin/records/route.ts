@@ -22,6 +22,7 @@ const supabase = createClient(
 const TABLES: Record<string, { table: string; orderBy: string }> = {
   dealer:  { table: 'dealers',  orderBy: 'created_at' },
   club:    { table: 'clubs',    orderBy: 'created_at' },
+  shooting_club: { table: 'shooting_clubs', orderBy: 'created_at' },
   service: { table: 'services', orderBy: 'created_at' },
   user:    { table: 'users',    orderBy: 'member_since' },
   // The ads table's only public SELECT policy is `status = 'active'`, so

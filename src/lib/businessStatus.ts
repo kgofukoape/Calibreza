@@ -56,6 +56,13 @@ export async function getBusinessStatus(userId: string): Promise<BusinessStatus 
     return build(BUSINESS_TYPES.dealer, dealer, dealer.business_name || 'Your business');
   }
 
+  // Shooting clubs have their own table (Oct 2026); the clubs table is ranges.
+  const { data: shootingClub } = await supabase
+    .from('shooting_clubs').select('*').eq('user_id', userId).maybeSingle();
+  if (shootingClub) {
+    return build(BUSINESS_TYPES.club, shootingClub, shootingClub.name || 'Your club');
+  }
+
   const { data: club } = await supabase
     .from('clubs').select('*').eq('user_id', userId).maybeSingle();
   if (club) {

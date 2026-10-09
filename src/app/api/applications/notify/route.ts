@@ -22,7 +22,7 @@ const BASE_URL =
 const LIMIT = 3;
 const WINDOW_MS = 10 * 60 * 1000;
 
-type Kind = 'dealer' | 'club' | 'service';
+type Kind = 'dealer' | 'club' | 'service' | 'shooting_club';
 
 interface KindConfig {
   table: string;
@@ -90,6 +90,37 @@ const CONFIG: Record<Kind, KindConfig> = {
       ['responsible_person_name', 'Responsible person'],
       ['responsible_person_role', 'Role'],
       ['responsible_person_phone', 'Responsible person phone'],
+      ['shoots_at', 'Shoots at'],
+      ['shoots_at_range', 'Range used'],
+    ],
+  },
+  shooting_club: {
+    table: 'shooting_clubs',
+    bucket: 'business-documents',
+    title: 'Shooting club application',
+    admin: '/admin/shooting-clubs',
+    nameCol: 'name',
+    docs: [
+      ['affiliation_letter_url', 'Affiliation letter'],
+      ['accreditation_cert_url', 'SAPS accreditation certificate'],
+      ['business_registration_url', 'CIPC registration'],
+      ['constitution_url', 'Club constitution'],
+    ],
+    fields: [
+      ['name', 'Club'],
+      ['compliance_status', 'Compliance'],
+      ['associations', 'Affiliated to'],
+      ['accreditation_number', 'SAPS accreditation no.'],
+      ['compliance_valid_until', 'Valid until'],
+      ['cipc_number', 'CIPC no.'],
+      ['responsible_person_name', 'Responsible person'],
+      ['responsible_person_role', 'Role'],
+      ['responsible_person_email', 'Their email'],
+      ['responsible_person_phone', 'Their phone'],
+      ['email', 'Club email'],
+      ['phone', 'Club phone'],
+      ['city', 'City'],
+      ['province', 'Province'],
       ['shoots_at', 'Shoots at'],
       ['shoots_at_range', 'Range used'],
     ],
@@ -201,6 +232,7 @@ export async function POST(req: NextRequest) {
     // Documents: a fresh 48-hour signed link for each one
     const docRows: string[] = [];
     for (const [col, label] of cfg.docs) {
+      if (kind === 'shooting_club' && !row[col]) continue;
       // Clubs list only the documents they uploaded; ranges skip club-only ones.
       if (kind === 'club' && row.facility_type === 'club' && !row[col]) continue;
       if (kind === 'club' && row.facility_type !== 'club'

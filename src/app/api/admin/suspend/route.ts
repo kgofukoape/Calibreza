@@ -55,6 +55,12 @@ const TABLES: Record<string, {
     statuses: ['pending', 'active', 'rejected', 'info_requested'],
     fields: ['is_verified'],
   },
+  shooting_club: {
+    table: 'shooting_clubs',
+    activeStatus: 'approved',
+    statuses: ['pending', 'approved', 'rejected', 'info_requested'],
+    fields: ['is_verified'],
+  },
   service: {
     table: 'services',
     activeStatus: 'active',
@@ -125,6 +131,7 @@ const CLEARABLE_DOCS: Record<string, string[]> = {
   dealer: ['saps_certificate_url', 'business_registration_url', 'id_document_url'],
   club: ['saps_registration_url', 'compliance_cert_url', 'business_registration_url',
     'affiliation_letter_url', 'accreditation_cert_url', 'constitution_url'],
+  shooting_club: ['affiliation_letter_url', 'accreditation_cert_url', 'business_registration_url', 'constitution_url'],
   service: ['psira_certificate_url'],
 };
 
@@ -157,7 +164,7 @@ async function sendDecisionEmail(o: {
 
   const name = o.entity.business_name || o.entity.name || 'your business';
   const kind = o.entityType === 'dealer' ? 'dealer'
-    : o.entityType === 'club' ? 'club or range' : 'service provider';
+    : o.entityType === 'shooting_club' ? 'club' : o.entityType === 'club' ? 'club or range' : 'service provider';
   const p = (t: string) => `<p style="margin:0 0 14px;line-height:1.6;">${t}</p>`;
   const button = (href: string, label: string) =>
     `<a href="${href}" style="display:inline-block;background:#C9922A;color:#000;` +
@@ -188,7 +195,7 @@ async function sendDecisionEmail(o: {
           'Active feature are switched on now. After 60 days you can carry on at ' +
           'R499 per month, or stay listed on Gun X for free.');
       } else {
-        body += p(o.entityType === 'club' && o.entity.facility_type === 'club'
+        body += p((o.entityType === 'shooting_club' || (o.entityType === 'club' && o.entity.facility_type === 'club'))
           ? 'Your club is now listed in the Gun X directory. Listing your club is free.'
           : 'Your profile is live on Gun X and your dashboard is open.');
       }
@@ -304,7 +311,7 @@ export async function POST(req: NextRequest) {
     // second free trial and skipped both.
 
     // Decisions on an application (dealers, clubs, service providers)
-    const isApplication = ['dealer', 'club', 'service'].includes(entityType);
+    const isApplication = ['dealer', 'club', 'service', 'shooting_club'].includes(entityType);
     const note = reason.trim();
     let cleared: string[] = [];
     if (isApplication) {
@@ -320,6 +327,11 @@ export async function POST(req: NextRequest) {
       } else if (target === config.activeStatus) {
         update.review_note = null;
         update.review_docs = null;
+        if (entityType === 'shooting_club') {
+          // Approving a club also verifies it: approval means the documents were checked.
+          update.is_verified = true;
+          update.approved_at = now;
+        }
         // Clubs and ranges: 60 days of the Active plan free, no card needed
         // (agreed Oct 2026). Once only: never for a club that has had a
         // trial or already pays. The nightly job ends it after 60 days.

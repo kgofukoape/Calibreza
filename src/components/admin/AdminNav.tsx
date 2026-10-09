@@ -19,6 +19,7 @@ import { usePathname } from 'next/navigation';
 export interface AdminNavCounts {
   pendingDealers?: number;
   pendingClubs?: number;
+  pendingShootingClubs?: number;
   pendingServices?: number;
   pendingAdvocacy?: number;
   pendingJobs?: number;
@@ -40,7 +41,8 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: '/admin',              icon: '⚡',  label: 'Overview',      group: 'review' },
   { href: '/admin/dealers',      icon: '🏪', label: 'Dealers',       countKey: 'pendingDealers',      group: 'review' },
-  { href: '/admin/clubs',        icon: '⊕',  label: 'Clubs & Ranges',countKey: 'pendingClubs',        group: 'review' },
+  { href: '/admin/shooting-clubs',        icon: '⊕',  label: 'Shooting Clubs',countKey: 'pendingShootingClubs',        group: 'review' },
+  { href: '/admin/clubs',        icon: '⊕',  label: 'Ranges',countKey: 'pendingClubs',        group: 'review' },
   { href: '/admin/services',     icon: '🔧', label: 'Services',      countKey: 'pendingServices',     group: 'review' },
   { href: '/admin/advocacy',     icon: '⚖️', label: 'Advocacy',      countKey: 'pendingAdvocacy',     group: 'review' },
   // Verification retired: documents are collected at application and reviewed

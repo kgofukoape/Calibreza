@@ -118,7 +118,7 @@ export default function BusinessPendingPage() {
     try {
       const session = await call({ kind: state.type.id, action: 'submit' });
       // Same forwarding email as a new application, with fresh document links
-      const kind = state.type.id === 'range' ? 'club' : state.type.id;
+      const kind = state.type.id === 'range' ? 'club' : state.type.id === 'club' ? 'shooting_club' : state.type.id;
       await fetch('/api/applications/notify', {
         method: 'POST',
         headers: {
