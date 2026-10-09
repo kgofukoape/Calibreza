@@ -58,7 +58,8 @@ export default function ClubApplyPage() {
   const [cover, setCover] = useState<File | null>(null);
   const [accreditationDoc, setAccreditationDoc] = useState<File | null>(null);
   const [affiliationDoc, setAffiliationDoc] = useState<File | null>(null);
-  const [entityDoc, setEntityDoc] = useState<File | null>(null);
+  const [cipcDoc, setCipcDoc] = useState<File | null>(null);
+  const [constitutionDoc, setConstitutionDoc] = useState<File | null>(null);
 
   const [f, setF] = useState({
     name: '', description: '', founded_year: '',
@@ -70,7 +71,6 @@ export default function ClubApplyPage() {
     accreditation_number: '',
     associations: [] as string[],
     other_association: '',
-    entity_type: '' as '' | 'cipc' | 'constitution',
     rp_name: '', rp_role: '', rp_email: '', rp_phone: '',
     shoots_at: '' as '' | 'own' | 'other',
     range_setting: '', shoots_at_range: '',
@@ -141,7 +141,7 @@ export default function ClubApplyPage() {
       if (f.associations.length === 0 && !f.other_association.trim()) p.push('The association you are affiliated to');
       if (!affiliationDoc) p.push('Affiliation letter for this year');
     }
-    if (!f.entity_type || !entityDoc) p.push('CIPC registration or club constitution');
+    if (!cipcDoc && !constitutionDoc) p.push('CIPC registration or club constitution (at least one)');
     if (!f.rp_name.trim() || !f.rp_role.trim() || !f.rp_email.trim() || !f.rp_phone.trim()) {
       p.push('Responsible person: name, role, email and phone');
     }
@@ -169,8 +169,9 @@ export default function ClubApplyPage() {
         ? await uploadDoc(accreditationDoc, 'accreditation-certificate', userId) : null;
       const affiliation_letter_url = f.compliance_status === 'affiliated' && affiliationDoc
         ? await uploadDoc(affiliationDoc, 'affiliation-letter', userId) : null;
-      const entityPath = await uploadDoc(entityDoc as File,
-        f.entity_type === 'cipc' ? 'cipc-registration' : 'club-constitution', userId);
+      const cipcPath = cipcDoc ? await uploadDoc(cipcDoc, 'cipc-registration', userId) : null;
+      const constitutionPath = constitutionDoc
+        ? await uploadDoc(constitutionDoc, 'club-constitution', userId) : null;
       const logo_url = logo ? await uploadImage(logo, 'logos') : null;
       const cover_url = cover ? await uploadImage(cover, 'covers') : null;
 
@@ -205,8 +206,8 @@ export default function ClubApplyPage() {
         accreditation_cert_url,
         affiliation_letter_url,
         associations,
-        business_registration_url: f.entity_type === 'cipc' ? entityPath : null,
-        constitution_url: f.entity_type === 'constitution' ? entityPath : null,
+        business_registration_url: cipcPath,
+        constitution_url: constitutionPath,
         responsible_person: f.rp_name.trim(),
         responsible_person_name: f.rp_name.trim(),
         responsible_person_role: f.rp_role.trim(),
@@ -484,20 +485,9 @@ export default function ClubApplyPage() {
             )}
 
             <div className="flex flex-col gap-3">
-              <label className={label}>Proof the club exists *</label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button type="button" onClick={() => set('entity_type', 'cipc')} className={choice(f.entity_type === 'cipc')}>
-                  <strong className="block text-[#F0EDE8]">CIPC registration</strong>
-                  Registered company or NPC.
-                </button>
-                <button type="button" onClick={() => set('entity_type', 'constitution')} className={choice(f.entity_type === 'constitution')}>
-                  <strong className="block text-[#F0EDE8]">Club constitution</strong>
-                  Voluntary association.
-                </button>
-              </div>
-              {f.entity_type && fileField(
-                f.entity_type === 'cipc' ? 'CIPC registration certificate *' : 'Signed club constitution *',
-                entityDoc, setEntityDoc)}
+              <label className={label}>Proof the club exists * (upload one or both)</label>
+              {fileField('CIPC registration certificate (company or NPC)', cipcDoc, setCipcDoc)}
+              {fileField('Signed club constitution (voluntary association)', constitutionDoc, setConstitutionDoc)}
             </div>
 
             <div>
