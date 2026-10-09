@@ -13,7 +13,8 @@ const MOBILE_NAV_LINKS = [
   { href: '/browse',            label: 'Browse Listings' },
   { href: '/dealers',           label: 'Dealers' },
   { href: '/wanted',            label: 'Wanted Ads' },
-  { href: '/clubs',             label: 'Clubs & Ranges' },
+  { href: '/clubs', label: 'Clubs' },
+  { href: '/ranges', label: 'Ranges' },
   { href: '/training',          label: 'Training Days' },
   { href: '/services',          label: 'Services' },
   { href: '/jobs',              label: 'Industry Jobs' },
@@ -30,6 +31,7 @@ export default function Navbar() {
   const [dealer, setDealer]                   = useState<any>(null);
   const [serviceProvider, setServiceProvider] = useState<any>(null);
   const [club, setClub]                       = useState<any>(null);
+  const [shootingClub, setShootingClub] = useState<any>(null);
   const [loading, setLoading]                 = useState(true);
   const [dropdownOpen, setDropdownOpen]       = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
@@ -131,14 +133,16 @@ export default function Navbar() {
   }, []);
 
   const checkDealer = async (userId: string) => {
-    const [dealerRes, serviceRes, clubRes] = await Promise.all([
+    const [dealerRes, serviceRes, clubRes, shootingRes] = await Promise.all([
       supabase.from('dealers').select('id, business_name, slug, subscription_tier, status').eq('user_id', userId).eq('status', 'approved').maybeSingle(),
       supabase.from('services').select('id, name, slug, type, status').eq('user_id', userId).maybeSingle(),
       supabase.from('clubs').select('id, name, slug, facility_type, status').eq('user_id', userId).maybeSingle(),
+      supabase.from('shooting_clubs').select('id, name, slug, status').eq('user_id', userId).maybeSingle(),
     ]);
     setDealer(dealerRes.data || null);
     setServiceProvider(serviceRes.data || null);
     setClub(clubRes.data || null);
+    setShootingClub(shootingRes.data || null);
     setLoading(false);
     loadUnreadCount(userId);
   };
@@ -192,13 +196,20 @@ export default function Navbar() {
   const getInitial = () => {
     if (dealer) return dealer.business_name?.charAt(0) || 'D';
     if (serviceProvider) return serviceProvider.name?.charAt(0) || 'S';
+    if (shootingClub) return shootingClub.name?.charAt(0) || 'C';
+    if (club) return club.name?.charAt(0) || 'R';
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name.charAt(0);
     return user?.email?.charAt(0).toUpperCase() || 'U';
   };
 
+  // Business accounts show the business name: the account outlives any one person.
+  const short = (s?: string) => (!s ? '' : s.length > 22 ? s.slice(0, 21) + '...' : s);
+
   const getDisplayName = () => {
-    if (dealer) return dealer.business_name;
-    if (serviceProvider) return serviceProvider.name;
+    if (dealer) return short(dealer.business_name);
+    if (serviceProvider) return short(serviceProvider.name);
+    if (shootingClub) return short(shootingClub.name);
+    if (club) return short(club.name);
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name.split(' ')[0];
     return user?.email?.split('@')[0] || 'Account';
   };
@@ -341,7 +352,8 @@ export default function Navbar() {
                 <div className="flex flex-col gap-3">
                   <h3 className="text-[#C9922A] text-[11px] font-black uppercase tracking-[0.3em] mb-2 border-b border-white/5 pb-2">Other</h3>
                   <Link href="/services" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Services</Link>
-                  <Link href="/clubs"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs & Ranges</Link>
+                  <Link href="/clubs"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Clubs</Link>
+                  <Link href="/ranges"    className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Ranges</Link>
                   <Link href="/training" className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Training Days</Link>
                   <Link href="/wanted"   className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Wanted Ads</Link>
                   <Link href="/jobs"     className="text-[13px] text-[#8A8E99] hover:text-white transition-colors">Industry Jobs</Link>
@@ -355,7 +367,8 @@ export default function Navbar() {
             </div>
             <Link href="/dealers"           className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Dealers</Link>
             <Link href="/wanted"            className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Wanted</Link>
-            <Link href="/clubs"             className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs & Ranges</Link>
+            <Link href="/clubs"             className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Clubs</Link>
+            <Link href="/ranges"             className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Ranges</Link>
             <Link href="/training"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Training</Link>
             <Link href="/services"          className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Services</Link>
             <Link href="/jobs"              className="text-[#8A8E99] font-bold uppercase tracking-widest text-[13px] hover:text-[#C9922A] transition-colors whitespace-nowrap">Jobs</Link>
@@ -444,12 +457,18 @@ export default function Navbar() {
                         <Link href="/service-dashboard?tab=portfolio" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>📸</span> My Portfolio</Link>
                         {serviceProvider.slug && <Link href={`/services/${serviceProvider.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>🔧</span> Public Profile</Link>}
                       </>
+                    ) : shootingClub ? (
+                      <>
+                        <Link href="/club-portal" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128202;</span> Club portal</Link>
+                        <Link href="/club-portal/calendar" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128197;</span> Calendar</Link>
+                        {shootingClub.status === 'approved' && shootingClub.slug && <Link href={`/clubs/${shootingClub.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#127919;</span> Public page</Link>}
+                      </>
                     ) : club ? (
                       <>
                         <Link href="/club-dashboard" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128202;</span> My Dashboard</Link>
                         <Link href="/club-dashboard?tab=bookings" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128197;</span> Bookings</Link>
                         <Link href="/club-dashboard?tab=live" className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#128308;</span> Live Status</Link>
-                        {club.slug && <Link href={`/clubs/${club.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#127919;</span> Public Page</Link>}
+                        {club.slug && <Link href={`/ranges/${club.slug}`} className="flex items-center gap-3 px-4 py-3 text-[12px] font-bold uppercase tracking-widest text-[#8A8E99] hover:bg-white/5 hover:text-[#F0EDE8] transition-all"><span>&#127919;</span> Public Page</Link>}
                       </>
                     ) : (
                       <>
@@ -566,6 +585,12 @@ export default function Navbar() {
                       <>
                         <Link href="/service-dashboard"            onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>📊</span> My Dashboard</Link>
                         {serviceProvider.slug && <Link href={`/services/${serviceProvider.slug}`} onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>🔧</span> Public Profile</Link>}
+                      </>
+                    ) : shootingClub ? (
+                      <>
+                        <Link href="/club-portal" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>&#128202;</span> Club portal</Link>
+                        <Link href="/club-portal/calendar" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>&#128197;</span> Calendar</Link>
+                        {shootingClub.status === 'approved' && shootingClub.slug && <Link href={`/clubs/${shootingClub.slug}`} onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-sm text-[14px] font-bold text-[#8A8E99] hover:text-[#F0EDE8] hover:bg-white/5"><span>&#127919;</span> Public page</Link>}
                       </>
                     ) : club ? (
                       <>

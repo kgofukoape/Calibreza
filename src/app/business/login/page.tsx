@@ -97,7 +97,7 @@ export default function BusinessLoginPage() {
 
       if (club) {
         // Clubs and ranges share the clubs table. /clubs/apply writes
-        // facility_type 'club'; /clubs/range-apply writes the range's physical
+        // facility_type 'club'; /ranges/apply writes the range's physical
         // type — 'indoor', 'outdoor' or 'both' — and older rows hold 'range'.
         // So the test is "not a club" rather than a list of range values, which
         // would break every time a new facility type is added.

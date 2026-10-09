@@ -66,7 +66,7 @@ export const BUSINESS_TYPES: Record<BusinessTypeId, BusinessType> = {
     label: 'Shooting Range',
     blurb: 'Publish lanes, live availability, range fees and booking slots.',
     icon: '🔫',
-    applyPath: '/clubs/range-apply',
+    applyPath: '/ranges/apply',
     dashboardPath: '/club-dashboard',
     table: 'clubs',
     approvedStatus: 'active',

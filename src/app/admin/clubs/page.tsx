@@ -400,7 +400,7 @@ export default function AdminClubsPage() {
                         : selected.status === 'suspended' ? '✓ Reinstate Club' : '⊘ Suspend Club'}
                     </button>
 
-                    <Link href={`/clubs/${selected.slug}`} target="_blank"
+                    <Link href={`/ranges/${selected.slug}`} target="_blank"
                       className="border border-white/10 text-white/60 font-black uppercase tracking-widest text-[11px] px-5 py-2.5 rounded-sm hover:bg-white/5 transition-all">
                       🌐 View Public Page
                     </Link>

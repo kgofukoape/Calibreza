@@ -42,7 +42,7 @@ const STATIC_ROUTES: Array<{ path: string; priority: number; freq: 'daily' | 'we
   { path: '/1911',                priority: 0.7, freq: 'weekly'  },
   { path: '/dealer/pricing',      priority: 0.5, freq: 'monthly' },
   { path: '/dealer/apply',        priority: 0.5, freq: 'monthly' },
-  { path: '/clubs/pricing',       priority: 0.5, freq: 'monthly' },
+  { path: '/ranges/pricing',       priority: 0.5, freq: 'monthly' },
   { path: '/clubs/apply',         priority: 0.4, freq: 'monthly' },
   // Legal — low priority but should be indexed for trust signals
   { path: '/terms',               priority: 0.3, freq: 'yearly'  },
@@ -130,7 +130,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     clubs?.forEach(c => {
       if (!c.slug) return;
       entries.push({
-        url: `${SITE_URL}/clubs/${c.slug}`,
+        url: `${SITE_URL}/ranges/${c.slug}`,
         lastModified: c.updated_at ? new Date(c.updated_at) : now,
         changeFrequency: 'weekly',
         priority: 0.7,

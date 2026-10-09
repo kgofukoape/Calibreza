@@ -39,7 +39,7 @@ const OFFERS = [
     headline: 'Shooting Ranges — List Free for 2 Months',
     detail: 'Booking system, live status & results board. R499/month after trial.',
     cta: 'Start Free →',
-    href: '/clubs/pricing',
+    href: '/ranges/pricing',
   },
   {
     icon: '🏪',
@@ -220,7 +220,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <Link href="/clubs/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
+                  <Link href="/ranges/pricing" style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
                     className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[11px] px-4 py-2 rounded-sm hover:brightness-110 whitespace-nowrap">
                     Start 2 Months Free
                   </Link>

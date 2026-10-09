@@ -1,714 +1,333 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import AdBanner from '@/components/AdBanner';
 import { supabase } from '@/lib/supabase';
-import dynamic from 'next/dynamic';
+import {
+  TYPE_LABEL, PERIOD_LABEL, sastDate, fmtWhen, waLink, safeUrl, mapsLink, recordClubView,
+} from '@/components/clubs/clubPublic';
 
 const ProfileMap = dynamic(() => import('@/components/ProfileMap'), { ssr: false });
 
-const NOTIFY_URL = '/api/rsvp/notify';
+// --- SHOOTING CLUB PUBLIC PAGE -----------------------------------------------
+// Clubs only (shooting_clubs_public). Ranges live at /ranges/[slug].
+// No booking, live status or weather: clubs show who they are, their
+// calendar, membership, photos and how to reach them.
 
-const FEE_LABEL: Record<string, string> = {
-  session: 'per session',
-  '30min': 'per 30 min',
-  hour: 'per hour',
-  day: 'per day',
-};
+const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-function checkIsPremium(club: any): boolean {
-  if (!club) return false;
-  const tier   = club.subscription_tier   || 'listed';
-  const status = club.subscription_status || 'free';
-  if (tier === 'active' && status === 'active') return true;
-  if (status === 'trial' && club.trial_end_date) {
-    return new Date() < new Date(club.trial_end_date);
-  }
-  return false;
-}
+export default function ClubPublicPage() {
+  const { slug } = useParams() as { slug: string };
+  const [club, setClub] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [status, setStatus] = useState<'loading' | 'ok' | 'missing'>('loading');
+  const today = sastDate(new Date().toISOString());
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [day, setDay] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<number | null>(null);
 
-export default function ClubDetailPage() {
-  const params = useParams();
-  const [club, setClub]                   = useState<any>(null);
-  const [loading, setLoading]             = useState(true);
-  const [activeTab, setActiveTab]         = useState('about');
-  const [selectedImage, setSelectedImage] = useState(0);
-  const [results, setResults]             = useState<any[]>([]);
-  const [clubListings, setClubListings]   = useState<any[]>([]);
-  const [weather, setWeather]             = useState<any>(null);
-  const [calendarDays, setCalendarDays]   = useState<any[]>([]);
-  const [selectedDate, setSelectedDate]   = useState('');
-  const [slotsForDate, setSlotsForDate]   = useState<any[]>([]);
-  const [selectedSlot, setSelectedSlot]   = useState<any>(null);
-  const [slotsLoading, setSlotsLoading]   = useState(false);
-  const [rsvpForm, setRsvpForm]           = useState({ user_name: '', user_email: '', user_phone: '', pax: 1, notes: '' });
-  const [rsvpSending, setRsvpSending]     = useState(false);
-  const [rsvpDone, setRsvpDone]           = useState(false);
-  const [rsvpError, setRsvpError]         = useState('');
+  useEffect(() => {
+    (async () => {
+      const { data: c } = await supabase.from('shooting_clubs_public').select('*').eq('slug', slug).maybeSingle();
+      if (!c) { setStatus('missing'); return; }
+      setClub(c);
+      const { data: ev } = await supabase.from('club_events').select('*')
+        .eq('club_id', c.id).gte('starts_at', new Date().toISOString())
+        .order('starts_at', { ascending: true }).limit(80);
+      setEvents(ev || []);
+      setStatus('ok');
+      recordClubView(c.id);
+    })();
+  }, [slug]);
 
-  useEffect(() => { fetchAll(); }, [params.slug]);
-
-  const fetchAll = async () => {
-    const { data } = await supabase.from('clubs').select('*').eq('slug', params.slug).in('status', ['active', 'approved']).single();
-    if (!data) { setLoading(false); return; }
-    setClub(data);
-
-    const schedule = Array.isArray(data.operating_schedule) ? data.operating_schedule : [];
-    const days = Array.from({ length: 21 }, (_, i) => {
-      const d = new Date(); d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-      const sched = schedule.find((s: any) => s.day === dayName);
-      return { date: dateStr, dayName, dayShort: dayName.slice(0, 3), dayNum: d.getDate(), month: d.toLocaleDateString('en-ZA', { month: 'short' }), isOpen: sched?.open ?? false, sched };
+  const byDay = useMemo(() => {
+    const m = new Map<string, any[]>();
+    events.forEach((e) => {
+      const k = sastDate(e.starts_at);
+      m.set(k, [...(m.get(k) || []), e]);
     });
-    setCalendarDays(days);
-    const firstOpen = days.find(d => d.isOpen);
-    if (firstOpen) setSelectedDate(firstOpen.date);
+    return m;
+  }, [events]);
 
-    const { data: resultData } = await supabase.from('shoot_results').select('*').eq('club_id', data.id).order('shoot_date', { ascending: false }).limit(10);
-    setResults(resultData || []);
-    // A club lists as the entity, not as the person behind it, so buyers
-    // can see they are dealing with the range.
-    const { data: listingData } = await supabase.from('listings')
-      .select('id, title, price, images, city, is_featured')
-      .eq('club_id', data.id).eq('status', 'active')
-      .order('is_featured', { ascending: false })
-      .order('created_at', { ascending: false });
-    setClubListings(listingData || []);
+  const grid = useMemo(() => {
+    const [y, m] = month.split('-').map(Number);
+    const startDow = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7;
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const cells: Array<string | null> = Array(startDow).fill(null);
+    for (let d = 1; d <= days; d++) cells.push(`${month}-${String(d).padStart(2, '0')}`);
+    while (cells.length % 7) cells.push(null);
+    return cells;
+  }, [month]);
 
-    if (data.city) {
-      try {
-        const res = await fetch(`https://wttr.in/${encodeURIComponent(data.city + ', South Africa')}?format=j1`);
-        if (res.ok) setWeather(await res.json());
-      } catch {}
-    }
-    setLoading(false);
+  const shift = (n: number) => {
+    const [y, m] = month.split('-').map(Number);
+    setMonth(new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7));
+    setDay(null);
   };
+  const maxMonth = (() => {
+    const [y, m] = today.slice(0, 7).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1 + 11, 1)).toISOString().slice(0, 7);
+  })();
 
-  useEffect(() => { if (club && selectedDate) fetchSlots(selectedDate); }, [selectedDate, club]);
-
-  const fetchSlots = async (date: string) => {
-    setSlotsLoading(true);
-    const { data } = await supabase.from('range_time_slots').select('*').eq('club_id', club.id).eq('slot_date', date).neq('status', 'blocked').order('start_time');
-    setSlotsForDate(data || []);
-    setSelectedSlot(null);
-    setSlotsLoading(false);
-  };
-
-  const handleRsvp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rsvpForm.user_name || !rsvpForm.user_email) { setRsvpError('Please fill in your name and email'); return; }
-    if (!selectedDate) { setRsvpError('Please select a date'); return; }
-    if (slotsForDate.length > 0 && !selectedSlot) { setRsvpError('Please select a time slot'); return; }
-    setRsvpSending(true); setRsvpError('');
-    try {
-      const dayName = calendarDays.find(d => d.date === selectedDate)?.dayName || '';
-      const confirmationToken = crypto.randomUUID();
-      const { error: rsvpErr } = await supabase.from('shoot_rsvps').insert({
-        club_id: club.id, day: dayName, shoot_date: selectedDate,
-        user_name: rsvpForm.user_name, user_email: rsvpForm.user_email,
-        user_phone: rsvpForm.user_phone || null, pax: Number(rsvpForm.pax),
-        notes: rsvpForm.notes || null, time_slot_id: selectedSlot?.id || null,
-        status: 'pending', confirmation_token: confirmationToken,
-      });
-      if (rsvpErr) { setRsvpError(`Booking failed: ${rsvpErr.message}`); setRsvpSending(false); return; }
-      if (selectedSlot) {
-        supabase.rpc('increment_slot_bookings', { slot_id: selectedSlot.id }).then(({ error }) => { if (error) console.warn('Slot increment:', error); });
-        setSlotsForDate(p => p.map(s => s.id === selectedSlot.id ? { ...s, booked_count: s.booked_count + 1, status: s.booked_count + 1 >= s.capacity ? 'full' : 'available' } : s));
-      }
-      const emailRes = await fetch(NOTIFY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: confirmationToken,
-          rsvp: { ...rsvpForm, day: dayName, shoot_date: selectedDate, time_slot: selectedSlot ? `${selectedSlot.start_time.slice(0,5)} – ${selectedSlot.end_time.slice(0,5)}` : null },
-          club: { name: club.name, email: club.email, phone: club.phone, booking_required: club.booking_required },
-        }),
-      });
-      if (!emailRes.ok) console.error('Email API error:', await emailRes.json());
-      setRsvpDone(true);
-    } catch (err: any) {
-      setRsvpError(`Error: ${err?.message || 'Please try again or call the range directly.'}`);
-    } finally {
-      setRsvpSending(false);
-    }
-  };
-
-  const currentWeather = weather?.current_condition?.[0];
-  const tempC          = currentWeather?.temp_C || '';
-  const windKmph       = currentWeather?.windspeedKmph || '';
-  const windDir        = currentWeather?.winddir16Point || '';
-  const visibilityKm   = currentWeather?.visibility || '';
-  const uvIndex        = currentWeather?.uvIndex || '';
-  const humidity       = currentWeather?.humidity || '';
-  const weatherDesc    = currentWeather?.weatherDesc?.[0]?.value || '';
-  const weatherCode    = Number(currentWeather?.weatherCode || 0);
-  const getWeatherIcon = (code: number) => {
-    if (code === 113) return '☀️';
-    if ([116, 119].includes(code)) return '⛅';
-    if ([122, 143, 248, 260].includes(code)) return '🌫️';
-    if ([176, 293, 296, 299, 302, 305, 308].includes(code)) return '🌧️';
-    if ([200, 386, 389].includes(code)) return '⛈️';
-    return '🌤️';
-  };
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#0D0F13] flex flex-col">
-      <Navbar />
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
+  if (status !== 'ok') {
+    return (
+      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 py-24 text-center">
+          {status === 'loading' ? <p className="text-[#8A8E99] text-sm">Loading...</p> : (
+            <>
+              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase">Club not found</h1>
+              <Link href="/clubs" className="text-[#C9922A] font-black uppercase tracking-widest text-[13px]">Back to all clubs</Link>
+            </>
+          )}
+        </div>
+        <Footer />
       </div>
-    </div>
+    );
+  }
+
+  const images: string[] = club.images || [];
+  const options: any[] = club.membership_options || [];
+  const site = safeUrl(club.website);
+  const fb = safeUrl(club.facebook_url);
+  const ig = safeUrl(club.instagram_url);
+  const ps = safeUrl(club.practiscore_url);
+  const map = mapsLink(club);
+  const list = day ? (byDay.get(day) || []) : events.slice(0, 12);
+  const monthLabel = new Date(month + '-01T00:00:00Z').toLocaleDateString('en-ZA', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+  const section = 'bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-7 scroll-mt-24';
+  const h2 = (a: string, b: string) => (
+    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl md:text-3xl font-black uppercase mb-5">
+      {a} <span className="text-[#C9922A]">{b}</span>
+    </h2>
   );
-
-  if (!club) return (
-    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-      <Navbar />
-      <div className="flex-1 flex items-center justify-center flex-col gap-4">
-        <div className="text-5xl">⊕</div>
-        <h1 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-3xl font-black uppercase">Not Found</h1>
-        <Link href="/clubs" className="text-[#C9922A] font-bold uppercase tracking-widest text-sm">← Back to Clubs & Ranges</Link>
-      </div>
-    </div>
-  );
-
-  const isPremium     = checkIsPremium(club);
-  const isInTrial     = club.subscription_status === 'trial' && club.trial_end_date && new Date() < new Date(club.trial_end_date);
-  const trialDaysLeft = isInTrial ? Math.max(0, Math.ceil((new Date(club.trial_end_date).getTime() - Date.now()) / 86400000)) : 0;
-  const isRange       = club.facility_type === 'range';
-  const images        = club.images?.length > 0 ? club.images.slice(0, 10) : [];
-  const openSchedule  = Array.isArray(club.operating_schedule) ? club.operating_schedule.filter((d: any) => d.open) : [];
-  const hasCompliance = club.saps_reg_number || club.range_rules || club.what_to_bring;
-  const selectedDayInfo = calendarDays.find(d => d.date === selectedDate);
-  const priceLabel    = club.range_fee ? `R${club.range_fee} ${FEE_LABEL[club.range_fee_type || 'session'] || 'per session'}` : null;
-
-  const tabs = [
-    { id: 'about',   label: 'About' },
-    { id: 'hours',   label: 'Hours & Schedule' },
-    ...(isRange ? [{ id: 'facilities', label: 'Facilities' }] : []),
-    { id: 'book',    label: isPremium ? '✋ Book / RSVP' : '📋 Book / RSVP' },
-    ...(results.length > 0 && isPremium ? [{ id: 'results', label: `Results (${results.length})` }] : []),
-    ...(clubListings.length > 0 ? [{ id: 'forsale', label: `For Sale (${clubListings.length})` }] : []),
-    ...(images.length > 0 ? [{ id: 'gallery', label: `Gallery (${images.length})` }] : []),
-    ...(hasCompliance ? [{ id: 'safety', label: 'Safety & Rules' }] : []),
-    { id: 'contact', label: 'Contact & Fees' },
-  ];
-
-  // Visitors see how to reach the club or range. Upgrade offers belong in
-  // the owner's dashboard, not on the public page.
-  const UpgradeCTA = ({ context }: { context: string }) => (
-    <div className="bg-[#13151A] border border-white/10 rounded-sm p-8 text-center">
-      <p className="text-[#8A8E99] text-[13px] mb-6 max-w-md mx-auto">
-        {context} is not available online for this {isRange ? 'range' : 'club'}. Contact them directly.
-      </p>
-      {club.phone && (
-        <a href={`tel:${club.phone}`} className="inline-block border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-3 rounded-sm hover:bg-white/5 transition-all">
-          Call the {isRange ? 'range' : 'club'}
-        </a>
-      )}
-    </div>
-  );
+  const btn = 'inline-flex items-center justify-center gap-2 px-4 py-3 rounded-sm font-black uppercase tracking-widest text-[11px] md:text-[12px] transition-all';
 
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
+      <AdBanner slot="leaderboard_top" page="clubs_profile" />
 
-      {!isPremium && !isInTrial && isRange && (
-        <div className="bg-[#191C23] border-b border-[#C9922A]/20 px-4 py-3">
-          <div className="max-w-[1400px] mx-auto flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">📋</span>
+      {/* HEADER */}
+      <header className="relative">
+        <div className="h-44 md:h-72 bg-[#13151A] overflow-hidden">
+          {club.cover_url && <img src={club.cover_url} alt="" className="w-full h-full object-cover" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0D0F13] via-[#0D0F13]/40 to-transparent" />
+        </div>
+        <div className="max-w-[1100px] mx-auto px-4 -mt-16 md:-mt-20 relative">
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+            {club.logo_url
+              ? <img src={club.logo_url} alt="" className="w-24 h-24 md:w-32 md:h-32 rounded-sm object-cover border-4 border-[#0D0F13] bg-[#13151A]" />
+              : <div className="w-24 h-24 md:w-32 md:h-32 rounded-sm bg-[#C9922A] text-black text-4xl font-black flex items-center justify-center border-4 border-[#0D0F13]">{club.name.charAt(0)}</div>}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-sm bg-white/10">Shooting club</span>
+                {club.is_verified && <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-sm bg-[#2A9C6E]/20 text-[#2A9C6E]">Verified</span>}
+                {club.compliance_status === 'accredited' && <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-sm bg-[#C9922A]/20 text-[#C9922A]">SAPS-accredited</span>}
+                {(club.associations || []).map((a: string) => (
+                  <span key={a} className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-sm bg-[#C9922A]/20 text-[#C9922A]">{a.replace(/^Other: /, '')}</span>
+                ))}
+              </div>
+              <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl md:text-5xl font-black uppercase leading-none">{club.name}</h1>
+              <p className="text-[#8A8E99] text-[13px] mt-2">{[club.city, club.province].filter(Boolean).join(', ')}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mt-5">
+            {club.phone && <a href={`tel:${club.phone}`} className={`${btn} bg-[#C9922A] text-black hover:brightness-110`}>Call</a>}
+            {club.whatsapp && <a href={waLink(club.whatsapp, `Hi ${club.name}, I found you on Gun X.`)} target="_blank" rel="noopener noreferrer" className={`${btn} bg-[#25D366] text-black hover:brightness-110`}>WhatsApp</a>}
+            {club.email && <a href={`mailto:${club.email}`} className={`${btn} border border-white/15 hover:bg-white/5`}>Email</a>}
+            {site && <a href={site} target="_blank" rel="noopener noreferrer" className={`${btn} border border-white/15 hover:bg-white/5`}>Website</a>}
+          </div>
+        </div>
+      </header>
+
+      {/* SECTION NAV */}
+      <nav className="sticky top-0 z-30 bg-[#0D0F13]/95 backdrop-blur border-b border-white/5 mt-6">
+        <div className="max-w-[1100px] mx-auto px-4 flex gap-5 overflow-x-auto">
+          {[['about', 'About'], ['events', 'Events'], ['membership', 'Membership'], ['gallery', 'Gallery'], ['contact', 'Contact']].map(([id, l]) => (
+            <a key={id} href={`#${id}`} className="py-3 whitespace-nowrap text-[11px] font-black uppercase tracking-widest text-[#8A8E99] hover:text-[#C9922A]">{l}</a>
+          ))}
+        </div>
+      </nav>
+
+      <main className="max-w-[1100px] mx-auto w-full px-4 py-6 md:py-8 flex gap-6">
+        <div className="flex-1 min-w-0 flex flex-col gap-5">
+
+          {/* ABOUT */}
+          <section id="about" className={section}>
+            {h2('About', 'the club')}
+            <p className="text-[14px] leading-relaxed text-[#C9CCD3] whitespace-pre-wrap">{club.description}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+              {club.founded_year && (
+                <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Founded</p><p className="font-black">{club.founded_year}</p></div>
+              )}
               <div>
-                <p className="text-[12px] font-black uppercase tracking-widest text-[#F0EDE8]">Listed Profile <span className="text-[#8A8E99] font-normal normal-case tracking-normal">— Basic directory listing</span></p>
-                <p className="text-[11px] text-[#8A8E99]">Booking system, live status & results board not active on this profile</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Where we shoot</p>
+                <p className="font-black">
+                  {club.shoots_at === 'own'
+                    ? `Our own ${club.range_setting === 'both' ? 'indoor and outdoor' : club.range_setting || ''} range`
+                    : club.shoots_at_range || '-'}
+                </p>
+              </div>
+              <div className="sm:col-span-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Disciplines</p>
+                <div className="flex flex-wrap gap-2">
+                  {(club.disciplines || []).map((d: string) => (
+                    <span key={d} className="text-[12px] font-bold px-3 py-1.5 rounded-sm bg-[#0D0F13] border border-white/10">{d}</span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </section>
 
-      {isInTrial && (
-        <div className="bg-[#2A9C6E]/5 border-b border-[#2A9C6E]/20 px-4 py-2.5">
-          <div className="max-w-[1400px] mx-auto flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#2A9C6E] animate-pulse" />
-              <p className="text-[12px] font-black uppercase tracking-widest text-[#2A9C6E]">Active Trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} remaining</p>
+          {/* EVENTS */}
+          <section id="events" className={section}>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+              {h2('Upcoming', 'events')}
+              {ps && <a href={ps} target="_blank" rel="noopener noreferrer" className={`${btn} border border-[#C9922A]/40 text-[#C9922A] hover:bg-[#C9922A]/10 -mt-5`}>Register on PractiScore</a>}
             </div>
-            <Link href="/clubs/pricing" className="text-[11px] font-bold text-[#2A9C6E] hover:brightness-125">Manage subscription →</Link>
-          </div>
-        </div>
-      )}
 
-      {/* LEADERBOARD TOP */}
-      <div className="flex w-full justify-center py-3 px-4">
-        <AdBanner slot="leaderboard_top" page="clubs_profile" />
-      </div>
-
-
-      {/* COVER */}
-      <div className="relative bg-[#12141a] overflow-hidden" style={{ height: '260px' }}>
-        {club.cover_url
-          ? <img src={club.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
-          : <div className="w-full h-full bg-gradient-to-br from-[#191C23] via-[#13151A] to-[#0D0F13]" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0D0F13] via-[#0D0F13]/50 to-transparent" />
-        <div className="absolute bottom-0 left-0 w-full pb-5">
-          <div className="max-w-[1400px] mx-auto px-4 md:px-6 flex flex-col md:flex-row items-end gap-4">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-sm border-4 border-[#0D0F13] overflow-hidden flex-shrink-0 flex items-center justify-center shadow-2xl bg-[#C9922A]">
-              {club.logo_url
-                ? <img src={club.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
-                : <span style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-black font-black text-4xl">{club.name?.charAt(0)}</span>}
-            </div>
-            <div className="flex-1 pb-1">
-              <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                <h1 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-3xl md:text-5xl font-black uppercase tracking-tight">{club.name}</h1>
-                <span className={`text-[10px] font-black px-2.5 py-1 rounded-sm uppercase tracking-wider ${isRange ? 'bg-[#C9922A] text-black' : 'bg-white/10 text-[#F0EDE8]'}`}>{isRange ? '🎯 Range' : '🏛️ Club'}</span>
-                {club.is_verified && <span className="bg-[#2A9C6E] text-white text-[10px] font-black px-2.5 py-1 rounded-sm uppercase tracking-wider">✓ Verified</span>}
-                {club.saps_reg_number && <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black px-2.5 py-1 rounded-sm uppercase tracking-wider">🛡️ SAPS Registered</span>}
-                {isPremium && <span className="bg-[#C9922A]/10 border border-[#C9922A]/30 text-[#C9922A] text-[10px] font-black px-2.5 py-1 rounded-sm uppercase tracking-wider">⭐ Active</span>}
+            <div className="bg-[#0D0F13] border border-white/5 rounded-sm p-3 md:p-4 mb-5">
+              <div className="flex items-center justify-between mb-3">
+                <button onClick={() => shift(-1)} disabled={month <= today.slice(0, 7)} className="px-3 py-1 text-[#C9922A] font-black disabled:opacity-20">&lt;</button>
+                <p className="font-black uppercase tracking-widest text-[12px]">{monthLabel}</p>
+                <button onClick={() => shift(1)} disabled={month >= maxMonth} className="px-3 py-1 text-[#C9922A] font-black disabled:opacity-20">&gt;</button>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest">
-                <span>📍 {club.city}{club.province ? `, ${club.province}` : ''}</span>
-                {priceLabel && <span className="text-[#C9922A]">💰 {priceLabel}</span>}
-                {club.disciplines?.length > 0 && <span>🎯 {club.disciplines.slice(0, 2).join(' · ')}{club.disciplines.length > 2 ? ` +${club.disciplines.length - 2}` : ''}</span>}
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {WEEK.map((w) => <div key={w} className="text-[9px] font-black uppercase tracking-widest text-[#8A8E99] py-1">{w}</div>)}
+                {grid.map((d, i) => {
+                  if (!d) return <div key={`b${i}`} />;
+                  const has = byDay.has(d);
+                  const sel = day === d;
+                  return (
+                    <button key={d} disabled={!has} onClick={() => setDay(sel ? null : d)}
+                      className={`aspect-square rounded-sm text-[12px] font-bold flex flex-col items-center justify-center ${
+                        sel ? 'bg-[#C9922A] text-black' : has ? 'bg-[#C9922A]/15 text-[#C9922A] hover:bg-[#C9922A]/25' : d < today ? 'text-white/15' : 'text-[#8A8E99]'}`}>
+                      {Number(d.slice(8))}
+                      {has && !sel && <span className="w-1 h-1 rounded-full bg-[#C9922A] mt-0.5" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <div className="flex gap-3 pb-1 flex-shrink-0">
-              {club.phone && <a href={`tel:${club.phone}`} className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-2.5 rounded-sm hover:brightness-110">📞 Call</a>}
-              {club.email && <a href={`mailto:${club.email}`} className="border border-white/20 font-black uppercase tracking-widest text-[12px] px-5 py-2.5 rounded-sm hover:bg-white/5">✉ Email</a>}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* LIVE STATUS BAR */}
-      <div className={`border-b px-4 md:px-6 py-3 ${club.is_open_today ? 'bg-green-500/5 border-green-500/20' : 'bg-[#0D0F13] border-white/5'}`}>
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 rounded-full ${club.is_open_today ? 'bg-green-400 animate-pulse' : 'bg-[#5A5E69]'}`} />
-              <span className="font-black text-[13px] uppercase tracking-widest">{club.is_open_today ? 'Open Today' : 'Closed Today'}</span>
-            </div>
-            {isPremium && isRange && club.lanes_available > 0 && <span className="text-[#C9922A] font-bold text-[13px]">· {club.lanes_available} of {club.booth_count || club.lane_count || '?'} lanes available</span>}
-            {isPremium && club.guns_for_hire && <span className={`text-[13px] font-bold ${club.hire_guns_available ? 'text-[#C9922A]' : 'text-[#5A5E69] line-through'}`}>🔫 Guns for hire {club.hire_guns_available ? '✓' : 'unavailable today'}</span>}
-            {isPremium && club.ammo_in_stock?.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99]">Ammo:</span>
-                {club.ammo_in_stock.map((a: string) => <span key={a} className="px-2 py-0.5 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm text-[11px] font-bold text-[#C9922A]">{a}</span>)}
+            {day && (
+              <button onClick={() => setDay(null)} className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] mb-3">Show all upcoming events</button>
+            )}
+            {list.length === 0 ? (
+              <p className="text-[13px] text-[#8A8E99]">No upcoming events yet. Contact the club for their next shoot.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {list.map((e) => (
+                  <Link key={e.id} href={`/clubs/${club.slug}/events/${e.id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-sm bg-[#0D0F13] border border-white/5 hover:border-[#C9922A]/40">
+                    <div className="min-w-0">
+                      <p className={`font-black text-[14px] ${e.is_cancelled ? 'line-through text-[#8A8E99]' : ''}`}>{e.title}</p>
+                      <p className="text-[12px] text-[#8A8E99]">
+                        {TYPE_LABEL[e.event_type] || e.event_type}{e.discipline ? ` . ${e.discipline}` : ''} . {fmtWhen(e.starts_at, e.ends_at)}
+                      </p>
+                    </div>
+                    {e.is_cancelled
+                      ? <span className="text-[10px] font-black uppercase tracking-widest text-[#E63946] flex-shrink-0">Cancelled</span>
+                      : <span className="text-[10px] font-black uppercase tracking-widest text-[#C9922A] flex-shrink-0">Details</span>}
+                  </Link>
+                ))}
               </div>
             )}
-          </div>
-          {currentWeather && (
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-sm px-3 py-1.5">
-              <span className="text-xl">{getWeatherIcon(weatherCode)}</span>
-              <div className="flex items-center gap-2 text-[12px] flex-wrap">
-                <span className="font-black text-[#F0EDE8]">{tempC}°C</span>
-                <span className="text-[#8A8E99]">·</span>
-                <span className="text-[#8A8E99]">💨 {windKmph}km/h {windDir}</span>
-                <span className="text-[#8A8E99]">·</span>
-                <span className="text-[#8A8E99]">👁 {visibilityKm}km</span>
-                {uvIndex && <><span className="text-[#8A8E99]">·</span><span className="text-[#8A8E99]">UV {uvIndex}</span></>}
+          </section>
+
+          {/* MEMBERSHIP */}
+          <section id="membership" className={section}>
+            {h2('Join', 'the club')}
+            {options.length === 0 ? (
+              <p className="text-[13px] text-[#8A8E99]">Contact the club for membership details.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {options.map((o, i) => (
+                  <div key={i} className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
+                    <p className="font-black text-[14px]">{o.name}</p>
+                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black text-[#C9922A] mt-1">
+                      R{Number(o.price).toLocaleString('en-ZA')}
+                      <span className="text-[13px] text-[#8A8E99] font-bold ml-1">{PERIOD_LABEL[o.period] || ''}</span>
+                    </p>
+                    {o.notes && <p className="text-[12px] text-[#8A8E99] mt-2 leading-relaxed">{o.notes}</p>}
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </section>
 
-      {/* TABS */}
-      <div className="bg-[#0D0F13] border-b border-white/5 sticky top-0 z-40">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6">
-          <div className="flex gap-6 overflow-x-auto">
-            {tabs.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                style={{ fontFamily: "'Barlow Condensed',sans-serif" }}
-                className={`py-4 text-[13px] font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === tab.id ? 'border-[#C9922A] text-[#C9922A]' : 'border-transparent text-[#8A8E99] hover:text-white'}`}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 3-COLUMN LAYOUT */}
-      <div className="flex w-full items-start flex-1">
-
-        {/* LEFT SIDEBAR AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-4">
-          <div className="sticky top-[57px]">
-            <AdBanner slot="sidebar_left" page="clubs_profile" />
-          </div>
-        </aside>
-
-        <div className="flex-1 min-w-0 py-6 md:py-8 px-4 md:px-6">
-          <div className="flex flex-col lg:flex-row gap-8">
-            <main className="flex-1 min-w-0">
-
-              {/* The in-feed ad sits BELOW the cover and tabs: two slots used
-                  to sit above the hero, so a visitor met advertising before
-                  they could see whose page it was. Small screens only - the
-                  real sidebars carry it from xl upward. */}
-              <div className="xl:hidden w-full flex justify-center pb-6">
-                <AdBanner slot="sidebar_left" page="clubs_profile" variant="infeed" />
-              </div>
-
-              {/* ── ABOUT ── */}
-              {activeTab === 'about' && (
-                <div className="flex flex-col gap-5">
-                  <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                    <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-4 text-[#C9922A]">About {club.name}</h2>
-                    <p className="text-[#8A8E99] leading-relaxed text-[14px] whitespace-pre-wrap">{club.description || `Welcome to ${club.name}. Contact us for more information.`}</p>
-                  </div>
-                  {currentWeather && (
-                    <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                      <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-4">Current <span className="text-[#C9922A]">Conditions</span></h2>
-                      <div className="flex items-center gap-4 mb-4">
-                        <span className="text-5xl">{getWeatherIcon(weatherCode)}</span>
-                        <div><p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-4xl font-black">{tempC}°C</p><p className="text-[#8A8E99] text-[13px] capitalize">{weatherDesc}</p></div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                          { icon: '💨', label: 'Wind',       value: `${windKmph} km/h ${windDir}`, note: Number(windKmph) > 30 ? '⚠ May affect accuracy' : 'Good conditions' },
-                          { icon: '👁️', label: 'Visibility', value: `${visibilityKm} km`,          note: Number(visibilityKm) < 5 ? 'Poor visibility' : 'Good visibility' },
-                          { icon: '💧', label: 'Humidity',   value: `${humidity}%`,                note: '' },
-                          { icon: '☀️', label: 'UV Index',   value: uvIndex || '—',                note: Number(uvIndex) > 6 ? 'Wear sunscreen' : 'Moderate' },
-                        ].map((s, i) => (
-                          <div key={i} className="bg-[#0D0F13] border border-white/5 rounded-sm p-3">
-                            <p className="text-lg mb-1">{s.icon}</p>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">{s.label}</p>
-                            <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-[15px] font-black">{s.value}</p>
-                            {s.note && <p className="text-[9px] text-[#8A8E99] mt-0.5">{s.note}</p>}
-                          </div>
-                        ))}
-                      </div>
-                      {Number(windKmph) > 40 && <div className="mt-3 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm p-3"><p className="text-[#C9922A] font-black text-[12px] uppercase tracking-widest">⚠️ High wind advisory — {windKmph}km/h winds may significantly affect accuracy at longer distances</p></div>}
-                    </div>
-                  )}
-                  {club.disciplines?.length > 0 && (
-                    <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                      <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-4">Disciplines</h2>
-                      <div className="flex flex-wrap gap-2">{club.disciplines.map((d: string) => <span key={d} className="bg-[#C9922A]/10 border border-[#C9922A]/20 text-[#C9922A] text-[12px] font-black uppercase tracking-wider px-3 py-1.5 rounded-sm">🎯 {d}</span>)}</div>
-                    </div>
-                  )}
-                  {club.additional_info && <div className="bg-[#13151A] border border-white/5 rounded-sm p-6"><h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-4">Good to Know</h2><p className="text-[#8A8E99] leading-relaxed text-[14px] whitespace-pre-wrap">{club.additional_info}</p></div>}
-                </div>
-              )}
-
-              {/* ── HOURS ── */}
-              {activeTab === 'hours' && (
-                <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                  <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">Operating Hours</h2>
-                  {openSchedule.length > 0 ? (
-                    <div className="space-y-2">
-                      {(club.operating_schedule || []).map((day: any, i: number) => (
-                        <div key={i} className={`flex items-center gap-4 rounded-sm px-4 py-3 ${day.open ? 'bg-[#0D0F13] border border-white/5' : 'opacity-40 bg-[#0D0F13]/50 border border-white/5'}`}>
-                          <span style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className={`w-28 font-black uppercase text-[14px] flex-shrink-0 ${day.day === 'Public Holidays' ? 'text-[#C9922A]' : day.open ? 'text-[#F0EDE8]' : 'text-[#5A5E69]'}`}>{day.day}</span>
-                          {day.open ? (
-                            <div className="flex-1 flex items-center gap-4 flex-wrap">
-                              <span style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-[#C9922A] font-black text-[14px]">{day.open_time} – {day.close_time}</span>
-                              {day.discipline && <span className="text-[12px] text-[#8A8E99]">· {day.discipline}</span>}
-                              {day.fee && <span className="text-[12px] text-[#C9922A] font-bold">· R{day.fee}</span>}
-                              {day.notes && <span className="text-[12px] text-[#8A8E99] italic">· {day.notes}</span>}
-                            </div>
-                          ) : <span className="text-[13px] font-bold text-[#5A5E69]">Closed</span>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8"><p className="text-[#8A8E99] text-[13px]">Operating hours not set — contact the {isRange ? 'range' : 'club'} directly.</p>{club.phone && <a href={`tel:${club.phone}`} className="inline-block mt-4 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-2.5 rounded-sm hover:brightness-110">📞 Call Now</a>}</div>
-                  )}
-                </div>
-              )}
-
-              {/* ── FACILITIES ── */}
-              {activeTab === 'facilities' && isRange && (
-                <div className="flex flex-col gap-5">
-                  <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                    <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">Range Facilities</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
-                      {[
-                        { label: 'Environment',      value: club.range_environment || '—', icon: club.range_environment === 'indoor' ? '🏠' : club.range_environment === 'both' ? '🏠🌳' : '🌳' },
-                        { label: 'Booths / Lanes',   value: (club.booth_count || club.lane_count) ? `${club.booth_count || club.lane_count} booths` : '—', icon: '🎯' },
-                        { label: 'Max Distance',     value: club.max_distance_m ? `${club.max_distance_m}m` : '—', icon: '📏' },
-                        { label: 'Covered Booths',   value: club.covered_lanes ? 'Yes' : 'No', icon: '🏗️' },
-                        { label: 'Booking Required', value: club.booking_required ? 'Yes' : 'Walk-in', icon: '📋' },
-                        { label: 'Range Officer',    value: club.range_officer_on_duty ? 'On Duty' : 'No', icon: '👮' },
-                      ].map((s, i) => (
-                        <div key={i} className="bg-[#0D0F13] border border-white/5 rounded-sm p-4">
-                          <div className="text-2xl mb-2">{s.icon}</div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">{s.label}</p>
-                          <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-lg font-black uppercase">{s.value}</p>
-                        </div>
-                      ))}
-                    </div>
-                    {club.booth_distances && <div className="pt-4 border-t border-white/5"><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Booth Layout</p><p className="text-[13px] leading-relaxed">{club.booth_distances}</p></div>}
-                  </div>
-                  {club.guns_for_hire && (
-                    <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                      <div className="flex items-center justify-between mb-5">
-                        <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase">Guns for <span className="text-[#C9922A]">Hire</span></h2>
-                        {isPremium
-                          ? <span className={`px-3 py-1.5 rounded-sm text-[11px] font-black uppercase tracking-widest ${club.hire_guns_available ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-white/5 border border-white/10 text-[#5A5E69]'}`}>{club.hire_guns_available ? '✓ Available Today' : 'Unavailable Today'}</span>
-                          : <span className="px-3 py-1.5 rounded-sm text-[11px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-[#8A8E99]">Contact range for availability</span>}
-                      </div>
-                      {isPremium && (
-                        <div className="grid md:grid-cols-2 gap-5">
-                          {club.hire_gun_makes?.length > 0 && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Makes</p><div className="flex flex-wrap gap-1.5">{club.hire_gun_makes.map((m: string) => <span key={m} className="px-2.5 py-1 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-sm text-[12px] font-bold text-[#C9922A]">{m}</span>)}</div></div>}
-                          {club.hire_gun_calibres?.length > 0 && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-2">Calibres</p><div className="flex flex-wrap gap-1.5">{club.hire_gun_calibres.map((c: string) => <span key={c} className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-sm text-[12px] font-bold">{c}</span>)}</div></div>}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── BOOK / RSVP ── */}
-              {activeTab === 'book' && (
-                <div className="flex flex-col gap-5">
-                  {!isPremium ? (
-                    <UpgradeCTA context="Online booking & RSVP" />
-                  ) : rsvpDone ? (
-                    <div className="bg-[#13151A] border border-white/5 rounded-sm p-8 text-center">
-                      <div className="w-20 h-20 bg-[#C9922A]/10 border border-[#C9922A]/20 rounded-full flex items-center justify-center mx-auto mb-5"><span className="text-4xl">⏳</span></div>
-                      <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-3xl font-black uppercase mb-2 text-[#C9922A]">Request Sent!</h2>
-                      <p className="text-[#8A8E99] text-[14px] mb-6">{club.name} has been notified and will confirm your booking.<br />Watch your inbox at <span className="text-[#F0EDE8] font-bold">{rsvpForm.user_email}</span>.</p>
-                      <div className="bg-[#0D0F13] border border-white/10 rounded-sm p-5 text-left max-w-sm mx-auto mb-5">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">Booking Summary</p>
-                        <div className="space-y-2 text-[13px]">
-                          <div className="flex justify-between"><span className="text-[#8A8E99]">Range</span><span className="font-bold">{club.name}</span></div>
-                          <div className="flex justify-between"><span className="text-[#8A8E99]">Day</span><span className="font-bold text-[#C9922A]">{selectedDayInfo?.dayName}</span></div>
-                          <div className="flex justify-between"><span className="text-[#8A8E99]">Date</span><span className="font-bold">{selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span></div>
-                          {selectedSlot && <div className="flex justify-between"><span className="text-[#8A8E99]">Time</span><span className="font-bold">{selectedSlot.start_time.slice(0, 5)} – {selectedSlot.end_time.slice(0, 5)}</span></div>}
-                          <div className="flex justify-between"><span className="text-[#8A8E99]">People</span><span className="font-bold">{rsvpForm.pax}</span></div>
-                          <div className="flex justify-between"><span className="text-[#8A8E99]">Status</span><span className="font-bold text-[#C9922A]">⏳ Awaiting confirmation</span></div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                        <button onClick={() => { setRsvpDone(false); setSelectedSlot(null); setRsvpForm({ user_name: '', user_email: '', user_phone: '', pax: 1, notes: '' }); }} className="border border-white/20 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] px-5 py-2.5 rounded-sm hover:bg-white/5">Register Another</button>
-                        {club.phone && <a href={`tel:${club.phone}`} className="bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] px-5 py-2.5 rounded-sm hover:brightness-110">📞 Call Range</a>}
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                        <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-2 text-[#C9922A]">Select a Date</h2>
-                        <p className="text-[12px] text-[#8A8E99] mb-4">Next 21 days · Greyed out = closed</p>
-                        <div className="flex gap-2 overflow-x-auto pb-3">
-                          {calendarDays.map((day, i) => {
-                            const isSelected = day.date === selectedDate;
-                            return (
-                              <button key={i} onClick={() => day.isOpen && setSelectedDate(day.date)} disabled={!day.isOpen}
-                                className={`flex-shrink-0 w-[72px] py-3 rounded-sm border text-center transition-all ${!day.isOpen ? 'bg-[#0D0F13]/30 border-white/5 opacity-30 cursor-not-allowed' : isSelected ? 'bg-[#C9922A] border-[#C9922A]' : 'bg-[#0D0F13] border-white/10 hover:border-[#C9922A]/40 cursor-pointer'}`}>
-                                <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-black' : 'text-[#8A8E99]'}`}>{day.dayShort}</p>
-                                <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className={`text-[18px] font-black leading-tight ${isSelected ? 'text-black' : day.isOpen ? 'text-[#F0EDE8]' : 'text-[#5A5E69]'}`}>{day.dayNum}</p>
-                                <p className={`text-[9px] mb-1 ${isSelected ? 'text-black/70' : 'text-[#8A8E99]'}`}>{day.month}</p>
-                                {day.isOpen && day.sched?.open_time && <p className={`text-[8px] font-bold ${isSelected ? 'text-black/70' : 'text-[#8A8E99]/70'}`}>{day.sched.open_time}</p>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {selectedDate && selectedDayInfo && (
-                          <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-3 flex-wrap">
-                            <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-[16px] font-black uppercase">{selectedDayInfo.dayName}, {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                            {selectedDayInfo.sched?.discipline && <span className="text-[11px] text-[#C9922A] font-bold border border-[#C9922A]/30 px-2 py-0.5 rounded-sm">🎯 {selectedDayInfo.sched.discipline}</span>}
-                            {selectedDayInfo.sched?.open_time && <span className="text-[13px] text-[#8A8E99]">⏰ {selectedDayInfo.sched.open_time} – {selectedDayInfo.sched.close_time}</span>}
-                            {selectedDayInfo.sched?.fee && <span className="text-[13px] text-[#C9922A] font-bold">💰 R{selectedDayInfo.sched.fee}</span>}
-                          </div>
-                        )}
-                      </div>
-
-                      {selectedDate && (
-                        <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                          <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-xl font-black uppercase mb-4">{slotsForDate.length > 0 ? 'Select a Time Slot' : 'Time Slots'}</h2>
-                          {slotsLoading ? (
-                            <div className="flex items-center gap-3 py-6"><div className="w-5 h-5 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" /><p className="text-[#8A8E99] text-[13px]">Loading slots...</p></div>
-                          ) : slotsForDate.length === 0 ? (
-                            <div className="bg-[#0D0F13] border border-white/10 rounded-sm p-4"><p className="text-[#8A8E99] text-[13px]">No specific time slots set for this date — register below and the range will confirm a time with you.</p></div>
-                          ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                              {slotsForDate.map((slot, i) => {
-                                const isFull     = slot.status === 'full' || slot.booked_count >= slot.capacity;
-                                const isSelected = selectedSlot?.id === slot.id;
-                                return (
-                                  <button key={i} onClick={() => !isFull && setSelectedSlot(isSelected ? null : slot)} disabled={isFull}
-                                    className={`p-4 rounded-sm border text-center transition-all ${isFull ? 'border-red-500/20 bg-red-500/5 cursor-not-allowed opacity-60' : isSelected ? 'border-[#C9922A] bg-[#C9922A]/10' : 'border-[#2A9C6E]/20 bg-[#2A9C6E]/5 hover:border-[#2A9C6E]/50 cursor-pointer'}`}>
-                                    <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className={`text-[16px] font-black mb-1 ${isFull ? 'text-[#5A5E69]' : isSelected ? 'text-[#C9922A]' : 'text-[#F0EDE8]'}`}>{slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)}</p>
-                                    <p className={`text-[10px] font-black uppercase tracking-widest ${isFull ? 'text-red-400' : isSelected ? 'text-[#C9922A]' : 'text-[#2A9C6E]'}`}>{isFull ? '● Full' : isSelected ? '✓ Selected' : `${slot.capacity - slot.booked_count} spot${slot.capacity - slot.booked_count !== 1 ? 's' : ''} left`}</p>
-                                    {slot.notes && <p className="text-[9px] text-[#8A8E99] mt-1">{slot.notes}</p>}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {selectedDate && (
-                        <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                          <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-xl font-black uppercase mb-2 text-[#C9922A]">Your Details</h2>
-                          <p className="text-[12px] text-[#8A8E99] mb-5">Free · No payment · {club.name} will confirm via email.</p>
-                          {rsvpError && <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-sm p-3 text-red-400 text-[13px]">{rsvpError}</div>}
-                          <form onSubmit={handleRsvp} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Full Name *</label><input className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 placeholder-[#8A8E99]/40" placeholder="Your name" value={rsvpForm.user_name} onChange={e => setRsvpForm(p => ({ ...p, user_name: e.target.value }))} required /></div>
-                              <div><label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Email *</label><input type="email" className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 placeholder-[#8A8E99]/40" placeholder="your@email.com" value={rsvpForm.user_email} onChange={e => setRsvpForm(p => ({ ...p, user_email: e.target.value }))} required /></div>
-                              <div><label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Phone (optional)</label><input className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 placeholder-[#8A8E99]/40" placeholder="Cell number" value={rsvpForm.user_phone} onChange={e => setRsvpForm(p => ({ ...p, user_phone: e.target.value }))} /></div>
-                              <div><label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Number of People</label><div className="flex items-center gap-3"><button type="button" onClick={() => setRsvpForm(p => ({ ...p, pax: Math.max(1, p.pax - 1) }))} className="w-9 h-9 bg-[#0D0F13] border border-white/10 rounded-sm font-black text-lg hover:border-[#C9922A]/30">−</button><span style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black w-8 text-center">{rsvpForm.pax}</span><button type="button" onClick={() => setRsvpForm(p => ({ ...p, pax: p.pax + 1 }))} className="w-9 h-9 bg-[#0D0F13] border border-white/10 rounded-sm font-black text-lg hover:border-[#C9922A]/30">+</button></div></div>
-                            </div>
-                            <div><label className="block text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5">Notes (optional)</label><input className="w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[13px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 placeholder-[#8A8E99]/40" placeholder="e.g. First time visitor, bringing own firearm" value={rsvpForm.notes} onChange={e => setRsvpForm(p => ({ ...p, notes: e.target.value }))} /></div>
-                            <button type="submit" disabled={rsvpSending} style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50">
-                              {rsvpSending ? 'Sending Request...' : `Request Booking at ${club.name}`}
-                            </button>
-                            <p className="text-[11px] text-[#8A8E99] text-center">Free · No payment · Range will confirm via email</p>
-                          </form>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* ── RESULTS ── */}
-              {activeTab === 'results' && (
-                <div className="flex flex-col gap-4">
-                  {isPremium ? (
-                    <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                      <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">Shoot Results Board</h2>
-                      {results.map((r, i) => (
-                        <div key={i} className="bg-[#0D0F13] border border-white/5 rounded-sm overflow-hidden mb-4">
-                          <div className="px-4 py-3 border-b border-white/5"><p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="font-black text-[15px] uppercase">{r.title}</p><p className="text-[11px] text-[#8A8E99]">{r.discipline} · {new Date(r.shoot_date).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
-                          {r.results?.length > 0 && <div className="divide-y divide-white/5">{r.results.map((entry: any, ei: number) => (<div key={ei} className="flex items-center gap-4 px-4 py-3"><span style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className={`w-8 text-center font-black text-[15px] ${ei === 0 ? 'text-[#FFD700]' : ei === 1 ? 'text-[#C0C0C0]' : ei === 2 ? 'text-[#CD7F32]' : 'text-[#8A8E99]'}`}>{ei === 0 ? '🥇' : ei === 1 ? '🥈' : ei === 2 ? '🥉' : `${ei + 1}.`}</span><span className="flex-1 font-bold text-[13px]">{entry.name}</span><span className="text-[#C9922A] font-black text-[13px]">{entry.score}</span></div>))}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : <UpgradeCTA context="Results board" />}
-                </div>
-              )}
-
-              {activeTab === 'forsale' && (
-                <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                  <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-6 text-[#C9922A]">For Sale</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {clubListings.map((l: any) => (
-                      <Link key={l.id} href={`/listings/${l.id}`}
-                        className="bg-[#0D0F13] border border-white/5 rounded-sm overflow-hidden hover:border-[#C9922A]/40 transition-all">
-                        <div className="aspect-[4/3] bg-[#191C23] overflow-hidden">
-                          {l.images?.[0]
-                            ? <img src={l.images[0]} alt={l.title} className="w-full h-full object-cover" />
-                            : <div className="w-full h-full flex items-center justify-center text-[#8A8E99] text-[11px] uppercase tracking-widest">No photo</div>}
-                        </div>
-                        <div className="p-4">
-                          <p style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="font-black text-[15px] uppercase truncate">{l.title}</p>
-                          <p className="text-[#C9922A] font-black text-[15px] mt-1">R {Number(l.price).toLocaleString('en-ZA')}</p>
-                          {l.city && <p className="text-[11px] text-[#8A8E99] mt-1">{l.city}</p>}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ── GALLERY ── */}
-              {activeTab === 'gallery' && (
-                <div className="flex flex-col gap-4">
-                  {images.length > 0 ? (
-                    <>
-                      <div className="w-full bg-[#13151A] border border-white/5 rounded-sm overflow-hidden relative" style={{ height: '400px' }}>
-                        <img src={images[selectedImage]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
-                        {images.length > 1 && (<><button onClick={() => setSelectedImage(i => Math.max(0, i - 1))} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/60 rounded-full flex items-center justify-center text-white text-xl hover:bg-black/80">‹</button><button onClick={() => setSelectedImage(i => Math.min(images.length - 1, i + 1))} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/60 rounded-full flex items-center justify-center text-white text-xl hover:bg-black/80">›</button><div className="absolute bottom-3 right-3 bg-black/70 text-white text-[11px] font-bold px-2.5 py-1 rounded-sm">{selectedImage + 1} / {images.length}</div></>)}
-                      </div>
-                      <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">{images.map((img: string, idx: number) => (<button key={idx} onClick={() => setSelectedImage(idx)} className={`rounded-sm overflow-hidden transition-all relative ${selectedImage === idx ? 'border-2 border-[#C9922A]' : 'border border-white/10 hover:border-[#C9922A]/50'}`} style={{ paddingBottom: '100%' }}><img src={img} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} /></button>))}</div>
-                    </>
-                  ) : <div className="bg-[#13151A] border border-white/5 rounded-sm p-16 text-center"><p className="text-5xl mb-4 opacity-20">📷</p><p className="text-[#8A8E99]">No photos uploaded yet</p></div>}
-                </div>
-              )}
-
-              {/* ── SAFETY ── */}
-              {activeTab === 'safety' && hasCompliance && (
-                <div className="flex flex-col gap-5">
-                  {club.saps_reg_number && <div className="bg-green-500/5 border border-green-500/20 rounded-sm p-5 flex items-center gap-4"><span className="text-3xl">🛡️</span><div><p className="text-[11px] font-black uppercase tracking-widest text-green-400 mb-0.5">SAPS Registered Shooting Range</p><p className="font-black text-[15px]">{club.saps_reg_number}</p>{club.compliance_cert_url && <a href={club.compliance_cert_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#C9922A] font-bold">View Certificate →</a>}</div></div>}
-                  {club.range_rules && <div className="bg-[#13151A] border border-white/5 rounded-sm p-6"><h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-4 text-[#C9922A]">Range Rules</h2><p className="text-[#8A8E99] leading-relaxed text-[14px] whitespace-pre-wrap">{club.range_rules}</p></div>}
-                  {club.what_to_bring && <div className="bg-[#13151A] border border-white/5 rounded-sm p-6"><h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-4 text-[#C9922A]">What To Bring</h2><p className="text-[#8A8E99] leading-relaxed text-[14px] whitespace-pre-wrap">{club.what_to_bring}</p></div>}
-                </div>
-              )}
-
-              {/* ── CONTACT ── */}
-              {activeTab === 'contact' && (
-                <div className="grid md:grid-cols-2 gap-5">
-                  <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                    <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-5 text-[#C9922A]">Get In Touch</h2>
-                    <div className="flex flex-col gap-4">
-                      {club.phone && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Phone</p><a href={`tel:${club.phone}`} className="text-lg font-bold text-[#C9922A] hover:brightness-110">{club.phone}</a></div>}
-                      {club.email && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Email</p><a href={`mailto:${club.email}`} className="text-lg font-bold hover:text-[#C9922A]">{club.email}</a></div>}
-                      {club.address && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Address</p><p className="text-lg font-bold leading-snug">{club.address}</p></div>}
-                      {club.website && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Website</p><a href={club.website} target="_blank" rel="noopener noreferrer" className="text-lg font-bold text-[#C9922A] hover:underline">Visit Website →</a></div>}
-                    </div>
-                    {club.lat && club.lng && (
-                      <div className="mt-5 pt-5 border-t border-white/5">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-3">📍 Find Us</p>
-                        <ProfileMap lat={parseFloat(club.lat)} lng={parseFloat(club.lng)} name={club.name} address={club.address} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-[#13151A] border border-white/5 rounded-sm p-6">
-                    <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-2xl font-black uppercase mb-5">Pricing</h2>
-                    {club.range_fee ? <div className="flex justify-between items-center py-3 border-b border-white/5"><span className="text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">Range Fee</span><div className="text-right"><span className="text-2xl font-black text-[#C9922A]">R{club.range_fee}</span><span className="text-[11px] text-[#8A8E99] ml-1">{FEE_LABEL[club.range_fee_type || 'session']}</span></div></div> : null}
-                    {club.membership_fee ? <div className="flex justify-between items-center py-3 border-b border-white/5"><span className="text-[13px] text-[#8A8E99] font-bold uppercase tracking-widest">Annual Membership</span><span className="text-2xl font-black text-[#C9922A]">R{Number(club.membership_fee).toLocaleString('en-ZA')}</span></div> : null}
-                    {!club.range_fee && !club.membership_fee && <p className="text-[#8A8E99] text-[13px]">Contact the {isRange ? 'range' : 'club'} for pricing.</p>}
-
-                    {/* SQUARE CARD AD — contact tab */}
-                    <div className="mt-6 pt-6 border-t border-white/5 flex justify-center">
-                      <AdBanner slot="square_card" page="clubs_profile" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </main>
-
-            {/* RIGHT SIDEBAR */}
-            <aside className="w-full lg:w-[260px] flex-shrink-0 flex flex-col gap-4">
-              <div className="bg-[#13151A] border border-white/5 rounded-sm p-5">
-                <h3 style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="text-lg font-black uppercase mb-4">Quick Info</h3>
-                <div className="flex flex-col gap-3 text-[13px]">
-                  <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Location</p><p className="font-bold">{club.city}{club.province ? `, ${club.province}` : ''}</p></div>
-                  <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Status Today</p><div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${club.is_open_today ? 'bg-green-400 animate-pulse' : 'bg-[#5A5E69]'}`} /><p className={`font-bold ${club.is_open_today ? 'text-green-400' : 'text-[#5A5E69]'}`}>{club.is_open_today ? 'Open Today' : 'Closed Today'}</p></div></div>
-                  {currentWeather && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Weather Now</p><p className="font-bold">{getWeatherIcon(weatherCode)} {tempC}°C · 💨 {windKmph}km/h</p>{Number(windKmph) > 30 && <p className="text-[10px] text-[#C9922A] mt-0.5">⚠ High wind</p>}</div>}
-                  {isRange && club.booth_count && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Booths</p><p className="font-bold">{club.booth_count} total{isPremium && club.lanes_available > 0 ? ` · ${club.lanes_available} free now` : ''}</p></div>}
-                  {isRange && club.max_distance_m && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Max Distance</p><p className="font-bold">{club.max_distance_m}m</p></div>}
-                  {club.range_fee && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Range Fee</p><p className="font-black text-[16px] text-[#C9922A]">R{club.range_fee} <span className="text-[11px] font-bold text-[#8A8E99]">{FEE_LABEL[club.range_fee_type || 'session']}</span></p></div>}
-                  {club.disciplines?.length > 0 && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Disciplines</p><div className="flex flex-wrap gap-1">{club.disciplines.map((d: string) => <span key={d} className="text-[10px] bg-[#0D0F13] border border-white/10 text-[#8A8E99] px-2 py-0.5 rounded-sm font-bold uppercase tracking-wider">{d}</span>)}</div></div>}
-                  {openSchedule.length > 0 && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-0.5">Open Days</p><p className="font-bold">{openSchedule.length} days/week</p></div>}
-                  {club.saps_reg_number && <div className="flex items-center gap-2 bg-green-500/5 border border-green-500/20 rounded-sm px-2.5 py-2"><span className="text-green-400">🛡️</span><span className="text-[11px] font-bold text-green-400">SAPS Registered</span></div>}
-                  {isPremium && <div className="flex items-center gap-2 bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm px-2.5 py-2"><span>⭐</span><span className="text-[11px] font-bold text-[#C9922A]">Active Plan · Online Booking</span></div>}
-                </div>
-                <div className="flex flex-col gap-2 mt-5 pt-4 border-t border-white/5">
-                  <button onClick={() => setActiveTab('book')} style={{ fontFamily: "'Barlow Condensed',sans-serif" }} className="w-full bg-[#C9922A] text-black font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:brightness-110 transition-all text-center">
-                    {isPremium ? '✋ Request Booking' : '📞 Contact Range'}
+          {/* GALLERY */}
+          {images.length > 0 && (
+            <section id="gallery" className={section}>
+              {h2('Club', 'gallery')}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {images.map((u, i) => (
+                  <button key={u} onClick={() => setPhoto(i)} className="aspect-square overflow-hidden rounded-sm bg-[#0D0F13]">
+                    <img src={u} alt="" loading="lazy" className="w-full h-full object-cover hover:scale-105 transition-transform" />
                   </button>
-                  {club.phone && <a href={`tel:${club.phone}`} className="w-full border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">📞 Call {isRange ? 'Range' : 'Club'}</a>}
-                  {club.email && <a href={`mailto:${club.email}`} className="w-full border border-white/10 text-[#8A8E99] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">✉ Email</a>}
-                  {club.website && <a href={club.website} target="_blank" rel="noopener noreferrer" className="w-full border border-white/10 text-[#8A8E99] font-black uppercase tracking-widest text-[12px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">🌐 Website</a>}
-                </div>
+                ))}
               </div>
+            </section>
+          )}
 
-              {/* SQUARE CARD AD — right sidebar */}
-              <AdBanner slot="square_card" page="clubs_profile" />
+          {/* CONTACT */}
+          <section id="contact" className={section}>
+            {h2('Contact and', 'location')}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[14px]">
+              {club.address && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Address</p>
+                  <p>{club.address}</p>
+                  {map && <a href={map} target="_blank" rel="noopener noreferrer" className="text-[#C9922A] text-[12px] font-black uppercase tracking-widest">Open in Google Maps</a>}
+                </div>
+              )}
+              {club.phone && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Phone</p><a href={`tel:${club.phone}`} className="text-[#C9922A] font-bold">{club.phone}</a></div>}
+              {club.email && <div><p className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] mb-1">Email</p><a href={`mailto:${club.email}`} className="text-[#C9922A] font-bold break-all">{club.email}</a></div>}
+              {(fb || ig || site) && (
+                <div className="sm:col-span-2 flex flex-wrap gap-4">
+                  {site && <a href={site} target="_blank" rel="noopener noreferrer" className="text-[#C9922A] text-[12px] font-black uppercase tracking-widest">Website</a>}
+                  {fb && <a href={fb} target="_blank" rel="noopener noreferrer" className="text-[#C9922A] text-[12px] font-black uppercase tracking-widest">Facebook</a>}
+                  {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="text-[#C9922A] text-[12px] font-black uppercase tracking-widest">Instagram</a>}
+                </div>
+              )}
+            </div>
+            {club.lat != null && club.lng != null && (
+              <div className="mt-5 h-64 rounded-sm overflow-hidden border border-white/5">
+                <ProfileMap lat={Number(club.lat)} lng={Number(club.lng)} name={club.name} address={club.address} />
+              </div>
+            )}
+          </section>
 
-              <Link href="/clubs" className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest hover:text-[#C9922A] transition-colors">← Back to All Clubs & Ranges</Link>
-            </aside>
-          </div>
+          <Link href="/clubs" className="text-[#C9922A] font-black uppercase tracking-widest text-[12px]">Back to all clubs</Link>
         </div>
 
-        {/* RIGHT SIDEBAR AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-4">
-          <div className="sticky top-[57px]">
-            <AdBanner slot="sidebar_right" page="clubs_profile" />
-          </div>
+        <aside className="hidden lg:block w-[300px] flex-shrink-0">
+          <div className="sticky top-16"><AdBanner slot="sidebar_right" page="clubs_profile" /></div>
         </aside>
-      </div>
+      </main>
+
+      {/* PHOTO VIEWER */}
+      {photo !== null && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPhoto(null)}>
+          <img src={images[photo]} alt="" className="max-w-full max-h-[85vh] object-contain" />
+          {images.length > 1 && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); setPhoto((photo + images.length - 1) % images.length); }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-white text-3xl font-black px-3">&lt;</button>
+              <button onClick={(e) => { e.stopPropagation(); setPhoto((photo + 1) % images.length); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white text-3xl font-black px-3">&gt;</button>
+            </>
+          )}
+          <button onClick={() => setPhoto(null)} className="absolute top-4 right-4 text-white text-[12px] font-black uppercase tracking-widest">Close</button>
+        </div>
+      )}
 
       <Footer />
     </div>

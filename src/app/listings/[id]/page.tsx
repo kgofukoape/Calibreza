@@ -413,7 +413,7 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
               </div>
             </div>
             {seller?.is_club && seller?.slug && (
-              <Link href={`/clubs/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 block">
+              <Link href={`/ranges/${seller.slug}`} className="text-[12px] text-[#C9922A] font-bold uppercase tracking-widest hover:brightness-125 block">
                 View Range Page
               </Link>
             )}
