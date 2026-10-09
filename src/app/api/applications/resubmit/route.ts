@@ -22,7 +22,8 @@ const CONFIG: Record<string, { table: string; bucket: string; docs: string[] }> 
   club: {
     table: 'clubs',
     bucket: 'business-documents',
-    docs: ['saps_registration_url', 'compliance_cert_url', 'business_registration_url'],
+    docs: ['saps_registration_url', 'compliance_cert_url', 'business_registration_url',
+      'affiliation_letter_url', 'accreditation_cert_url', 'constitution_url'],
   },
   service: {
     table: 'services',

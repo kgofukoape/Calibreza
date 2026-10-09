@@ -351,9 +351,16 @@ export default function AdminClubsPage() {
                         name={selected.name}
                         busy={busyId === selected.id}
                         docs={[
-                          ['saps_registration_url', 'SAPS registration'],
-                          ['compliance_cert_url', 'Compliance certificate'],
-                          ['business_registration_url', 'Business registration'],
+                          ...((selected as any)?.facility_type === 'club' ? [
+                            ['affiliation_letter_url', 'Affiliation letter'],
+                            ['accreditation_cert_url', 'SAPS accreditation certificate'],
+                            ['business_registration_url', 'CIPC registration'],
+                            ['constitution_url', 'Club constitution'],
+                          ] : [
+                            ['saps_registration_url', 'SAPS registration'],
+                            ['compliance_cert_url', 'Compliance certificate'],
+                            ['business_registration_url', 'Business registration'],
+                          ]),
                         ].map(([key, label]) => ({ key, label, present: !!selected[key] }))}
                         onCancel={() => setDecision(null)}
                         onSubmit={(note, clearDocs) =>
@@ -439,8 +446,16 @@ export default function AdminClubsPage() {
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { label: 'SAPS Registration', path: (selected as any)?.saps_registration_url },
-                      { label: 'Compliance Certificate', path: (selected as any)?.compliance_cert_url },
+                      ...((selected as any)?.facility_type === 'club' ? [
+                        { label: 'Affiliation Letter', path: (selected as any)?.affiliation_letter_url },
+                        { label: 'Accreditation Certificate', path: (selected as any)?.accreditation_cert_url },
+                        { label: 'CIPC Registration', path: (selected as any)?.business_registration_url },
+                        { label: 'Club Constitution', path: (selected as any)?.constitution_url },
+                      ] : [
+                        { label: 'SAPS Registration', path: (selected as any)?.saps_registration_url },
+                        { label: 'Compliance Certificate', path: (selected as any)?.compliance_cert_url },
+                        { label: 'Business Registration', path: (selected as any)?.business_registration_url },
+                      ]),
                     ].map(doc => (
                       <div key={doc.label}>
                         <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">{doc.label}</p>
@@ -456,6 +471,31 @@ export default function AdminClubsPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Compliance (clubs) */}
+                {(selected as any)?.facility_type === 'club' && (
+                  <div className="bg-[#0D1420] border border-white/5 rounded-sm p-5">
+                    <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-black uppercase mb-4 text-white">
+                      Club <span className="text-[#4CC9F0]">Compliance</span>
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                      {[
+                        ['Status', (selected as any).compliance_status === 'accredited' ? 'SAPS-accredited association' : (selected as any).compliance_status === 'affiliated' ? 'Affiliated club' : 'Not stated'],
+                        ['Accreditation no.', (selected as any).accreditation_number],
+                        ['Affiliated to', ((selected as any).associations || []).join(', ')],
+                        ['Responsible person', [(selected as any).responsible_person_name || (selected as any).responsible_person, (selected as any).responsible_person_role].filter(Boolean).join(', ')],
+                        ['Their email', (selected as any).responsible_person_email],
+                        ['Their phone', (selected as any).responsible_person_phone],
+                        ['Shoots at', (selected as any).shoots_at === 'own' ? `Own range (${(selected as any).range_setting || 'type not given'})` : (selected as any).shoots_at === 'other' ? (selected as any).shoots_at_range : 'Not stated'],
+                      ].map(([k, v]) => (
+                        <div key={k as string}>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-1">{k}</p>
+                          <p className="text-white/80">{v || '-'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Club Info */}
                 <div className="grid grid-cols-2 gap-4">

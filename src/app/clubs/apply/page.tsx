@@ -1,839 +1,583 @@
 'use client';
- 
-import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { supabase } from '@/lib/supabase';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import { recordConsent } from '@/lib/auth';
 import { LEGAL_DOCUMENTS } from '@/lib/legal';
 
-// ─── CLUB APPLICATION ────────────────────────────────────────────────────────
-// Previously anonymous, which caused three faults:
-//   1. clubs.user_id was never set, so /business/login and /club-dashboard —
-//      both of which look the club up by user_id — could never find it. Every
-//      club that applied was locked out of its own dashboard.
-//   2. status was inserted as 'active', meaning a club went live on the public
-//      directory the moment it applied, with no review at all. Ranges used
-//      'pending' correctly, so the two disagreed with each other.
-//   3. Nothing was shown or recorded about the terms being accepted.
+// --- SHOOTING CLUB APPLICATION -----------------------------------------------
+// Clubs list for free (agreed Oct 2026) but must be lawful: either an
+// SAPS-accredited association (Firearms Control Act s8, Reg 4), or a club
+// affiliated to an accredited body (CHASA, SADPA, SAPSA and so on), with
+// proof. Plus proof the club exists as an entity (CIPC registration or a
+// club constitution) and a named responsible person.
+//
+// Shoot days, membership options and photos are added from the dashboard
+// after approval, so the application stays short.
 
 const PROVINCES = [
   'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape',
   'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape',
 ];
 
-const ALL_DISCIPLINES = [
+const DISCIPLINES = [
   'IPSC', 'IDPA', 'Practical Shooting', 'Target Shooting', 'Hunting',
-  'Long Range', 'Skeet', 'Trap', 'Air Gun', 'Airsoft', 'Benchrest', 'Field Shooting',
+  'Long Range', 'PRS', 'Benchrest', 'Field Shooting', 'Skeet', 'Trap',
+  'Sporting Clays', 'Air Gun', 'Airsoft',
 ];
 
-const ALL_ASSOCIATIONS = [
-  { code: 'SAPSA', name: 'SAPSA', full: 'South African Practical Shooting Association — IPSC governing body' },
-  { code: 'SADPA', name: 'SADPA', full: 'South African Defensive Pistol Association' },
-  { code: 'NHSA', name: 'NHSA', full: 'National Hunting & Shooting Association' },
-  { code: 'NRPA', name: 'NRPA', full: 'National Rifle & Pistol Association' },
-  { code: 'SAIRO', name: 'SAIRO', full: 'SA Institute of Range Officers & Instructors' },
-  { code: 'Natshoot', name: 'Natshoot', full: 'National Shooting Sport Foundation of SA' },
-  { code: 'GOSA', name: 'GOSA', full: 'Gun Owners of South Africa' },
-  { code: 'SAHGCA', name: 'SAHGCA', full: 'SA Hunters & Game Conservation Association' },
-  { code: 'CTSASA', name: 'CTSASA', full: 'Cape Town Sport & Target Shooting Association' },
-  { code: 'SABU', name: 'SABU', full: 'South African Biathlon Union' },
-  { code: 'SASSETA', name: 'SASSETA', full: 'Safety & Security Sector Education & Training Authority' },
+const ASSOCIATIONS = [
+  { code: 'CHASA', full: 'Confederation of Hunters Associations of SA' },
+  { code: 'SADPA', full: 'SA Defensive Pistol Association' },
+  { code: 'SAPSA', full: 'SA Practical Shooting Association (IPSC)' },
+  { code: 'NATSHOOT', full: 'National Shooting Sport Foundation of SA' },
+  { code: 'SAHGCA', full: 'SA Hunters and Game Conservation Association' },
+  { code: 'NHSA', full: 'National Hunting and Shooting Association' },
 ];
 
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const MAX_DOC_BYTES = 5 * 1024 * 1024;
+const DOC_ACCEPT = '.pdf,.jpg,.jpeg,.png';
 
-function ClubApplyInner() {
-  const [checkingAuth, setCheckingAuth] = useState(true);
+export default function ClubApplyPage() {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [isPersonalAccount, setIsPersonalAccount] = useState(false);
-  const [existingApplication, setExistingApplication] = useState<string | null>(null);
+  const [personal, setPersonal] = useState(false);
+  const [existing, setExisting] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
 
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [acknowledgePrivacy, setAcknowledgePrivacy] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
 
-  const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  // Compliance documents. These go to a PRIVATE bucket, not club-images:
-  // a SAPS certificate behind a public URL is a permanent open link to it.
-  const [sapsDoc, setSapsDoc] = useState<File | null>(null);
-  const [complianceDoc, setComplianceDoc] = useState<File | null>(null);
-  const [registrationDoc, setRegistrationDoc] = useState<File | null>(null);
+  const [logo, setLogo] = useState<File | null>(null);
+  const [cover, setCover] = useState<File | null>(null);
+  const [accreditationDoc, setAccreditationDoc] = useState<File | null>(null);
+  const [affiliationDoc, setAffiliationDoc] = useState<File | null>(null);
+  const [entityDoc, setEntityDoc] = useState<File | null>(null);
 
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
-  const [logoPreview, setLogoPreview] = useState('');
-  const [coverPreview, setCoverPreview] = useState('');
-  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
-
-  const [shootDays, setShootDays] = useState([
-    { day: '', discipline: '', time: '', fee: '', notes: '' }
-  ]);
-
-  const [form, setForm] = useState({
-    name: '',
-    responsible_person: '',
-    responsible_person_email: '',
-    description: '',
-    province: '',
-    city: '',
-    address: '',
-    lat: '',
-    lng: '',
-    phone: '',
-    email: '',
-    website: '',
-    membership_fee: '',
-    range_fee: '',
+  const [f, setF] = useState({
+    name: '', description: '', founded_year: '',
     disciplines: [] as string[],
+    address: '', lat: null as number | null, lng: null as number | null,
+    province: '', city: '', phone: '', email: '',
+    website: '', facebook_url: '', instagram_url: '', whatsapp: '',
+    compliance_status: '' as '' | 'accredited' | 'affiliated',
+    accreditation_number: '',
     associations: [] as string[],
+    other_association: '',
+    entity_type: '' as '' | 'cipc' | 'constitution',
+    rp_name: '', rp_role: '', rp_email: '', rp_phone: '',
+    shoots_at: '' as '' | 'own' | 'other',
+    range_setting: '', shoots_at_range: '',
   });
 
-  // ── Auth gate ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+  const set = (k: string, v: any) => setF((p) => ({ ...p, [k]: v }));
+  const toggle = (k: 'disciplines' | 'associations', v: string) =>
+    setF((p) => ({ ...p, [k]: p[k].includes(v) ? p[k].filter((x) => x !== v) : [...p[k], v] }));
 
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
           .from('users').select('account_type').eq('id', user.id).maybeSingle();
-
         if (profile?.account_type === 'personal') {
-          setIsPersonalAccount(true);
-          setCheckingAuth(false);
+          setPersonal(true);
+          setChecking(false);
           return;
         }
-
         setUserId(user.id);
-
-        // One business account holds one club. The login lookup uses
-        // maybeSingle(), which a second row would break.
-        const { data: existing } = await supabase
+        const { data: ex } = await supabase
           .from('clubs').select('status').eq('user_id', user.id).maybeSingle();
-        if (existing) setExistingApplication(existing.status);
-
+        if (ex) setExisting(ex.status);
         const meta = user.user_metadata || {};
-        setForm(prev => ({
-          ...prev,
-          email: prev.email || user.email || '',
-          responsible_person: meta.responsible_person || '',
-          responsible_person_email: meta.responsible_person_email || '',
+        setF((p) => ({
+          ...p,
+          email: p.email || user.email || '',
+          rp_name: meta.responsible_person || '',
+          rp_email: meta.responsible_person_email || '',
         }));
       }
-
-      setCheckingAuth(false);
-    };
-    check();
+      setChecking(false);
+    })();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const toggleDiscipline = (d: string) => {
-    setForm(prev => ({
-      ...prev,
-      disciplines: prev.disciplines.includes(d) ? prev.disciplines.filter(x => x !== d) : [...prev.disciplines, d]
-    }));
-  };
-
-  const toggleAssociation = (code: string) => {
-    setForm(prev => ({
-      ...prev,
-      associations: prev.associations.includes(code) ? prev.associations.filter(x => x !== code) : [...prev.associations, code]
-    }));
-  };
-
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) { setLogoFile(f); setLogoPreview(URL.createObjectURL(f)); }
-  };
-
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) { setCoverFile(f); setCoverPreview(URL.createObjectURL(f)); }
-  };
-
-  const handleGalleryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const remaining = 10 - galleryFiles.length;
-    const toAdd = files.slice(0, remaining);
-    setGalleryFiles(prev => [...prev, ...toAdd]);
-    setGalleryPreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))]);
-  };
-
-  const removeGallery = (idx: number) => {
-    setGalleryFiles(prev => prev.filter((_, i) => i !== idx));
-    setGalleryPreviews(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const updateShootDay = (idx: number, field: string, value: string) => {
-    setShootDays(prev => prev.map((d, i) => i === idx ? { ...d, [field]: value } : d));
-  };
-
-  const addShootDay = () => {
-    setShootDays(prev => [...prev, { day: '', discipline: '', time: '', fee: '', notes: '' }]);
-  };
-
-  const removeShootDay = (idx: number) => {
-    setShootDays(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const MAX_DOC_BYTES = 5 * 1024 * 1024;
-
-  const uploadDocument = async (file: File, docType: string, uid: string) => {
-    if (file.size > MAX_DOC_BYTES) {
-      throw new Error(`${file.name} is larger than 5MB. Please upload a smaller file.`);
-    }
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-    const filePath = `${uid}/${docType}-${Date.now()}.${ext}`;
+  const uploadDoc = async (file: File, kind: string, uid: string) => {
+    if (file.size > MAX_DOC_BYTES) throw new Error(`${file.name} is larger than 5MB.`);
+    const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+    const path = `${uid}/${kind}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage
-      .from('business-documents')
-      .upload(filePath, file, { upsert: false });
-    if (error) throw error;
-    // A PATH, not a URL: the bucket is private and admin creates a signed link
-    // on demand.
-    return filePath;
+      .from('business-documents').upload(path, file, { upsert: false });
+    if (error) throw new Error(error.message);
+    return path; // private bucket: admin opens it with a signed link
   };
 
-  const uploadFile = async (file: File, path: string) => {
-    const ext = file.name.split('.').pop();
-    const filePath = `${path}/${Math.random()}.${ext}`;
-    const { error } = await supabase.storage.from('club-images').upload(filePath, file);
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from('club-images').getPublicUrl(filePath);
-    return publicUrl;
+  const uploadImage = async (file: File, folder: string) => {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('club-images').upload(path, file);
+    if (error) throw new Error(error.message);
+    return supabase.storage.from('club-images').getPublicUrl(path).data.publicUrl;
   };
 
-  const generateSlug = (name: string) =>
-    name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const problems = (): string[] => {
+    const p: string[] = [];
+    if (!f.name.trim()) p.push('Club name');
+    if (f.description.trim().length < 20) p.push('A description of at least 20 characters');
+    if (f.disciplines.length === 0) p.push('At least one discipline');
+    if (!f.address.trim() || !f.province || !f.city.trim()) p.push('Address, province and city');
+    if (!f.phone.trim() || !f.email.trim()) p.push('Club phone and email');
+    if (!f.compliance_status) p.push('Accredited or affiliated');
+    if (f.compliance_status === 'accredited') {
+      if (!f.accreditation_number.trim()) p.push('SAPS accreditation number');
+      if (!accreditationDoc) p.push('Accreditation certificate');
+    }
+    if (f.compliance_status === 'affiliated') {
+      if (f.associations.length === 0 && !f.other_association.trim()) p.push('The association you are affiliated to');
+      if (!affiliationDoc) p.push('Affiliation letter for this year');
+    }
+    if (!f.entity_type || !entityDoc) p.push('CIPC registration or club constitution');
+    if (!f.rp_name.trim() || !f.rp_role.trim() || !f.rp_email.trim() || !f.rp_phone.trim()) {
+      p.push('Responsible person: name, role, email and phone');
+    }
+    if (!f.shoots_at) p.push('Where the club shoots');
+    if (f.shoots_at === 'own' && !f.range_setting) p.push('Indoor or outdoor range');
+    if (f.shoots_at === 'other' && !f.shoots_at_range.trim()) p.push('The range you use');
+    if (!acceptTerms || !acceptPrivacy) p.push('Accept the Terms and Privacy Policy');
+    return p;
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.province || !form.city || !form.email) {
-      alert('Please fill in all required fields.');
+  const submit = async () => {
+    setErr('');
+    const missing = problems();
+    if (missing.length) {
+      setErr('Still needed: ' + missing.join('; ') + '.');
       return;
     }
     if (!userId) {
-      alert('Your session has expired. Please sign in again.');
+      setErr('Your session has expired. Please sign in again.');
       return;
     }
-    if (!acceptedTerms || !acknowledgePrivacy) {
-      alert('Please accept the Terms of Use and confirm you have read the Privacy Policy.');
-      return;
-    }
-    // Clubs and ranges were previously approved without a single document
-    // being seen. The SAPS certificate and the range compliance certificate
-    // are what an approval actually rests on.
-    if (!sapsDoc) {
-      alert('Please upload your SAPS accreditation or registration certificate.');
-      return;
-    }
-    if (!complianceDoc) {
-      alert('Please upload your range compliance certificate.');
-      return;
-    }
-    setLoading(true);
+    setBusy(true);
     try {
-      let logo_url = '';
-      let cover_url = '';
-      const imageUrls: string[] = [];
+      const accreditation_cert_url = f.compliance_status === 'accredited' && accreditationDoc
+        ? await uploadDoc(accreditationDoc, 'accreditation-certificate', userId) : null;
+      const affiliation_letter_url = f.compliance_status === 'affiliated' && affiliationDoc
+        ? await uploadDoc(affiliationDoc, 'affiliation-letter', userId) : null;
+      const entityPath = await uploadDoc(entityDoc as File,
+        f.entity_type === 'cipc' ? 'cipc-registration' : 'club-constitution', userId);
+      const logo_url = logo ? await uploadImage(logo, 'logos') : null;
+      const cover_url = cover ? await uploadImage(cover, 'covers') : null;
 
-      const saps_registration_url = await uploadDocument(sapsDoc, 'saps-registration', userId);
-      const compliance_cert_url = await uploadDocument(complianceDoc, 'compliance-certificate', userId);
-      const business_registration_url = registrationDoc
-        ? await uploadDocument(registrationDoc, 'business-registration', userId)
-        : null;
+      const associations = [...f.associations];
+      if (f.other_association.trim()) associations.push(`Other: ${f.other_association.trim()}`);
 
-      if (logoFile) logo_url = await uploadFile(logoFile, 'logos');
-      if (coverFile) cover_url = await uploadFile(coverFile, 'covers');
-      for (const f of galleryFiles) {
-        const url = await uploadFile(f, 'gallery');
-        imageUrls.push(url);
-      }
-
-      const slug = generateSlug(form.name);
-      const validShootDays = shootDays.filter(d => d.day);
+      const slug = f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
       const { error } = await supabase.from('clubs').insert({
         user_id: userId,
-        name: form.name,
+        name: f.name.trim(),
         slug,
         facility_type: 'club',
-        responsible_person: form.responsible_person,
-        responsible_person_email: form.responsible_person_email,
-        description: form.description,
-        province: form.province,
-        city: form.city,
-        address: form.address,
-        phone: form.phone,
-        email: form.email,
-        website: form.website,
+        description: f.description.trim(),
+        founded_year: f.founded_year ? parseInt(f.founded_year, 10) : null,
+        disciplines: f.disciplines,
+        address: f.address.trim(),
+        lat: f.lat,
+        lng: f.lng,
+        province: f.province,
+        city: f.city.trim(),
+        phone: f.phone.trim(),
+        email: f.email.trim(),
+        website: f.website.trim() || null,
+        facebook_url: f.facebook_url.trim() || null,
+        instagram_url: f.instagram_url.trim() || null,
+        whatsapp: f.whatsapp.trim() || null,
         logo_url,
         cover_url,
-        images: imageUrls,
-        shoot_days: validShootDays,
-        membership_fee: form.membership_fee ? parseFloat(form.membership_fee) : null,
-        range_fee: form.range_fee ? parseFloat(form.range_fee) : null,
-        disciplines: form.disciplines,
-        associations: form.associations,
-        // 'pending' until reviewed. Inserting 'active' published the club to
-        // the public directory instantly, with no verification of anything.
-        saps_registration_url,
-        compliance_cert_url,
-        business_registration_url,
+        compliance_status: f.compliance_status,
+        accreditation_number: f.compliance_status === 'accredited' ? f.accreditation_number.trim() : null,
+        accreditation_cert_url,
+        affiliation_letter_url,
+        associations,
+        business_registration_url: f.entity_type === 'cipc' ? entityPath : null,
+        constitution_url: f.entity_type === 'constitution' ? entityPath : null,
+        responsible_person: f.rp_name.trim(),
+        responsible_person_name: f.rp_name.trim(),
+        responsible_person_role: f.rp_role.trim(),
+        responsible_person_email: f.rp_email.trim(),
+        responsible_person_phone: f.rp_phone.trim(),
+        shoots_at: f.shoots_at,
+        range_setting: f.shoots_at === 'own' ? f.range_setting : null,
+        shoots_at_range: f.shoots_at === 'other' ? f.shoots_at_range.trim() : null,
         status: 'pending',
         is_verified: false,
       });
+      if (error) throw new Error(error.message);
 
-      if (error) throw error;
+      const ok = await recordConsent('club_application', false, f.name.trim());
+      if (!ok) console.error('[clubs/apply] consent not recorded for', f.name);
 
-      // ── Record what was agreed to ────────────────────────────────────────
-      const consentRecorded = await recordConsent('club_application', false, form.name);
-      if (!consentRecorded) {
-        console.error('[clubs/apply] consent record was not written for', form.name);
-      }
-
-      // ── Notify admin ─────────────────────────────────────────────────────
       try {
-        // Forwards the details and 48-hour document links to the
-        // admin inbox. The server looks up this user's own row.
-        const { data: appSess } = await supabase.auth.getSession();
-        const appTok = appSess.session?.access_token || '';
+        const { data: s } = await supabase.auth.getSession();
         await fetch('/api/applications/notify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${appTok}`,
+            Authorization: `Bearer ${s.session?.access_token || ''}`,
           },
           body: JSON.stringify({ kind: 'club' }),
         });
-      } catch (notifyErr) {
-        console.error('Notify failed (non-blocking):', notifyErr);
+      } catch (e) {
+        console.error('Notify failed (non-blocking):', e);
       }
-      // ─────────────────────────────────────────────────────────────────────
 
-      setSubmitted(true);
-    } catch (err: any) {
-      alert(err.message || 'Failed to submit. Please try again.');
-    } finally {
-      setLoading(false);
+      router.push('/business/pending');
+    } catch (e: any) {
+      setErr(e?.message || 'Could not submit. Please try again.');
+      setBusy(false);
     }
   };
 
-  const inputClass = "w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60 transition-colors";
-  const labelClass = "block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5";
-  const sectionClass = "bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6";
+  // --- UI helpers ---------------------------------------------------------------
+  const input = 'w-full bg-[#0D0F13] border border-white/10 rounded-sm px-3 py-2.5 text-[14px] text-[#F0EDE8] focus:outline-none focus:border-[#C9922A]/60';
+  const label = 'block text-[11px] font-black uppercase tracking-widest text-[#8A8E99] mb-1.5';
+  const section = 'bg-[#13151A] border border-white/5 rounded-sm p-5 md:p-6';
+  const chip = (on: boolean) =>
+    'px-3 py-2 rounded-sm text-[12px] font-bold border transition-all ' +
+    (on ? 'bg-[#C9922A] text-black border-[#C9922A]' : 'bg-[#0D0F13] text-[#8A8E99] border-white/10 hover:text-[#F0EDE8]');
+  const choice = (on: boolean) =>
+    'flex-1 text-left px-4 py-3 rounded-sm border text-[13px] transition-all ' +
+    (on ? 'border-[#C9922A] bg-[#C9922A]/10 text-[#F0EDE8]' : 'border-white/10 bg-[#0D0F13] text-[#8A8E99]');
+  const heading = (n: number, t: string) => (
+    <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+      className="text-xl font-black uppercase mb-4">
+      <span className="text-[#C9922A]">{n}.</span> {t}
+    </h2>
+  );
+  const fileField = (text: string, file: File | null, onPick: (x: File | null) => void, accept = DOC_ACCEPT) => (
+    <label className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#0D0F13] border border-white/10 rounded-sm px-4 py-3 cursor-pointer hover:border-[#C9922A]/50">
+      <span className="text-[13px] text-[#F0EDE8]">{text}</span>
+      <span className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] break-all">
+        {file ? file.name : 'Choose file'}
+      </span>
+      <input type="file" accept={accept} className="hidden"
+        onChange={(e) => onPick(e.target.files?.[0] || null)} />
+    </label>
+  );
 
-  // ── Gate screens ───────────────────────────────────────────────────────────
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4">
-          <p className="text-[#8A8E99] text-sm uppercase tracking-widest font-bold">Loading…</p>
+  const gate = (title: React.ReactNode, body: React.ReactNode) => (
+    <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-8 sm:p-10 text-center">
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">{title}</h1>
+          {body}
         </div>
       </div>
-    );
+    </div>
+  );
+
+  if (checking) {
+    return gate('Loading', <p className="text-[#8A8E99] text-sm">One moment...</p>);
   }
-
-  if (!userId && !isPersonalAccount) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4 py-16">
-          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
-              Business <span className="text-[#C9922A]">Account</span> Needed
-            </h1>
-            <p className="text-[#8A8E99] text-sm leading-relaxed mb-4">
-              A club listing is owned by a business account, not by a person. That account is the
-              login your committee members share to manage shoot days, results and your listing.
-            </p>
-            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
-              If you are also a club member who buys and sells, keep your own personal Gun X
-              account as well. The two are separate.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/business/register"
-                className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:brightness-110 transition-all">
-                Register Business
-              </Link>
-              <Link href="/business/login"
-                className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm hover:bg-white/5 transition-all">
-                Business Sign In
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (personal) {
+    return gate(<>Business <span className="text-[#C9922A]">account</span> needed</>, (
+      <>
+        <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+          You are signed in with a personal account. A club listing needs its own business
+          account, so the club owns it rather than one member.
+        </p>
+        <Link href="/business/register" className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm">
+          Register a club account
+        </Link>
+      </>
+    ));
   }
-
-  if (isPersonalAccount) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4 py-16">
-          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
-              That&apos;s a <span className="text-[#C9922A]">Personal</span> Account
-            </h1>
-            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
-              You are signed in with a personal account. A club listing needs its own business
-              account so the club — not one member — owns it.
-            </p>
-            <Link href="/business/register"
-              className="inline-block bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:brightness-110 transition-all">
-              Register a Club Account
-            </Link>
-          </div>
+  if (!userId) {
+    return gate(<>Business <span className="text-[#C9922A]">account</span> needed</>, (
+      <>
+        <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+          A club listing is owned by a business account that your committee can share.
+          Listing your club on Gun X is free.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Link href="/business/register" className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm">
+            Register
+          </Link>
+          <Link href="/business/login" className="flex-1 border border-white/10 font-black uppercase tracking-widest text-[13px] px-6 py-4 rounded-sm">
+            Sign in
+          </Link>
         </div>
-      </div>
-    );
+      </>
+    ));
   }
-
-  if (existingApplication) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4 py-16">
-          <div className="max-w-[560px] w-full bg-[#13151A] border border-white/5 rounded-sm p-10 text-center">
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl font-black uppercase mb-4">
-              Application <span className="text-[#C9922A]">{existingApplication}</span>
-            </h1>
-            <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
-              This account already has a club on file. If something needs correcting, email{' '}
-              <a href="mailto:support@gunx.co.za" className="text-[#C9922A] hover:brightness-110">support@gunx.co.za</a>.
-            </p>
-            <Link href="/business/login"
-              className="inline-block border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm hover:bg-white/5 transition-all">
-              Business Login
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="max-w-md w-full text-center">
-            <div className="w-16 h-16 bg-[#2A9C6E]/10 border border-[#2A9C6E]/30 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">✓</div>
-            <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl font-black uppercase mb-3">
-              Application <span className="text-[#C9922A]">Submitted!</span>
-            </h1>
-            <p className="text-[#8A8E99] mb-3">Your club application is with our team for review.</p>
-            <p className="text-[#8A8E99] text-sm mb-8">We review applications within 2–3 business days. Once approved, sign in with this same account to reach your club dashboard.</p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link href="/clubs" className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:brightness-110 transition-all text-center">
-                View All Clubs
-              </Link>
-              <Link href="/" className="flex-1 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] py-3 rounded-sm hover:bg-white/5 transition-all text-center">
-                Back to Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (existing) {
+    return gate(<>Application <span className="text-[#C9922A]">on file</span></>, (
+      <>
+        <p className="text-[#8A8E99] text-sm leading-relaxed mb-8">
+          This account already has a club or range on file. To change something, email{' '}
+          <a href="mailto:support@gunx.co.za" className="text-[#C9922A]">support@gunx.co.za</a>.
+        </p>
+        <Link href="/business/pending" className="inline-block border border-white/10 font-black uppercase tracking-widest text-[13px] px-8 py-4 rounded-sm">
+          View my application
+        </Link>
+      </>
+    ));
   }
 
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
-
-      <main className="flex-1 max-w-[900px] mx-auto w-full px-4 md:px-6 py-6 md:py-10">
-
-        <div className="mb-6">
-          <div className="text-[11px] text-[#8A8E99] uppercase tracking-widest mb-2 flex items-center gap-2">
-            <Link href="/" className="hover:text-[#C9922A]">Home</Link>
-            <span>/</span>
-            <Link href="/clubs" className="hover:text-[#C9922A]">Clubs</Link>
-            <span>/</span>
-            <span className="text-[#F0EDE8]">List Your Club</span>
-          </div>
-          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-3xl md:text-4xl font-black uppercase mb-1">
-            List Your <span className="text-[#C9922A]">Club</span>
+      <main className="max-w-[760px] mx-auto w-full px-4 py-8 md:py-12 flex flex-col gap-5">
+        <div>
+          <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-4xl md:text-5xl font-black uppercase">
+            List your <span className="text-[#C9922A]">club</span>
           </h1>
-          <p className="text-[13px] text-[#8A8E99]">Get your club discovered by thousands of shooters across South Africa — free listing</p>
-          <div className="mt-4 p-4 bg-[#13151A] border border-white/5 rounded-sm flex items-center justify-between">
-            <p className="text-[13px] text-[#8A8E99]">Registering a shooting range instead?</p>
-            <Link href="/clubs/range-apply" className="text-[#C9922A] font-black uppercase tracking-widest text-[11px] hover:brightness-125 transition-all">
-              Range Application →
-            </Link>
+          <p className="text-[#8A8E99] text-sm mt-2 leading-relaxed">
+            Free for shooting clubs. Your club must be SAPS-accredited or affiliated to an
+            accredited association, and you will need to upload proof. We review every
+            application, usually within 2 to 3 business days.
+          </p>
+        </div>
+
+        {/* 1. ABOUT */}
+        <div className={section}>
+          {heading(1, 'About the club')}
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className={label}>Club name *</label>
+              <input className={input} value={f.name} onChange={(e) => set('name', e.target.value)} />
+            </div>
+            <div>
+              <label className={label}>What the club is about *</label>
+              <textarea className={input} rows={5} value={f.description}
+                onChange={(e) => set('description', e.target.value)}
+                placeholder="Who you are, what you shoot, who is welcome, what makes the club special." />
+            </div>
+            <div>
+              <label className={label}>Disciplines *</label>
+              <div className="flex flex-wrap gap-2">
+                {DISCIPLINES.map((d) => (
+                  <button type="button" key={d} onClick={() => toggle('disciplines', d)} className={chip(f.disciplines.includes(d))}>{d}</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className={label}>Year founded</label>
+                <input className={input} inputMode="numeric" maxLength={4} value={f.founded_year}
+                  onChange={(e) => set('founded_year', e.target.value.replace(/[^0-9]/g, ''))} />
+              </div>
+              <div className="sm:col-span-2 flex flex-col gap-2">
+                {fileField('Logo (optional)', logo, setLogo, 'image/*')}
+                {fileField('Cover photo (optional)', cover, setCover, 'image/*')}
+              </div>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-          {/* Basic Info */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Club Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className={labelClass}>Club Name <span className="text-red-400">*</span></label>
-                <input name="name" value={form.name} onChange={handleChange} required className={inputClass} placeholder="e.g., Cape Town Practical Shooting Club" />
-              </div>
-
+        {/* 2. LOCATION AND CONTACT */}
+        <div className={section}>
+          {heading(2, 'Location and contact')}
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className={label}>Address * (choose from the suggestions)</label>
+              <AddressAutocomplete
+                value={f.address}
+                onChange={(v: string) => set('address', v)}
+                onSelect={(r) => setF((p) => ({
+                  ...p, address: r.address, lat: r.lat, lng: r.lng,
+                  city: r.city || p.city, province: r.province || p.province,
+                }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Person Responsible <span className="text-red-400">*</span></label>
-                <input name="responsible_person" value={form.responsible_person} onChange={handleChange} required className={inputClass} placeholder="Full name" />
-                <p className="text-[11px] text-[#8A8E99] mt-1.5">Accountable for this account and authorised to accept our terms for the club.</p>
-              </div>
-
-              <div>
-                <label className={labelClass}>Their Email <span className="text-red-400">*</span></label>
-                <input type="email" name="responsible_person_email" value={form.responsible_person_email} onChange={handleChange} required className={inputClass} placeholder="chairman@yourclub.co.za" />
-                <p className="text-[11px] text-[#8A8E99] mt-1.5">For notices about this account. Not published.</p>
-              </div>
-              <div>
-                <label className={labelClass}>Province <span className="text-red-400">*</span></label>
-                <select name="province" value={form.province} onChange={handleChange} required className={inputClass}>
-                  <option value="">Select province...</option>
-                  {PROVINCES.map(p => <option key={p}>{p}</option>)}
+                <label className={label}>Province *</label>
+                <select className={input} value={f.province} onChange={(e) => set('province', e.target.value)}>
+                  <option value="">Select</option>
+                  {PROVINCES.map((p) => <option key={p}>{p}</option>)}
                 </select>
               </div>
               <div>
-                <label className={labelClass}>City / Town <span className="text-red-400">*</span></label>
-                <input name="city" value={form.city} onChange={handleChange} required className={inputClass} placeholder="e.g., Cape Town" />
+                <label className={label}>City or town *</label>
+                <input className={input} value={f.city} onChange={(e) => set('city', e.target.value)} />
               </div>
-              <div className="md:col-span-2">
-                <label className={labelClass}>Physical Address</label>
-                <AddressAutocomplete
-                  value={form.address}
-                  onChange={val => setForm(prev => ({ ...prev, address: val }))}
-                  onSelect={({ address, lat, lng, city, province }) => setForm(prev => ({
-                    ...prev,
-                    address,
-                    lat: lat.toString(),
-                    lng: lng.toString(),
-                    city: city || prev.city,
-                    province: province || prev.province,
-                  }))}
-                  label="Address"
-                  placeholder="Start typing your club address..."
-                />
+              <div>
+                <label className={label}>Club phone *</label>
+                <input className={input} type="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} />
               </div>
-              <div className="md:col-span-2">
-                <label className={labelClass}>About Your Club</label>
-                <textarea name="description" value={form.description} onChange={handleChange} rows={4}
-                  className={`${inputClass} resize-none`} placeholder="Tell shooters about your club, history, facilities, what makes you unique..." />
+              <div>
+                <label className={label}>Club email *</label>
+                <input className={input} type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
+              </div>
+              <div>
+                <label className={label}>Website</label>
+                <input className={input} value={f.website} onChange={(e) => set('website', e.target.value)} placeholder="https://" />
+              </div>
+              <div>
+                <label className={label}>WhatsApp</label>
+                <input className={input} type="tel" value={f.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} />
+              </div>
+              <div>
+                <label className={label}>Facebook page</label>
+                <input className={input} value={f.facebook_url} onChange={(e) => set('facebook_url', e.target.value)} placeholder="https://facebook.com/..." />
+              </div>
+              <div>
+                <label className={label}>Instagram</label>
+                <input className={input} value={f.instagram_url} onChange={(e) => set('instagram_url', e.target.value)} placeholder="https://instagram.com/..." />
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Contact */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Contact Details
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Phone Number</label>
-                <input name="phone" value={form.phone} onChange={handleChange} className={inputClass} placeholder="e.g., 021 555 1234" />
-              </div>
-              <div>
-                <label className={labelClass}>Email Address <span className="text-red-400">*</span></label>
-                <input name="email" type="email" value={form.email} onChange={handleChange} required className={inputClass} placeholder="info@yourclub.co.za" />
-              </div>
-              <div className="md:col-span-2">
-                <label className={labelClass}>Website (optional)</label>
-                <input name="website" value={form.website} onChange={handleChange} className={inputClass} placeholder="https://yourclub.co.za" />
-              </div>
-            </div>
-          </div>
-
-          {/* Compliance documents. Private bucket: the value stored is a path,
-              and admin opens it with a signed link that expires. */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Compliance Documents
-            </h2>
-            <p className="text-[12px] text-[#8A8E99] mb-5 leading-relaxed">
-              These are checked before your club is approved and are never shown publicly.
-              Only our review team can open them. PDF, JPG or PNG, up to 5MB each.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className={labelClass}>SAPS Certificate <span className="text-red-400">*</span></label>
-                <label className="block cursor-pointer">
-                  <div className={`h-[110px] border-2 border-dashed rounded-sm flex items-center justify-center p-3 transition-colors ${sapsDoc ? 'border-[#2A9C6E]/60' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
-                    <div className="text-center">
-                      <p className="text-2xl mb-1">{sapsDoc ? '\u2713' : '\u2191'}</p>
-                      <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest break-all">
-                        {sapsDoc ? sapsDoc.name : 'Accreditation / registration'}
-                      </p>
-                    </div>
-                  </div>
-                  <input type="file" accept=".pdf,image/*" onChange={(e) => setSapsDoc(e.target.files?.[0] || null)} className="hidden" />
-                </label>
-              </div>
-              <div>
-                <label className={labelClass}>Range Compliance <span className="text-red-400">*</span></label>
-                <label className="block cursor-pointer">
-                  <div className={`h-[110px] border-2 border-dashed rounded-sm flex items-center justify-center p-3 transition-colors ${complianceDoc ? 'border-[#2A9C6E]/60' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
-                    <div className="text-center">
-                      <p className="text-2xl mb-1">{complianceDoc ? '\u2713' : '\u2191'}</p>
-                      <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest break-all">
-                        {complianceDoc ? complianceDoc.name : 'Inspection certificate'}
-                      </p>
-                    </div>
-                  </div>
-                  <input type="file" accept=".pdf,image/*" onChange={(e) => setComplianceDoc(e.target.files?.[0] || null)} className="hidden" />
-                </label>
-              </div>
-              <div>
-                <label className={labelClass}>Registration <span className="text-[#8A8E99] normal-case font-normal">(optional)</span></label>
-                <label className="block cursor-pointer">
-                  <div className={`h-[110px] border-2 border-dashed rounded-sm flex items-center justify-center p-3 transition-colors ${registrationDoc ? 'border-[#2A9C6E]/60' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
-                    <div className="text-center">
-                      <p className="text-2xl mb-1">{registrationDoc ? '\u2713' : '\u2191'}</p>
-                      <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest break-all">
-                        {registrationDoc ? registrationDoc.name : 'Company or NPC document'}
-                      </p>
-                    </div>
-                  </div>
-                  <input type="file" accept=".pdf,image/*" onChange={(e) => setRegistrationDoc(e.target.files?.[0] || null)} className="hidden" />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Photos */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Photos & Branding
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className={labelClass}>Club Logo</label>
-                <label className="block cursor-pointer">
-                  <div className={`h-[120px] border-2 border-dashed rounded-sm flex items-center justify-center overflow-hidden transition-colors ${logoPreview ? 'border-[#C9922A]/50' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
-                    {logoPreview ? (
-                      <img src={logoPreview} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center">
-                        <p className="text-2xl mb-1">🏆</p>
-                        <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">Upload Logo</p>
-                        <p className="text-[10px] text-[#8A8E99]/60">PNG, JPG recommended</p>
-                      </div>
-                    )}
-                  </div>
-                  <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
-                </label>
-              </div>
-              <div>
-                <label className={labelClass}>Cover Photo <span className="text-[#8A8E99] normal-case font-normal">(Facebook/X style banner)</span></label>
-                <label className="block cursor-pointer">
-                  <div className={`h-[120px] border-2 border-dashed rounded-sm flex items-center justify-center overflow-hidden transition-colors ${coverPreview ? 'border-[#C9922A]/50' : 'border-white/20 hover:border-[#C9922A]/40'}`}>
-                    {coverPreview ? (
-                      <img src={coverPreview} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center">
-                        <p className="text-2xl mb-1">🖼️</p>
-                        <p className="text-[11px] text-[#8A8E99] font-bold uppercase tracking-widest">Upload Cover</p>
-                        <p className="text-[10px] text-[#8A8E99]/60">Wide banner image works best</p>
-                      </div>
-                    )}
-                  </div>
-                  <input type="file" accept="image/*" onChange={handleCoverChange} className="hidden" />
-                </label>
-              </div>
-            </div>
+        {/* 3. COMPLIANCE */}
+        <div className={section}>
+          {heading(3, 'Compliance')}
+          <div className="flex flex-col gap-5">
             <div>
-              <label className={labelClass}>Gallery Photos <span className="text-[#8A8E99] normal-case font-normal">(max 10)</span></label>
-              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                {galleryPreviews.map((url, idx) => (
-                  <div key={idx} className="relative aspect-square bg-[#0D0F13] border border-white/10 rounded-sm overflow-hidden">
-                    <img src={url} alt="" className="w-full h-full object-cover" />
-                    <button type="button" onClick={() => removeGallery(idx)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] hover:bg-red-600">×</button>
-                  </div>
-                ))}
-                {galleryFiles.length < 10 && (
-                  <label className="aspect-square bg-[#0D0F13] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center cursor-pointer hover:border-[#C9922A]/40 transition-colors">
-                    <div className="text-center">
-                      <span className="text-xl text-[#8A8E99]">+</span>
-                      <p className="text-[8px] text-[#8A8E99] mt-0.5">{galleryFiles.length}/10</p>
-                    </div>
-                    <input type="file" accept="image/*" multiple onChange={handleGalleryChange} className="hidden" />
-                  </label>
-                )}
+              <label className={label}>Your club is *</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button type="button" onClick={() => set('compliance_status', 'affiliated')} className={choice(f.compliance_status === 'affiliated')}>
+                  <strong className="block text-[#F0EDE8]">Affiliated to an accredited association</strong>
+                  Most clubs. Members get dedicated status through the association.
+                </button>
+                <button type="button" onClick={() => set('compliance_status', 'accredited')} className={choice(f.compliance_status === 'accredited')}>
+                  <strong className="block text-[#F0EDE8]">An SAPS-accredited association</strong>
+                  Accredited by SAPS in your own right.
+                </button>
               </div>
             </div>
-          </div>
 
-          {/* Disciplines */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Disciplines
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {ALL_DISCIPLINES.map(d => (
-                <label key={d} className={`flex items-center gap-2 cursor-pointer p-2.5 rounded-sm border transition-all ${
-                  form.disciplines.includes(d) ? 'border-[#C9922A]/50 bg-[#C9922A]/10' : 'border-white/10 hover:border-white/20'
-                }`}>
-                  <input type="checkbox" checked={form.disciplines.includes(d)} onChange={() => toggleDiscipline(d)} className="accent-[#C9922A]" />
-                  <span className="text-[12px] font-bold uppercase tracking-wider text-[#F0EDE8]">{d}</span>
-                </label>
-              ))}
+            {f.compliance_status === 'affiliated' && (
+              <div className="flex flex-col gap-3">
+                <label className={label}>Affiliated to *</label>
+                <div className="flex flex-wrap gap-2">
+                  {ASSOCIATIONS.map((a) => (
+                    <button type="button" key={a.code} title={a.full}
+                      onClick={() => toggle('associations', a.code)} className={chip(f.associations.includes(a.code))}>
+                      {a.code}
+                    </button>
+                  ))}
+                </div>
+                <input className={input} value={f.other_association}
+                  onChange={(e) => set('other_association', e.target.value)}
+                  placeholder="Other accredited association (if not listed)" />
+                {fileField('Affiliation letter or certificate for this year *', affiliationDoc, setAffiliationDoc)}
+              </div>
+            )}
+
+            {f.compliance_status === 'accredited' && (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className={label}>SAPS accreditation number *</label>
+                  <input className={input} value={f.accreditation_number} onChange={(e) => set('accreditation_number', e.target.value)} />
+                </div>
+                {fileField('SAPS accreditation certificate *', accreditationDoc, setAccreditationDoc)}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <label className={label}>Proof the club exists *</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button type="button" onClick={() => set('entity_type', 'cipc')} className={choice(f.entity_type === 'cipc')}>
+                  <strong className="block text-[#F0EDE8]">CIPC registration</strong>
+                  Registered company or NPC.
+                </button>
+                <button type="button" onClick={() => set('entity_type', 'constitution')} className={choice(f.entity_type === 'constitution')}>
+                  <strong className="block text-[#F0EDE8]">Club constitution</strong>
+                  Voluntary association.
+                </button>
+              </div>
+              {f.entity_type && fileField(
+                f.entity_type === 'cipc' ? 'CIPC registration certificate *' : 'Signed club constitution *',
+                entityDoc, setEntityDoc)}
             </div>
-          </div>
 
-          {/* Associations */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-1">
-              Affiliated Associations
-            </h2>
-            <p className="text-[12px] text-[#8A8E99] mb-4">Select all associations your club is affiliated with</p>
-            <div className="flex flex-col gap-2">
-              {ALL_ASSOCIATIONS.map(a => (
-                <label key={a.code} className={`flex items-start gap-3 cursor-pointer p-3 rounded-sm border transition-all ${
-                  form.associations.includes(a.code) ? 'border-[#C9922A]/50 bg-[#C9922A]/5' : 'border-white/10 hover:border-white/20'
-                }`}>
-                  <input type="checkbox" checked={form.associations.includes(a.code)} onChange={() => toggleAssociation(a.code)}
-                    className="accent-[#C9922A] mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="text-[13px] font-black uppercase tracking-wider text-[#F0EDE8]">{a.name}</span>
-                    <span className="text-[11px] text-[#8A8E99] ml-2">{a.full}</span>
-                  </div>
-                </label>
-              ))}
+            <div>
+              <label className={label}>Responsible person *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input className={input} placeholder="Full name" value={f.rp_name} onChange={(e) => set('rp_name', e.target.value)} />
+                <input className={input} placeholder="Role, e.g. Chairperson" value={f.rp_role} onChange={(e) => set('rp_role', e.target.value)} />
+                <input className={input} type="email" placeholder="Email" value={f.rp_email} onChange={(e) => set('rp_email', e.target.value)} />
+                <input className={input} type="tel" placeholder="Phone" value={f.rp_phone} onChange={(e) => set('rp_phone', e.target.value)} />
+              </div>
             </div>
+            <p className="text-[12px] text-[#8A8E99]">PDF, JPG or PNG, up to 5MB each. Documents are private and only seen by the Gun X team.</p>
           </div>
+        </div>
 
-          {/* Shoot Days */}
-          <div className={sectionClass}>
-            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
-              <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest">Shoot Days</h2>
-              <button type="button" onClick={addShootDay} className="text-[11px] font-black uppercase tracking-widest text-[#C9922A] hover:brightness-125">
-                + Add Day
+        {/* 4. WHERE YOU SHOOT */}
+        <div className={section}>
+          {heading(4, 'Where you shoot')}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button type="button" onClick={() => set('shoots_at', 'own')} className={choice(f.shoots_at === 'own')}>
+                <strong className="block text-[#F0EDE8]">We have our own range</strong>
+              </button>
+              <button type="button" onClick={() => set('shoots_at', 'other')} className={choice(f.shoots_at === 'other')}>
+                <strong className="block text-[#F0EDE8]">We use another range</strong>
               </button>
             </div>
-            <div className="flex flex-col gap-4">
-              {shootDays.map((sd, idx) => (
-                <div key={idx} className="bg-[#0D0F13] border border-white/10 rounded-sm p-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
-                    <div>
-                      <label className={labelClass}>Day</label>
-                      <select value={sd.day} onChange={e => updateShootDay(idx, 'day', e.target.value)} className={inputClass}>
-                        <option value="">Select day...</option>
-                        {DAYS_OF_WEEK.map(d => <option key={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className={labelClass}>Discipline</label>
-                      <input value={sd.discipline} onChange={e => updateShootDay(idx, 'discipline', e.target.value)} className={inputClass} placeholder="e.g., IPSC" />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Time</label>
-                      <input value={sd.time} onChange={e => updateShootDay(idx, 'time', e.target.value)} className={inputClass} placeholder="e.g., 08:00 – 13:00" />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Range Fee (R)</label>
-                      <input type="number" value={sd.fee} onChange={e => updateShootDay(idx, 'fee', e.target.value)} className={inputClass} placeholder="150" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className={labelClass}>Notes</label>
-                      <input value={sd.notes} onChange={e => updateShootDay(idx, 'notes', e.target.value)} className={inputClass} placeholder="e.g., Members only, pre-registration required" />
-                    </div>
-                  </div>
-                  {shootDays.length > 1 && (
-                    <button type="button" onClick={() => removeShootDay(idx)} className="text-[11px] text-red-400 font-bold uppercase tracking-widest hover:text-red-300">
-                      Remove this day
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            {f.shoots_at === 'own' && (
+              <select className={input} value={f.range_setting} onChange={(e) => set('range_setting', e.target.value)}>
+                <option value="">Indoor or outdoor? *</option>
+                <option value="outdoor">Outdoor</option>
+                <option value="indoor">Indoor</option>
+                <option value="both">Both</option>
+              </select>
+            )}
+            {f.shoots_at === 'other' && (
+              <input className={input} placeholder="Name of the range you use *" value={f.shoots_at_range}
+                onChange={(e) => set('shoots_at_range', e.target.value)} />
+            )}
           </div>
+        </div>
 
-          {/* Fees */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-xl font-black uppercase tracking-widest border-b border-white/5 pb-3 mb-4">
-              Membership & Fees
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Annual Membership Fee (R)</label>
-                <input type="number" name="membership_fee" value={form.membership_fee} onChange={handleChange} className={inputClass} placeholder="e.g., 1500" />
-              </div>
-              <div>
-                <label className={labelClass}>Standard Range Fee per Session (R)</label>
-                <input type="number" name="range_fee" value={form.range_fee} onChange={handleChange} className={inputClass} placeholder="e.g., 150" />
-              </div>
-            </div>
+        {/* AGREEMENTS */}
+        <div className={section}>
+          <div className="flex flex-col gap-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="mt-[3px] w-4 h-4 accent-[#C9922A]" />
+              <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                I agree to the{' '}
+                <Link href={LEGAL_DOCUMENTS.terms.href} target="_blank" className="text-[#C9922A]">Terms of Use</Link>{' '}
+                and I am authorised to accept them for this club *
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={acceptPrivacy} onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                className="mt-[3px] w-4 h-4 accent-[#C9922A]" />
+              <span className="text-[13px] text-[#8A8E99] leading-relaxed">
+                I have read the{' '}
+                <Link href={LEGAL_DOCUMENTS.privacy.href} target="_blank" className="text-[#C9922A]">Privacy Policy</Link>{' '}
+                and{' '}
+                <Link href={LEGAL_DOCUMENTS.popi.href} target="_blank" className="text-[#C9922A]">POPI Act Notice</Link> *
+              </span>
+            </label>
           </div>
+        </div>
 
-          {/* Agreements */}
-          <div className={sectionClass}>
-            <h2 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="text-xl font-black uppercase text-[#C9922A] mb-4">
-              Agreements
-            </h2>
-            <div className="flex flex-col gap-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
-                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
-                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
-                  I agree to the{' '}
-                  <Link href={LEGAL_DOCUMENTS.terms.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Terms of Use</Link>{' '}
-                  and I am authorised to accept them on behalf of this club <span className="text-red-400">*</span>
-                </span>
-              </label>
+        {err && <p className="text-[13px] text-[#E63946] leading-relaxed">{err}</p>}
 
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={acknowledgePrivacy} onChange={e => setAcknowledgePrivacy(e.target.checked)}
-                  className="mt-[3px] w-4 h-4 flex-shrink-0 accent-[#C9922A] cursor-pointer" />
-                <span className="text-[13px] text-[#8A8E99] leading-relaxed">
-                  I have read the{' '}
-                  <Link href={LEGAL_DOCUMENTS.privacy.href} target="_blank" className="text-[#C9922A] hover:brightness-110">Privacy Policy</Link>{' '}
-                  and{' '}
-                  <Link href={LEGAL_DOCUMENTS.popi.href} target="_blank" className="text-[#C9922A] hover:brightness-110">POPI Act Notice</Link>{' '}
-                  <span className="text-red-400">*</span>
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {/* Submit */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" disabled={loading || !acceptedTerms || !acknowledgePrivacy}
-              style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              {loading ? 'Submitting...' : 'Submit Club Application'}
-            </button>
-            <Link href="/clubs" className="sm:w-auto px-8 py-4 border border-white/10 text-[#F0EDE8] font-black uppercase tracking-widest text-[13px] rounded-sm hover:bg-white/5 transition-all text-center">
-              Cancel
-            </Link>
-          </div>
-
-          <p className="text-[12px] text-[#8A8E99] text-center">
-            Free listing · Verified badge awarded after our team reviews your submission (48hrs)
-          </p>
-        </form>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button onClick={submit} disabled={busy}
+            style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+            className="flex-1 bg-[#C9922A] text-black font-black uppercase tracking-widest text-[15px] py-4 rounded-sm hover:brightness-110 disabled:opacity-50">
+            {busy ? 'Submitting...' : 'Submit club application'}
+          </button>
+          <Link href="/clubs" className="px-8 py-4 border border-white/10 font-black uppercase tracking-widest text-[13px] rounded-sm text-center">
+            Cancel
+          </Link>
+        </div>
       </main>
     </div>
-  );
-}
-
-export default function ClubApplyPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#0D0F13] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-[#C9922A] border-t-transparent rounded-full animate-spin" />
-      </div>
-    }>
-      <ClubApplyInner />
-    </Suspense>
   );
 }

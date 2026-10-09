@@ -70,6 +70,9 @@ const CONFIG: Record<Kind, KindConfig> = {
       ['saps_registration_url', 'SAPS registration'],
       ['compliance_cert_url', 'Compliance certificate'],
       ['business_registration_url', 'Business registration'],
+      ['affiliation_letter_url', 'Affiliation letter'],
+      ['accreditation_cert_url', 'SAPS accreditation certificate'],
+      ['constitution_url', 'Club constitution'],
     ],
     fields: [
       ['name', 'Name'],
@@ -80,6 +83,15 @@ const CONFIG: Record<Kind, KindConfig> = {
       ['phone', 'Phone'],
       ['city', 'City'],
       ['province', 'Province'],
+      ['facility_type', 'Type'],
+      ['compliance_status', 'Compliance'],
+      ['accreditation_number', 'SAPS accreditation no.'],
+      ['associations', 'Affiliated to'],
+      ['responsible_person_name', 'Responsible person'],
+      ['responsible_person_role', 'Role'],
+      ['responsible_person_phone', 'Responsible person phone'],
+      ['shoots_at', 'Shoots at'],
+      ['shoots_at_range', 'Range used'],
     ],
   },
   service: {
@@ -189,6 +201,10 @@ export async function POST(req: NextRequest) {
     // Documents: a fresh 48-hour signed link for each one
     const docRows: string[] = [];
     for (const [col, label] of cfg.docs) {
+      // Clubs list only the documents they uploaded; ranges skip club-only ones.
+      if (kind === 'club' && row.facility_type === 'club' && !row[col]) continue;
+      if (kind === 'club' && row.facility_type !== 'club'
+          && ['affiliation_letter_url', 'accreditation_cert_url', 'constitution_url'].includes(col)) continue;
       const path: string | null = row[col] || null;
       let cell: string;
       if (!path) {

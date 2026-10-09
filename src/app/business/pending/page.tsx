@@ -25,9 +25,10 @@ const DOCS: Record<string, Array<[string, string]>> = {
     ['id_document_url', 'ID document'],
   ],
   club: [
-    ['saps_registration_url', 'SAPS registration'],
-    ['compliance_cert_url', 'Compliance certificate'],
-    ['business_registration_url', 'Business registration'],
+    ['affiliation_letter_url', 'Affiliation letter'],
+    ['accreditation_cert_url', 'SAPS accreditation certificate'],
+    ['business_registration_url', 'CIPC registration'],
+    ['constitution_url', 'Club constitution'],
   ],
   range: [
     ['saps_registration_url', 'SAPS registration'],
@@ -254,7 +255,9 @@ export default function BusinessPendingPage() {
   // --- More information needed ---------------------------------------------
   if (state.status === 'info_requested') {
     const docs = DOCS[state.type.id] || [];
-    const missing = docs.filter(([col]) => !row[col]);
+    // Only the documents the Gun X team asked for (when it said which).
+    const asked: string[] = Array.isArray(row.review_docs) ? row.review_docs : [];
+    const missing = docs.filter(([col]) => !row[col] && (asked.length === 0 || asked.includes(col)));
     return shell(
       <>
         {top}

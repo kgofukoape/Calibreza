@@ -123,7 +123,8 @@ const TABLES: Record<string, {
 
 const CLEARABLE_DOCS: Record<string, string[]> = {
   dealer: ['saps_certificate_url', 'business_registration_url', 'id_document_url'],
-  club: ['saps_registration_url', 'compliance_cert_url', 'business_registration_url'],
+  club: ['saps_registration_url', 'compliance_cert_url', 'business_registration_url',
+    'affiliation_letter_url', 'accreditation_cert_url', 'constitution_url'],
   service: ['psira_certificate_url'],
 };
 
@@ -134,6 +135,9 @@ const DOC_LABELS: Record<string, string> = {
   saps_registration_url: 'SAPS registration',
   compliance_cert_url: 'Compliance certificate',
   psira_certificate_url: 'PSIRA certificate',
+  affiliation_letter_url: 'Affiliation letter',
+  accreditation_cert_url: 'SAPS accreditation certificate',
+  constitution_url: 'Club constitution',
 };
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://calibreza.vercel.app';
@@ -315,6 +319,7 @@ export async function POST(req: NextRequest) {
         update.review_note = note;
       } else if (target === config.activeStatus) {
         update.review_note = null;
+        update.review_docs = null;
         // Clubs and ranges: 60 days of the Active plan free, no card needed
         // (agreed Oct 2026). Once only: never for a club that has had a
         // trial or already pays. The nightly job ends it after 60 days.
@@ -336,6 +341,7 @@ export async function POST(req: NextRequest) {
         const allowed = CLEARABLE_DOCS[entityType] || [];
         cleared = (body.clearDocs as unknown[])
           .filter((c): c is string => typeof c === 'string' && allowed.includes(c));
+          update.review_docs = cleared;
         cleared.forEach((c) => { update[c] = null; });
       }
     }
