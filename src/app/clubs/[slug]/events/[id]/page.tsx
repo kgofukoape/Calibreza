@@ -89,8 +89,18 @@ export default function ClubEventPage() {
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
-      <AdBanner slot="leaderboard_top" page="clubs_profile" />
-      <main className="max-w-[820px] mx-auto w-full px-4 py-8 flex flex-col gap-5">
+      <div className="flex w-full justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="clubs_profile" />
+      </div>
+      {/* 3-COLUMN LAYOUT: side ads on wide screens, as on other profile pages */}
+      <div className="flex w-full items-start flex-1">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-6">
+          <div className="sticky top-[57px]"><AdBanner slot="sidebar_left" page="clubs_profile" /></div>
+        </aside>
+        <main className="flex-1 min-w-0 max-w-[820px] mx-auto px-4 py-8 flex flex-col gap-5">
+          <div className="xl:hidden w-full flex justify-center pb-6">
+            <AdBanner slot="sidebar_left" page="clubs_profile" variant="infeed" />
+          </div>
         <Link href={`/clubs/${club.slug}`} className="flex items-center gap-3 text-[#8A8E99] hover:text-[#F0EDE8]">
           {club.logo_url && <img src={club.logo_url} alt="" className="w-9 h-9 rounded-sm object-cover" />}
           <span className="text-[12px] font-black uppercase tracking-widest">{club.name}</span>
@@ -137,6 +147,10 @@ export default function ClubEventPage() {
 
         <Link href={`/clubs/${club.slug}#events`} className="text-[#C9922A] font-black uppercase tracking-widest text-[12px]">All events from {club.name}</Link>
       </main>
+        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-6">
+          <div className="sticky top-[57px]"><AdBanner slot="sidebar_right" page="clubs_profile" /></div>
+        </aside>
+      </div>
       <Footer />
     </div>
   );

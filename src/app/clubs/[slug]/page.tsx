@@ -112,7 +112,9 @@ export default function ClubPublicPage() {
   return (
     <div className="min-h-screen bg-[#0D0F13] text-[#F0EDE8] flex flex-col">
       <Navbar />
-      <AdBanner slot="leaderboard_top" page="clubs_profile" />
+      <div className="flex w-full justify-center py-3 px-4">
+        <AdBanner slot="leaderboard_top" page="clubs_profile" />
+      </div>
 
       {/* HEADER */}
       <header className="relative">
@@ -156,7 +158,15 @@ export default function ClubPublicPage() {
         </div>
       </nav>
 
-      <main className="max-w-[1100px] mx-auto w-full px-4 py-6 md:py-8 flex gap-6">
+      {/* 3-COLUMN LAYOUT: side ads on wide screens, as on other profile pages */}
+      <div className="flex w-full items-start flex-1">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-6">
+          <div className="sticky top-[57px]"><AdBanner slot="sidebar_left" page="clubs_profile" /></div>
+        </aside>
+        <main className="flex-1 min-w-0 max-w-[1100px] mx-auto px-4 py-6 md:py-8">
+          <div className="xl:hidden w-full flex justify-center pb-6">
+            <AdBanner slot="sidebar_left" page="clubs_profile" variant="infeed" />
+          </div>
         <div className="flex-1 min-w-0 flex flex-col gap-5">
 
           {/* ABOUT */}
@@ -308,10 +318,11 @@ export default function ClubPublicPage() {
           <Link href="/clubs" className="text-[#C9922A] font-black uppercase tracking-widest text-[12px]">Back to all clubs</Link>
         </div>
 
-        <aside className="hidden lg:block w-[300px] flex-shrink-0">
-          <div className="sticky top-16"><AdBanner slot="sidebar_right" page="clubs_profile" /></div>
-        </aside>
       </main>
+        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-6">
+          <div className="sticky top-[57px]"><AdBanner slot="sidebar_right" page="clubs_profile" /></div>
+        </aside>
+      </div>
 
       {/* PHOTO VIEWER */}
       {photo !== null && (
