@@ -38,6 +38,8 @@ export type AdPage =
   | 'dealers_profile'
   | 'clubs_directory'
   | 'clubs_profile'
+  | 'ranges_directory'
+  | 'ranges_profile'
   | 'services_directory'
   | 'services_profile'
   | 'jobs_board'

@@ -65,7 +65,7 @@ const AD_ZONES: AdZone[] = [
     rate: 'R 500',
     rateRaw: 500,
     placement: 'Embedded in sidebar blocks and mobile feed positions — broad reach across all device types.',
-    pages: ['Sidebar positions', 'Mobile feed', 'Club & services pages'],
+    pages: ['Sidebar positions', 'Mobile feed', 'Club, range & services pages'],
     audience: 'Shooting clubs, training ranges, gunsmiths, and motivation writers targeting first-time applicants.',
   },
 ];

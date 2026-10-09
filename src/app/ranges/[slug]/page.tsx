@@ -245,7 +245,7 @@ export default function ClubDetailPage() {
 
       {/* LEADERBOARD TOP */}
       <div className="flex w-full justify-center py-3 px-4">
-        <AdBanner slot="leaderboard_top" page="clubs_profile" />
+        <AdBanner slot="leaderboard_top" page="ranges_profile" />
       </div>
 
 
@@ -336,9 +336,9 @@ export default function ClubDetailPage() {
       <div className="flex w-full items-start flex-1">
 
         {/* LEFT SIDEBAR AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-4">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pl-2 pt-4">
           <div className="sticky top-[57px]">
-            <AdBanner slot="sidebar_left" page="clubs_profile" />
+            <AdBanner slot="sidebar_left" page="ranges_profile" />
           </div>
         </aside>
 
@@ -351,7 +351,7 @@ export default function ClubDetailPage() {
                   they could see whose page it was. Small screens only - the
                   real sidebars carry it from xl upward. */}
               <div className="xl:hidden w-full flex justify-center pb-6">
-                <AdBanner slot="sidebar_left" page="clubs_profile" variant="infeed" />
+                <AdBanner slot="sidebar_left" page="ranges_profile" variant="infeed" />
               </div>
 
               {/* ── ABOUT ── */}
@@ -660,7 +660,7 @@ export default function ClubDetailPage() {
 
                     {/* SQUARE CARD AD — contact tab */}
                     <div className="mt-6 pt-6 border-t border-white/5 flex justify-center">
-                      <AdBanner slot="square_card" page="clubs_profile" />
+                      <AdBanner slot="square_card" page="ranges_profile" />
                     </div>
                   </div>
                 </div>
@@ -695,7 +695,7 @@ export default function ClubDetailPage() {
               </div>
 
               {/* SQUARE CARD AD — right sidebar */}
-              <AdBanner slot="square_card" page="clubs_profile" />
+              <AdBanner slot="square_card" page="ranges_profile" />
 
               <Link href="/ranges" className="text-[12px] text-[#8A8E99] font-bold uppercase tracking-widest hover:text-[#C9922A] transition-colors">← Back to all ranges</Link>
             </aside>
@@ -703,9 +703,9 @@ export default function ClubDetailPage() {
         </div>
 
         {/* RIGHT SIDEBAR AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-4">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pr-2 pt-4">
           <div className="sticky top-[57px]">
-            <AdBanner slot="sidebar_right" page="clubs_profile" />
+            <AdBanner slot="sidebar_right" page="ranges_profile" />
           </div>
         </aside>
       </div>

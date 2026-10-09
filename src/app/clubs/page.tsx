@@ -98,7 +98,7 @@ export default function ClubDirectoryPage() {
 
       {/* 3-COLUMN LAYOUT: side ads on wide screens, as on other profile pages */}
       <div className="flex w-full items-start flex-1">
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2 pt-6">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pl-2 pt-6">
           <div className="sticky top-[57px]"><AdBanner slot="sidebar_left" page="clubs_directory" /></div>
         </aside>
         <main className="flex-1 min-w-0 max-w-[1200px] mx-auto px-4 py-8">
@@ -205,7 +205,7 @@ export default function ClubDirectoryPage() {
         </div>
 
       </main>
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2 pt-6">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pr-2 pt-6">
           <div className="sticky top-[57px]"><AdBanner slot="sidebar_right" page="clubs_directory" /></div>
         </aside>
       </div>

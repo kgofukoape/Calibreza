@@ -89,16 +89,16 @@ export default function ClubsPage() {
 
       {/* LEADERBOARD TOP */}
       <div className="w-full flex justify-center py-3 px-4">
-        <AdBanner slot="leaderboard_top" page="clubs_directory" />
+        <AdBanner slot="leaderboard_top" page="ranges_directory" />
       </div>
 
       {/* MAIN */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full px-4 md:px-6 py-6 flex gap-6">
 
         {/* LEFT SIDEBAR AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[160px]">
           <div className="sticky top-6">
-            <AdBanner slot="sidebar_left" page="clubs_directory" />
+            <AdBanner slot="sidebar_left" page="ranges_directory" />
           </div>
         </aside>
 
@@ -228,7 +228,7 @@ export default function ClubsPage() {
                       {/* In-feed advert every 6 cards — cycles through the mid
                           leaderboard and the two sidebar bookings, so a
                           sidebar advertiser is seen on mobile too. */}
-                      <InFeedAd index={idx} page="clubs_directory" every={6} />
+                      <InFeedAd index={idx} page="ranges_directory" every={6} />
                     </React.Fragment>
                   );
                 })}
@@ -236,16 +236,16 @@ export default function ClubsPage() {
 
               {/* SQUARE CARD — mobile */}
               <div className="flex justify-center mt-6 xl:hidden">
-                <AdBanner slot="square_card" page="clubs_directory" />
+                <AdBanner slot="square_card" page="ranges_directory" />
               </div>
             </>
           )}
         </main>
 
         {/* RIGHT SIDEBAR AD */}
-        <aside className="hidden xl:flex flex-col flex-shrink-0 w-[160px]">
+        <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[160px]">
           <div className="sticky top-6">
-            <AdBanner slot="sidebar_right" page="clubs_directory" />
+            <AdBanner slot="sidebar_right" page="ranges_directory" />
           </div>
         </aside>
       </div>
