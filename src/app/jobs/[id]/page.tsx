@@ -86,7 +86,11 @@ export default function SingleJobPage() {
         </div>
       )}
 
-      <div className="flex-1 max-w-[900px] mx-auto w-full px-4 md:px-6 py-10">
+      <div className="flex w-full items-start flex-1">
+      <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pl-2 pt-6">
+        <div className="sticky top-[57px]"><AdBanner slot="sidebar_left" page="jobs_detail" /></div>
+      </aside>
+      <div className="flex-1 min-w-0 max-w-[900px] mx-auto w-full px-4 md:px-6 py-10">
         <Link href="/jobs" className="text-[11px] font-bold uppercase tracking-widest text-[#8A8E99] hover:text-[#C9922A] mb-8 inline-block transition-colors">← Back to Jobs Board</Link>
 
         <div className="bg-[#161920] border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
@@ -114,6 +118,7 @@ export default function SingleJobPage() {
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-4 text-[#C9922A]">About the Role</h3>
             <p className="text-[16px] text-[#8A8E99] leading-relaxed mb-10 whitespace-pre-wrap">{job.description}</p>
 
+            <div className="flex justify-center mb-10"><AdBanner slot="leaderboard_mid" page="jobs_detail" /></div>
             <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-2xl font-black uppercase mb-4">Requirements</h3>
             <ul className="flex flex-col gap-3 mb-10">
               {(job.requirements || []).map((req: string) => <li key={req} className="flex items-center gap-4 text-[15px] text-[#8A8E99] bg-[#0D0F13] p-4 rounded-2xl border border-white/5"><span className="w-8 h-8 rounded-full bg-[#C9922A]/10 text-[#C9922A] flex items-center justify-center font-black flex-shrink-0">✓</span> {req}</li>)}
@@ -130,13 +135,17 @@ export default function SingleJobPage() {
           </div>
         </div>
 
-        <div className="2xl:hidden w-full flex justify-center py-4 px-4">
+        <div className="xl:hidden w-full flex justify-center py-4 px-4">
           <AdBanner slot="sidebar_left" page="jobs_detail" variant="infeed" />
         </div>
 
         <div className="w-full flex justify-center pb-6 px-4">
           <AdBanner slot="square_card" page="jobs_detail" />
         </div>
+      </div>
+      <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pr-2 pt-6">
+        <div className="sticky top-[57px]"><AdBanner slot="sidebar_right" page="jobs_detail" /></div>
+      </aside>
       </div>
     </div>
   );

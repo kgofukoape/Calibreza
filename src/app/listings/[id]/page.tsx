@@ -241,7 +241,14 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
         </div>
       </div>
 
-      <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 md:px-6 py-5 md:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
+      <div className="xl:hidden w-full flex justify-center pt-4 px-4">
+        <AdBanner slot="sidebar_left" page="listings_detail" variant="infeed" />
+      </div>
+      <div className="flex w-full items-start flex-1">
+      <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pl-2 pt-6">
+        <div className="sticky top-[57px]"><AdBanner slot="sidebar_left" page="listings_detail" /></div>
+      </aside>
+      <main className="flex-1 min-w-0 max-w-[1280px] mx-auto w-full px-4 md:px-6 py-5 md:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
 
         {/* ── LEFT COLUMN ──────────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 flex flex-col gap-5">
@@ -442,6 +449,10 @@ export default function ListingDetailsPage({ params }: { params: { id: string } 
 
         </aside>
       </main>
+      <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pr-2 pt-6">
+        <div className="sticky top-[57px]"><AdBanner slot="sidebar_right" page="listings_detail" /></div>
+      </aside>
+      </div>
 
       {/* SIMILAR LISTINGS */}
       {similarListings.length > 0 && (

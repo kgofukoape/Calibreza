@@ -359,7 +359,12 @@ function DealerStorefrontContent() {
           {/* ── INVENTORY ── */}
           {activeTab === 'inventory' && (
             <div className="flex flex-col lg:flex-row gap-6">
-              <DealerFilterSidebar brands={filterBrands} calibres={filterCalibres} onFiltersChange={setFilters} />
+              <div className="flex flex-col gap-6 flex-shrink-0">
+                <DealerFilterSidebar brands={filterBrands} calibres={filterCalibres} onFiltersChange={setFilters} />
+                <div className="hidden xl:flex justify-center">
+                  <AdBanner slot="sidebar_left" page="dealers_profile" />
+                </div>
+              </div>
               <div className="flex-1 min-w-0">
                 {featuredListings.length > 0 && (
                   <div className="bg-[#C9922A]/5 border border-[#C9922A]/20 rounded-sm p-5 mb-6">
@@ -413,6 +418,9 @@ function DealerStorefrontContent() {
                   </div>
                 )}
 
+                <div className="flex justify-center mt-6 xl:hidden">
+                  <AdBanner slot="sidebar_left" page="dealers_profile" variant="infeed" />
+                </div>
                 {/* SQUARE CARD — below inventory on mobile */}
                 <div className="flex justify-center mt-6 lg:hidden">
                   <AdBanner slot="square_card" page="dealers_profile" />

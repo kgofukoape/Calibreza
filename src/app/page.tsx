@@ -133,7 +133,7 @@ export default function HomePage() {
         <div className="flex w-full items-start">
 
           {/* LEFT AD */}
-          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pl-2">
+          <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pl-2">
             <div className="sticky top-4 flex justify-center">
               <AdBanner slot="sidebar_left" page="home" />
             </div>
@@ -281,6 +281,8 @@ export default function HomePage() {
               </div>
             </section>
 
+            <div className="flex justify-center py-6"><AdBanner slot="leaderboard_mid" page="home" /></div>
+
             {/* ── COLLECTIONS ──────────────────────────────────────────────
                 A full-width feature rather than a tile in the category grid.
                 A collection is an identity, not a category — someone looking
@@ -365,12 +367,14 @@ export default function HomePage() {
               </div>
             </section>
 
+<div className="flex justify-center pb-10"><AdBanner slot="square_card" page="home" /></div>
+
 {/* (inline footer removed — using shared <Footer /> below) */}
 
           </div>
 
           {/* RIGHT AD */}
-          <aside className="hidden xl:flex flex-col flex-shrink-0 w-[180px] pr-2">
+          <aside className="hidden xl:flex flex-col flex-shrink-0 self-stretch w-[180px] pr-2">
             <div className="sticky top-4 flex justify-center">
               <AdBanner slot="sidebar_right" page="home" />
             </div>
