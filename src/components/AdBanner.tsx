@@ -116,37 +116,21 @@ export default function AdBanner({ slot, page, className = '' , variant = 'deskt
   const lbClass = isLeaderboard ? ' ad-leaderboard' : '';
 
   const fetchAd = useCallback(async () => {
-    // Try page-specific ad first, fall back to 'all' if none found
-    const { data: pageAd } = await supabase
+    // One lookup: a sitewide booking for this slot, or a booking whose pages
+    // include this page (one page or several). Sitewide is exclusive, so the
+    // two cannot both be live; if they ever are, sitewide wins.
+    const now = new Date().toISOString();
+    const { data } = await supabase
       .from('ads')
-      .select('id, title, file_url, mobile_file_url, click_url, ad_type, slot, page, impressions, clicks')
+      .select('id, title, file_url, mobile_file_url, click_url, ad_type, slot, page, pages, impressions, clicks')
       .eq('slot', slot)
-      .eq('page', page)
       .eq('status', 'active')
-      .lte('starts_at', new Date().toISOString())
-      .gte('expires_at', new Date().toISOString())
-      .limit(1)
-      .single();
-
-    if (pageAd) {
-      setAd(pageAd);
-      setLoading(false);
-      return;
-    }
-
-    // Fallback: sitewide 'all' ad for this slot
-    const { data: allAd } = await supabase
-      .from('ads')
-      .select('id, title, file_url, mobile_file_url, click_url, ad_type, slot, page, impressions, clicks')
-      .eq('slot', slot)
-      .eq('page', 'all')
-      .eq('status', 'active')
-      .lte('starts_at', new Date().toISOString())
-      .gte('expires_at', new Date().toISOString())
-      .limit(1)
-      .single();
-
-    setAd(allAd || null);
+      .lte('starts_at', now)
+      .gte('expires_at', now)
+      .or(`page.eq.all,page.eq.${page},pages.cs.{${page}}`)
+      .limit(5);
+    const rows = (data || []) as any[];
+    setAd(rows.find((r) => r.page === 'all') || rows[0] || null);
     setLoading(false);
   }, [slot, page]);
 

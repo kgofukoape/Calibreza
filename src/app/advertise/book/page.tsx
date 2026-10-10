@@ -24,41 +24,7 @@ const AD_SLOTS = [
   { id: 'square_card',     label: 'Square Card',      size: '300 × 250', rate: SLOT_RATES.square_card,     desc: 'Compact block, broad reach' },
 ];
 
-const PAGE_OPTIONS = [
-  { value: 'all',                  label: 'All Pages (Sitewide)' },
-  { value: 'home',                 label: 'Homepage' },
-  { value: 'browse_pistols',       label: 'Browse — Pistols' },
-  { value: 'browse_rifles',        label: 'Browse — Rifles' },
-  { value: 'browse_shotguns',      label: 'Browse — Shotguns' },
-  { value: 'browse_revolvers',     label: 'Browse — Revolvers' },
-  { value: 'browse_ammunition',    label: 'Browse — Ammunition' },
-  { value: 'browse_optics',        label: 'Browse — Optics' },
-  { value: 'browse_accessories',   label: 'Browse — Accessories' },
-  { value: 'browse_holsters',      label: 'Browse — Holsters' },
-  { value: 'browse_air_guns',      label: 'Browse — Air Guns' },
-  { value: 'browse_airsoft',       label: 'Browse — Airsoft' },
-  { value: 'browse_magazines',     label: 'Browse — Magazines' },
-  { value: 'browse_reloading',     label: 'Browse — Reloading' },
-  { value: 'browse_knives',        label: 'Browse — Knives' },
-  { value: 'listings_detail',      label: 'Listing Detail Page' },
-  { value: 'dealers_directory',    label: 'Dealers Directory' },
-  { value: 'dealers_profile',      label: 'Dealer Profile' },
-  { value: 'clubs_directory',      label: 'Shooting Clubs Directory' },
-  { value: 'clubs_profile',        label: 'Shooting Club Profile & Events' },
-  { value: 'ranges_directory',     label: 'Ranges Directory' },
-  { value: 'ranges_profile',       label: 'Range Profile' },
-  { value: 'services_directory',   label: 'Services Directory' },
-  { value: 'services_profile',     label: 'Service Provider Profile' },
-  { value: 'jobs_board',           label: 'Jobs Board' },
-  { value: 'jobs_detail',          label: 'Job Detail Page' },
-  { value: 'wanted',               label: 'Wanted Ads' },
-  { value: 'search',               label: 'Search Results' },
-  { value: 'advisor',              label: 'FCA Match Advisor' },
-  { value: 'sell',                 label: 'Sell / Post Ad' },
-  { value: 'faqs',                 label: 'FAQs' },
-  { value: 'firearm_ownership',    label: 'Firearm Ownership Guide' },
-  { value: 'about',                label: 'About Page' },
-];
+// Pages come from the ad_pages catalogue in the database (one list for the whole site).
 
 const DURATION_OPTIONS = [
   { value: 1, label: '1 Month' },
@@ -88,10 +54,15 @@ export default function AdvertiseBookPage() {
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState(false);
   const [availabilityNote, setAvailabilityNote] = useState('');
+  const [availOk, setAvailOk]     = useState(false);
 
   // form state
   const [slot, setSlot]           = useState('leaderboard_top');
-  const [page, setPage]           = useState('all');
+  const [pages, setPages]         = useState<string[]>([]);
+  const [sitewide, setSitewide]   = useState(false);
+  const [catalogue, setCatalogue] = useState<Array<{ key: string; label: string; grp: string }>>([]);
+  const [priced, setPriced]       = useState<number | null>(null);
+  const [priceError, setPriceError] = useState('');
   const [duration, setDuration]   = useState(1);
   const [startDate, setStartDate] = useState('');
   const [adType, setAdType]       = useState('image');
@@ -127,34 +98,65 @@ export default function AdvertiseBookPage() {
     check();
   }, [router]);
 
-  // ── Availability check (soft — admin makes final call) ───────────────────────
+  // -- Catalogue, price and availability: all from the database --------------
+  // The database prices every booking itself (ad_price) and checks clashes
+  // (ad_conflicts): sitewide blocks every page for the slot, any page blocks
+  // sitewide. The screen shows the same numbers the invoice will use.
   useEffect(() => {
-    if (!startDate || !slot || !page) { setAvailabilityNote(''); return; }
-    const checkAvail = async () => {
-      const starts = new Date(startDate).toISOString();
-      const expires = addMonths(startDate, duration);
-      const { data } = await supabase
-        .from('ads')
-        .select('id, expires_at')
-        .eq('slot', slot)
-        .eq('page', page)
-        .eq('status', 'active')
-        .lt('starts_at', expires)
-        .gt('expires_at', starts);
+    supabase.from('ad_pages').select('key, label, grp, sort').eq('live', true).order('sort')
+      .then(({ data }) => setCatalogue(data || []));
+  }, []);
+
+  useEffect(() => {
+    if (!slot || (!sitewide && pages.length === 0)) { setPriced(null); setPriceError(''); return; }
+    supabase.rpc('ad_price', { p_slot: slot, p_pages: sitewide ? null : pages, p_sitewide: sitewide, p_months: duration })
+      .then(({ data, error }) => {
+        if (error) { setPriced(null); setPriceError(error.message); }
+        else { setPriced(Number(data)); setPriceError(''); }
+      });
+  }, [slot, pages, sitewide, duration]);
+
+  useEffect(() => {
+    if (!startDate || !slot || (!sitewide && pages.length === 0)) { setAvailabilityNote(''); setAvailOk(false); return; }
+    (async () => {
+      const { data, error } = await supabase.rpc('ad_conflicts', {
+        p_slot: slot, p_pages: sitewide ? null : pages, p_sitewide: sitewide,
+        p_starts: new Date(startDate).toISOString(), p_expires: addMonths(startDate, duration),
+      });
+      if (error) { setAvailabilityNote('Could not check availability. Please try again.'); setAvailOk(false); return; }
       if (data && data.length > 0) {
-        const until = new Date(data[0].expires_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
-        setAvailabilityNote(`⚠️ This slot is currently booked until ${until}. You can still submit — our team will confirm the earliest available date with you.`);
+        const names = Array.from(new Set((data as any[]).flatMap((c) => c.page === 'all'
+          ? ['every page (a sitewide booking)']
+          : (c.pages || [c.page]).filter((x: string) => sitewide || pages.includes(x)).map(labelOf))));
+        const until = new Date(Math.max(...(data as any[]).map((c) => new Date(c.expires_at).getTime())))
+          .toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+        setAvailabilityNote(`Already booked on ${names.join(', ')} until ${until}. Untick those pages or choose a later start date.`);
+        setAvailOk(false);
       } else {
-        setAvailabilityNote('✓ This slot looks available for your selected dates.');
+        setAvailabilityNote('Available on all chosen pages for these dates.');
+        setAvailOk(true);
       }
-    };
-    checkAvail();
-  }, [slot, page, startDate, duration]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slot, pages, sitewide, startDate, duration, catalogue]);
 
   const slotInfo   = AD_SLOTS.find(s => s.id === slot);
-  const monthlyRate = slotInfo?.rate || 0;
-  const totalCost  = monthlyRate * duration;
-  const pageLabel  = PAGE_OPTIONS.find(p => p.value === page)?.label || page;
+  const totalCost  = priced ?? 0;
+  const monthlyRate = duration ? Math.round(totalCost / duration) : 0;
+  const labelOf    = (key: string) => catalogue.find((c) => c.key === key)?.label || key;
+  const pageLabel  = sitewide ? `All pages, sitewide (${catalogue.length})`
+    : pages.length === 1 ? labelOf(pages[0]) : `${pages.length} pages: ${pages.map(labelOf).join(', ')}`;
+  const groups: Array<[string, Array<{ key: string; label: string }>]> = [];
+  catalogue.forEach((c) => {
+    const grp = groups.find((x) => x[0] === c.grp);
+    if (grp) grp[1].push(c); else groups.push([c.grp, [c]]);
+  });
+  const togglePage = (key: string) =>
+    setPages((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
+  const toggleGroup = (items: Array<{ key: string }>) => setPages((prev) =>
+    items.every((it) => prev.includes(it.key))
+      ? prev.filter((x) => !items.some((it) => it.key === x))
+      : Array.from(new Set([...prev, ...items.map((it) => it.key)])));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -179,7 +181,7 @@ export default function AdvertiseBookPage() {
     setMobilePreview(URL.createObjectURL(f));
   };
 
-  const canProceedStep1 = slot && page && duration && startDate;
+  const canProceedStep1 = slot && (sitewide || pages.length > 0) && duration && startDate && priced !== null && availOk;
   const canProceedStep2 = file && clickUrl && title;
   const canSubmit       = clientName && user?.email && consented;
 
@@ -218,7 +220,8 @@ export default function AdvertiseBookPage() {
       client_vat:          clientVat || null,
       title,
       slot,
-      page,
+      page: sitewide ? 'all' : pages.length === 1 ? pages[0] : 'multi',
+      pages: sitewide ? null : pages,
       ad_type:        adType,
       file_url:       publicUrl,
       mobile_file_url: mobileUrl,
@@ -382,19 +385,50 @@ export default function AdvertiseBookPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Show On Page</label>
-                <select value={page} onChange={e => setPage(e.target.value)} className={inputClass}>
-                  {PAGE_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
+            <div>
+              <label className={labelClass}>Duration</label>
+              <select value={duration} onChange={e => setDuration(Number(e.target.value))} className={inputClass}>
+                {DURATION_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className={labelClass}>Show On Pages</label>
+                <span className="text-[11px] text-[#8A8E99]">{sitewide ? 'All pages' : `${pages.length} selected`}</span>
               </div>
-              <div>
-                <label className={labelClass}>Duration</label>
-                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className={inputClass}>
-                  {DURATION_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-              </div>
+              <label className={`flex items-start gap-3 p-4 rounded-sm border cursor-pointer mb-3 ${sitewide ? 'border-[#C9922A] bg-[#C9922A]/10' : 'border-white/10 bg-[#0D0F13]'}`}>
+                <input type="checkbox" checked={sitewide} className="mt-1 w-4 h-4 accent-[#C9922A]"
+                  onChange={(e) => { setSitewide(e.target.checked); if (e.target.checked) setPages([]); }} />
+                <span>
+                  <strong className="block text-[#F0EDE8] text-[14px]">Select all pages (sitewide, exclusive)</strong>
+                  <span className="text-[12px] text-[#8A8E99]">Your ad shows in this slot on every page, and nobody else can book this slot anywhere while it runs. All {catalogue.length} pages at 5% off.</span>
+                </span>
+              </label>
+              {!sitewide && (
+                <div className="flex flex-col gap-4 bg-[#0D0F13] border border-white/10 rounded-sm p-4 max-h-[420px] overflow-y-auto">
+                  {groups.map(([g, items]) => (
+                    <div key={g}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#C9922A]">{g}</p>
+                        <button type="button" onClick={() => toggleGroup(items)}
+                          className="text-[10px] font-black uppercase tracking-widest text-[#8A8E99] hover:text-[#F0EDE8]">
+                          {items.every((it) => pages.includes(it.key)) ? 'Clear' : 'Select all'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                        {items.map((it) => (
+                          <label key={it.key} className="flex items-center gap-2 text-[13px] cursor-pointer py-1">
+                            <input type="checkbox" checked={pages.includes(it.key)} onChange={() => togglePage(it.key)} className="w-4 h-4 accent-[#C9922A]" />
+                            <span>{it.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-[#8A8E99] mt-2">Volume discount: 6 to 10 pages 2.5% off each, 11 or more pages 5% off each.</p>
             </div>
 
             <div>
@@ -403,11 +437,12 @@ export default function AdvertiseBookPage() {
             </div>
 
             {availabilityNote && (
-              <div className={`rounded-sm p-3 text-[13px] ${availabilityNote.startsWith('✓') ? 'bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981]' : 'bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B]'}`}>
+              <div className={`rounded-sm p-3 text-[13px] ${availOk ? 'bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981]' : 'bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B]'}`}>
                 {availabilityNote}
               </div>
             )}
 
+            {priceError && <p className="text-[12px] text-[#E63946]">{priceError}</p>}
             {/* Cost preview */}
             <div className="bg-[#13151A] border border-[#C9922A]/20 rounded-sm p-5 flex items-center justify-between">
               <div>
